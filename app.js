@@ -1,5 +1,8 @@
 const STORAGE_KEY = "printer_repair_records_v3";
 const PUBLIC_SHARE_BASE_URL = "https://hihu-hu.github.io/repair-register/";
+const ADMIN_EMAIL = "1041852311@qq.com";
+const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
 
 const optionSets = {
   hasPower: ["有", "没有"],
@@ -55,6 +58,12 @@ const els = {
   exportJsonBtn: document.querySelector("#exportJsonBtn"),
   importExcelBtn: document.querySelector("#importExcelBtn"),
   importExcelInput: document.querySelector("#importExcelInput"),
+  authToggleBtn: document.querySelector("#authToggleBtn"),
+  authDialog: document.querySelector("#authDialog"),
+  authForm: document.querySelector("#authForm"),
+  signupAdminBtn: document.querySelector("#signupAdminBtn"),
+  closeAuthDialogBtn: document.querySelector("#closeAuthDialogBtn"),
+  cancelAuthDialogBtn: document.querySelector("#cancelAuthDialogBtn"),
   sampleBtn: document.querySelector("#sampleBtn"),
   shareReadonlyBtn: document.querySelector("#shareReadonlyBtn"),
   newRecordBtn: document.querySelector("#newRecordBtn"),
@@ -77,6 +86,10 @@ const els = {
 
 let toastTimer = null;
 let readonlyMode = false;
+let cloudMode = false;
+let adminMode = false;
+let forceReadonlyMode = false;
+let supabaseClient = null;
 let records = readSharedRecords() || loadRecords();
 let filteredRecords = [];
 
@@ -91,20 +104,16 @@ function loadRecords() {
 
 function readSharedRecords() {
   const params = new URLSearchParams(location.hash.replace(/^#/, ""));
-  const payload = params.get("view");
+  const payload = params.get("view") || params.get("v");
+  forceReadonlyMode = location.hash.replace(/^#/, "") === "readonly" || Boolean(payload);
+  if (forceReadonlyMode) setReadonlyMode(true);
   if (!payload) return null;
 
   try {
-    readonlyMode = true;
-    document.body.classList.add("readonly");
-    els.modeNote.hidden = false;
     return decodePayload(payload).map(normalizeRecord);
   } catch {
-    readonlyMode = false;
-    document.body.classList.remove("readonly");
-    els.modeNote.hidden = true;
     showToast("分享链接无法读取");
-    return null;
+    return [];
   }
 }
 
@@ -117,13 +126,15 @@ function applyHashRoute() {
     return;
   }
 
-  if (readonlyMode) {
-    readonlyMode = false;
-    document.body.classList.remove("readonly");
-    els.modeNote.hidden = true;
-    records = loadRecords();
-    render();
+  if (cloudMode) {
+    refreshAccessMode();
+    loadCloudRecords();
+    return;
   }
+
+  setReadonlyMode(false);
+  records = loadRecords();
+  render();
 }
 
 function closeOpenDialogs() {
@@ -199,6 +210,142 @@ function toInputDate(date) {
 function saveRecords() {
   if (readonlyMode) return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+}
+
+function setReadonlyMode(value) {
+  readonlyMode = value;
+  document.body.classList.toggle("readonly", readonlyMode);
+  els.modeNote.hidden = !readonlyMode;
+}
+
+function hasSupabaseConfig() {
+  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase?.createClient);
+}
+
+function refreshAccessMode() {
+  if (!cloudMode) return;
+  setReadonlyMode(forceReadonlyMode || !adminMode);
+  els.authToggleBtn.hidden = forceReadonlyMode;
+  els.authToggleBtn.textContent = adminMode ? "退出登录" : "管理员登录";
+}
+
+function toDatabaseRecord(record) {
+  return {
+    id: record.id,
+    created_time: record.createdTime || "",
+    tracking_number: record.trackingNumber || "",
+    region: record.region || "",
+    area: record.area || "",
+    device_number: record.deviceNumber || "",
+    has_power: record.hasPower || "",
+    company_name: record.companyName || "",
+    customer_issue: record.customerIssue || "",
+    repair_process: record.repairProcess || "",
+    return_time: record.returnTime || "",
+    final_status: record.finalStatus || "",
+    return_tracking_number: record.returnTrackingNumber || "",
+    fault_ownership: record.faultOwnership || "",
+    fault_category: record.faultCategory || "",
+    customer_address: record.customerAddress || "",
+    model: record.model || "",
+    updated_at: record.updatedAt || new Date().toISOString()
+  };
+}
+
+function fromDatabaseRecord(record) {
+  return normalizeRecord({
+    id: record.id,
+    createdTime: record.created_time,
+    trackingNumber: record.tracking_number,
+    region: record.region,
+    area: record.area,
+    deviceNumber: record.device_number,
+    hasPower: record.has_power,
+    companyName: record.company_name,
+    customerIssue: record.customer_issue,
+    repairProcess: record.repair_process,
+    returnTime: record.return_time,
+    finalStatus: record.final_status,
+    returnTrackingNumber: record.return_tracking_number,
+    faultOwnership: record.fault_ownership,
+    faultCategory: record.fault_category,
+    customerAddress: record.customer_address,
+    model: record.model,
+    updatedAt: record.updated_at
+  });
+}
+
+async function initializeCloud() {
+  if (!hasSupabaseConfig() || (forceReadonlyMode && location.hash.includes("view="))) return;
+
+  cloudMode = true;
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const { data } = await supabaseClient.auth.getSession();
+  const email = data.session?.user?.email || "";
+  adminMode = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  refreshAccessMode();
+  await loadCloudRecords();
+
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    const sessionEmail = session?.user?.email || "";
+    adminMode = sessionEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    refreshAccessMode();
+    loadCloudRecords();
+  });
+}
+
+async function loadCloudRecords() {
+  if (!cloudMode || !supabaseClient || (forceReadonlyMode && location.hash.includes("view="))) return;
+
+  const { data, error } = await supabaseClient
+    .from("repair_records")
+    .select("*")
+    .order("created_time", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    showToast("云端数据读取失败");
+    return;
+  }
+
+  if (adminMode && data.length === 0 && !forceReadonlyMode) {
+    const localRecords = loadRecords();
+    if (localRecords.length > 0 && confirm("检测到本机有旧记录，是否同步到云端？")) {
+      try {
+        await saveCloudRecords(localRecords);
+        records = localRecords;
+        render();
+        showToast("本机记录已同步到云端");
+        return;
+      } catch (saveError) {
+        console.error(saveError);
+        showToast("本机记录同步失败");
+      }
+    }
+  }
+
+  records = data.map(fromDatabaseRecord);
+  render();
+}
+
+async function saveCloudRecord(record) {
+  const { error } = await supabaseClient
+    .from("repair_records")
+    .upsert(toDatabaseRecord(record), { onConflict: "id" });
+  if (error) throw error;
+}
+
+async function saveCloudRecords(items) {
+  const { error } = await supabaseClient
+    .from("repair_records")
+    .upsert(items.map(toDatabaseRecord), { onConflict: "id" });
+  if (error) throw error;
+}
+
+async function deleteCloudRecord(id) {
+  const { error } = await supabaseClient.from("repair_records").delete().eq("id", id);
+  if (error) throw error;
 }
 
 function createId() {
@@ -431,27 +578,54 @@ function getFormRecord() {
   return normalizeRecord(record);
 }
 
-function upsertRecord(record) {
+async function upsertRecord(record) {
   if (readonlyMode) return;
+  if (cloudMode && !adminMode) {
+    showToast("请先管理员登录");
+    return;
+  }
+
+  try {
+    if (cloudMode) await saveCloudRecord(record);
+  } catch (error) {
+    console.error(error);
+    showToast("云端保存失败");
+    return;
+  }
+
   const index = records.findIndex((item) => item.id === record.id);
   if (index >= 0) {
     records[index] = { ...records[index], ...record };
   } else {
     records.unshift(record);
   }
-  saveRecords();
+  if (!cloudMode) saveRecords();
   render();
   showToast("已保存");
 }
 
-function deleteRecord(id) {
+async function deleteRecord(id) {
   if (readonlyMode) return;
+  if (cloudMode && !adminMode) {
+    showToast("请先管理员登录");
+    return;
+  }
+
   const record = records.find((item) => item.id === id);
   if (!record) return;
   const label = record.deviceNumber || record.trackingNumber || "这条记录";
   if (!confirm(`确认删除 ${label}？`)) return;
+
+  try {
+    if (cloudMode) await deleteCloudRecord(id);
+  } catch (error) {
+    console.error(error);
+    showToast("云端删除失败");
+    return;
+  }
+
   records = records.filter((item) => item.id !== id);
-  saveRecords();
+  if (!cloudMode) saveRecords();
   render();
   showToast("已删除");
 }
@@ -500,11 +674,21 @@ function dateStamp() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function loadSampleRecords() {
+async function loadSampleRecords() {
   if (readonlyMode) return;
   if (records.length > 0 && !confirm("当前已有记录，是否追加示例数据？")) return;
-  records = sampleRecords().concat(records);
-  saveRecords();
+  const incoming = sampleRecords();
+
+  try {
+    if (cloudMode) await saveCloudRecords(incoming);
+  } catch (error) {
+    console.error(error);
+    showToast("云端保存失败");
+    return;
+  }
+
+  records = incoming.concat(records);
+  if (!cloudMode) saveRecords();
   render();
   showToast("示例数据已载入");
 }
@@ -580,8 +764,10 @@ async function importExcelFile(file) {
     const incoming = rowsToRecords(rows);
     if (incoming.length === 0) throw new Error("empty workbook");
 
-    records = incoming.map(normalizeRecord).concat(records);
-    saveRecords();
+    const normalized = incoming.map(normalizeRecord);
+    if (cloudMode) await saveCloudRecords(normalized);
+    records = normalized.concat(records);
+    if (!cloudMode) saveRecords();
     render();
     showToast("已导入 " + incoming.length + " 条");
   } catch (error) {
@@ -802,6 +988,11 @@ function encodePayload(value) {
 
 function createReadonlyShareUrl() {
   const url = new URL(PUBLIC_SHARE_BASE_URL);
+  if (cloudMode) {
+    url.hash = "readonly";
+    return url.toString();
+  }
+
   url.hash = "view=" + encodePayload(packSharedRecords(records));
   return url.toString();
 }
@@ -869,6 +1060,77 @@ function showShareDialog(url) {
   els.shareUrlOutput.select();
 }
 
+function openAuthDialog() {
+  if (!cloudMode) return;
+  if (adminMode) {
+    signOutAdmin();
+    return;
+  }
+  els.authDialog.showModal();
+  els.authForm.elements.email.focus();
+}
+
+async function signInAdmin() {
+  if (!cloudMode || !supabaseClient) return;
+  const formData = new FormData(els.authForm);
+  const email = String(formData.get("email") || "").trim();
+  const password = String(formData.get("password") || "");
+
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) {
+    console.error(error);
+    showToast("登录失败，请检查邮箱和密码");
+    return;
+  }
+
+  els.authDialog.close();
+  els.authForm.reset();
+  els.authForm.elements.email.value = ADMIN_EMAIL;
+  showToast("管理员已登录");
+}
+
+async function signUpAdmin() {
+  if (!cloudMode || !supabaseClient) return;
+  const formData = new FormData(els.authForm);
+  const email = String(formData.get("email") || "").trim();
+  const password = String(formData.get("password") || "");
+
+  if (email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+    showToast("只能创建管理员邮箱账号");
+    return;
+  }
+
+  const { data, error } = await supabaseClient.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: PUBLIC_SHARE_BASE_URL
+    }
+  });
+
+  if (error) {
+    console.error(error);
+    showToast(error.message.includes("registered") ? "账号已存在，请直接登录" : "账号创建失败");
+    return;
+  }
+
+  if (data.session) {
+    els.authDialog.close();
+    showToast("管理员账号已创建");
+    return;
+  }
+
+  showToast("请先到邮箱确认账号");
+}
+
+async function signOutAdmin() {
+  if (!cloudMode || !supabaseClient) return;
+  await supabaseClient.auth.signOut();
+  adminMode = false;
+  refreshAccessMode();
+  showToast("已退出管理员");
+}
+
 function showAddressPopover(record, anchor) {
   els.addressPopover.textContent = record.customerAddress;
   els.addressPopover.hidden = false;
@@ -915,8 +1177,12 @@ function bindEvents() {
     });
   });
 
+  els.authToggleBtn.addEventListener("click", openAuthDialog);
+  els.signupAdminBtn.addEventListener("click", signUpAdmin);
+  els.closeAuthDialogBtn.addEventListener("click", () => els.authDialog.close());
+  els.cancelAuthDialogBtn.addEventListener("click", () => els.authDialog.close());
   els.newRecordBtn.addEventListener("click", openNewDialog);
-  els.sampleBtn.addEventListener("click", loadSampleRecords);
+  els.sampleBtn.addEventListener("click", () => loadSampleRecords());
   els.shareReadonlyBtn.addEventListener("click", copyReadonlyShareLink);
   els.importExcelBtn.addEventListener("click", () => els.importExcelInput.click());
   els.importExcelInput.addEventListener("change", () => importExcelFile(els.importExcelInput.files[0]));
@@ -929,14 +1195,19 @@ function bindEvents() {
   els.closeShareDialogBtn.addEventListener("click", () => els.shareDialog.close());
   els.doneShareDialogBtn.addEventListener("click", () => els.shareDialog.close());
 
-  els.recordForm.addEventListener("submit", (event) => {
+  els.authForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    upsertRecord(getFormRecord());
+    await signInAdmin();
+  });
+
+  els.recordForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await upsertRecord(getFormRecord());
     els.recordDialog.close();
   });
 
-  els.deleteRecordBtn.addEventListener("click", () => {
-    deleteRecord(els.recordId.value);
+  els.deleteRecordBtn.addEventListener("click", async () => {
+    await deleteRecord(els.recordId.value);
     els.recordDialog.close();
   });
 
@@ -969,3 +1240,4 @@ function bindEvents() {
 fillStaticOptions();
 bindEvents();
 render();
+initializeCloud();
