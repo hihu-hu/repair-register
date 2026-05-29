@@ -66,7 +66,6 @@ const els = {
   authForm: document.querySelector("#authForm"),
   closeAuthDialogBtn: document.querySelector("#closeAuthDialogBtn"),
   cancelAuthDialogBtn: document.querySelector("#cancelAuthDialogBtn"),
-  sampleBtn: document.querySelector("#sampleBtn"),
   shareReadonlyBtn: document.querySelector("#shareReadonlyBtn"),
   newRecordBtn: document.querySelector("#newRecordBtn"),
   recordDialog: document.querySelector("#recordDialog"),
@@ -1287,7 +1286,6 @@ function bindEvents() {
   els.closeAuthDialogBtn.addEventListener("click", () => els.authDialog.close());
   els.cancelAuthDialogBtn.addEventListener("click", () => els.authDialog.close());
   els.newRecordBtn.addEventListener("click", openNewDialog);
-  els.sampleBtn.addEventListener("click", () => loadSampleRecords());
   els.shareReadonlyBtn.addEventListener("click", copyReadonlyShareLink);
   els.importExcelBtn.addEventListener("click", () => els.importExcelInput.click());
   els.importExcelInput.addEventListener("change", () => importExcelFile(els.importExcelInput.files[0]));

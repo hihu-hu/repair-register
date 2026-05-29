@@ -686,7 +686,6 @@ dialog::backdrop {
 }
 
 body.readonly .header-actions #newRecordBtn,
-body.readonly .header-actions #sampleBtn,
 body.readonly .header-actions #importExcelBtn,
 body.readonly .header-actions #shareReadonlyBtn,
 body.readonly .toolbar-actions #exportCsvBtn,
