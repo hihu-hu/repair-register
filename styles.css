@@ -522,6 +522,10 @@ dialog::backdrop {
   gap: 14px;
 }
 
+.form-grid.single-column {
+  grid-template-columns: 1fr;
+}
+
 .form-grid label span {
   display: block;
   margin-bottom: 6px;
