@@ -1,4 +1,5 @@
 const STORAGE_KEY = "printer_repair_records_v3";
+const PUBLIC_SHARE_BASE_URL = "https://hihu-hu.github.io/repair-register/";
 
 const optionSets = {
   hasPower: ["有", "没有"],
@@ -800,8 +801,7 @@ function encodePayload(value) {
 }
 
 function createReadonlyShareUrl() {
-  const url = new URL(location.href);
-  url.search = "";
+  const url = new URL(PUBLIC_SHARE_BASE_URL);
   url.hash = "view=" + encodePayload(packSharedRecords(records));
   return url.toString();
 }
