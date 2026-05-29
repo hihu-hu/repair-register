@@ -274,6 +274,106 @@ select {
   padding: 0 10px;
 }
 
+select[multiple] {
+  height: auto;
+  min-height: 116px;
+  padding: 8px;
+}
+
+.checkbox-select {
+  position: relative;
+}
+
+.checkbox-select-button {
+  position: relative;
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 34px 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.checkbox-select-button::after {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+  content: "";
+  transform: translateY(-65%) rotate(45deg);
+}
+
+.checkbox-select-button.is-placeholder {
+  color: #6f7b85;
+}
+
+.checkbox-select-button:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  outline: none;
+}
+
+.checkbox-select-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.checkbox-select-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.form-grid .checkbox-select-option,
+.field .checkbox-select-option {
+  display: flex;
+  grid-template-columns: none;
+  gap: 10px;
+}
+
+.form-grid .checkbox-select-option span,
+.field .checkbox-select-option span {
+  display: inline;
+  margin-bottom: 0;
+}
+
+.checkbox-select-option:hover,
+.checkbox-select-option.is-selected {
+  background: var(--accent-soft);
+}
+
+.checkbox-select-option input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
 textarea {
   resize: vertical;
   min-height: 92px;
@@ -417,6 +517,12 @@ tbody tr:hover {
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .tag.testing,

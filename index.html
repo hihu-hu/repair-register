@@ -1,18 +1,16 @@
-
 <!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>打印机售后维修登记</title>
+    <title>打印机售后维修记录表</title>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
     <header class="app-header">
       <div>
         <p class="eyebrow">WiFi / 蓝牙桌面式打印机</p>
-        <h1>打印机维修记录表</h1>
-        
+        <h1>打印机售后维修记录表</h1>
         <p class="mode-note" id="modeNote" hidden>只读查看</p>
       </div>
       <div class="header-actions">
@@ -78,9 +76,13 @@
         </div>
         <div class="field">
           <label for="categoryFilter">故障分类</label>
-          <select id="categoryFilter">
-            <option value="">全部</option>
-          </select>
+          <select id="categoryFilter" multiple hidden></select>
+          <div class="checkbox-select" id="categoryFilterPicker">
+            <button class="checkbox-select-button" id="categoryFilterToggle" type="button" aria-expanded="false">
+              全部
+            </button>
+            <div class="checkbox-select-menu" id="categoryFilterMenu" hidden></div>
+          </div>
         </div>
         <div class="field">
           <label for="modelFilter">型号</label>
@@ -197,7 +199,13 @@
           </label>
           <label>
             <span>故障分类</span>
-            <select name="faultCategory" required></select>
+            <select name="faultCategory" multiple required hidden></select>
+            <div class="checkbox-select" id="faultCategoryPicker">
+              <button class="checkbox-select-button" id="faultCategoryToggle" type="button" aria-expanded="false">
+                请选择
+              </button>
+              <div class="checkbox-select-menu" id="faultCategoryMenu" hidden></div>
+            </div>
           </label>
           <label>
             <span>寄回时间</span>
@@ -254,7 +262,6 @@
 
         <div class="dialog-actions">
           <div>
-            <button class="secondary" id="signupAdminBtn" type="button">创建管理员账号</button>
             <button class="secondary" id="cancelAuthDialogBtn" type="button">取消</button>
           </div>
           <button class="primary" type="submit">登录</button>

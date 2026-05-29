@@ -3,6 +3,7 @@ const PUBLIC_SHARE_BASE_URL = "https://hihu-hu.github.io/repair-register/";
 const ADMIN_EMAIL = "1041852311@qq.com";
 const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
+const MULTI_VALUE_SEPARATOR = "、";
 
 const optionSets = {
   hasPower: ["有", "没有"],
@@ -48,6 +49,8 @@ const els = {
   statusFilter: document.querySelector("#statusFilter"),
   ownershipFilter: document.querySelector("#ownershipFilter"),
   categoryFilter: document.querySelector("#categoryFilter"),
+  categoryFilterToggle: document.querySelector("#categoryFilterToggle"),
+  categoryFilterMenu: document.querySelector("#categoryFilterMenu"),
   modelFilter: document.querySelector("#modelFilter"),
   regionFilter: document.querySelector("#regionFilter"),
   areaFilter: document.querySelector("#areaFilter"),
@@ -70,6 +73,8 @@ const els = {
   recordForm: document.querySelector("#recordForm"),
   recordId: document.querySelector("#recordId"),
   dialogTitle: document.querySelector("#dialogTitle"),
+  faultCategoryToggle: document.querySelector("#faultCategoryToggle"),
+  faultCategoryMenu: document.querySelector("#faultCategoryMenu"),
   closeDialogBtn: document.querySelector("#closeDialogBtn"),
   cancelDialogBtn: document.querySelector("#cancelDialogBtn"),
   deleteRecordBtn: document.querySelector("#deleteRecordBtn"),
@@ -159,7 +164,7 @@ function normalizeRecord(record = {}) {
     finalStatus: normalizeOption(record.finalStatus || record.status, optionSets.finalStatus, "测试中"),
     returnTrackingNumber: String(record.returnTrackingNumber || record.outboundTracking || ""),
     faultOwnership: normalizeOption(record.faultOwnership, optionSets.faultOwnership, "硬件损坏"),
-    faultCategory: normalizeOption(record.faultCategory, optionSets.faultCategory, "其他"),
+    faultCategory: normalizeFaultCategories(record.faultCategory).join(MULTI_VALUE_SEPARATOR),
     customerAddress: String(record.customerAddress || record.address || ""),
     model: normalizeOption(record.model, optionSets.model, "GMX"),
     updatedAt: String(record.updatedAt || new Date().toISOString())
@@ -169,6 +174,101 @@ function normalizeRecord(record = {}) {
 function normalizeOption(value, options, fallback) {
   const text = String(value || "").trim();
   return options.includes(text) ? text : fallback;
+}
+
+function normalizeFaultCategories(value) {
+  const rawItems = Array.isArray(value)
+    ? value
+    : String(value || "").split(/[、,，;；/|]/);
+  const selected = rawItems
+    .map((item) => String(item || "").trim())
+    .filter((item) => optionSets.faultCategory.includes(item));
+  return [...new Set(selected)].length > 0 ? [...new Set(selected)] : ["其他"];
+}
+
+function getMultiSelectValues(select) {
+  return Array.from(select.selectedOptions)
+    .map((option) => option.value)
+    .filter(Boolean);
+}
+
+function setMultiSelectValues(select, values) {
+  const selected = new Set(normalizeFaultCategories(values));
+  Array.from(select.options).forEach((option) => {
+    option.selected = selected.has(option.value);
+  });
+}
+
+function clearMultiSelect(select) {
+  Array.from(select.options).forEach((option) => {
+    option.selected = false;
+  });
+}
+
+function buildCheckboxMenu(menu, values) {
+  menu.replaceChildren(
+    ...values.map((value) => {
+      const label = document.createElement("label");
+      label.className = "checkbox-select-option";
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.value = value;
+
+      const text = document.createElement("span");
+      text.textContent = value;
+
+      label.append(checkbox, text);
+      return label;
+    })
+  );
+}
+
+function syncCheckboxMenu(menu, selectedValues) {
+  menu.querySelectorAll("input[type='checkbox']").forEach((checkbox) => {
+    const checked = selectedValues.includes(checkbox.value);
+    checkbox.checked = checked;
+    checkbox.closest(".checkbox-select-option")?.classList.toggle("is-selected", checked);
+  });
+}
+
+function updateCategoryFilterPicker() {
+  const selected = getMultiSelectValues(els.categoryFilter);
+  els.categoryFilterToggle.textContent = selected.length > 0 ? selected.join(MULTI_VALUE_SEPARATOR) : "全部";
+  els.categoryFilterToggle.classList.toggle("is-placeholder", selected.length === 0);
+  syncCheckboxMenu(els.categoryFilterMenu, selected);
+}
+
+function updateFaultCategoryPicker() {
+  const select = els.recordForm.elements.faultCategory;
+  const selected = getMultiSelectValues(select);
+  els.faultCategoryToggle.textContent = selected.length > 0 ? selected.join(MULTI_VALUE_SEPARATOR) : "请选择";
+  els.faultCategoryToggle.classList.toggle("is-placeholder", selected.length === 0);
+  syncCheckboxMenu(els.faultCategoryMenu, selected);
+}
+
+function closeCategoryFilterPicker() {
+  els.categoryFilterMenu.hidden = true;
+  els.categoryFilterToggle.setAttribute("aria-expanded", "false");
+}
+
+function closeFaultCategoryPicker() {
+  els.faultCategoryMenu.hidden = true;
+  els.faultCategoryToggle.setAttribute("aria-expanded", "false");
+}
+
+function toggleCategoryFilterPicker() {
+  const willOpen = els.categoryFilterMenu.hidden;
+  els.categoryFilterMenu.hidden = !willOpen;
+  els.categoryFilterToggle.setAttribute("aria-expanded", String(willOpen));
+  closeFaultCategoryPicker();
+}
+
+function toggleFaultCategoryPicker() {
+  const willOpen = els.faultCategoryMenu.hidden;
+  els.faultCategoryMenu.hidden = !willOpen;
+  els.faultCategoryToggle.setAttribute("aria-expanded", String(willOpen));
+  closeCategoryFilterPicker();
 }
 
 function classifyArea(region) {
@@ -362,17 +462,35 @@ function fillRequiredSelect(select, values) {
   values.forEach((value) => select.append(new Option(value, value)));
 }
 
+function fillMultiSelect(select, values) {
+  select.replaceChildren();
+  values.forEach((value) => select.append(new Option(value, value)));
+}
+
+function fillCategoryFilterPicker() {
+  fillMultiSelect(els.categoryFilter, optionSets.faultCategory);
+  buildCheckboxMenu(els.categoryFilterMenu, optionSets.faultCategory);
+  updateCategoryFilterPicker();
+}
+
+function fillFaultCategoryPicker() {
+  const select = els.recordForm.elements.faultCategory;
+  fillMultiSelect(select, optionSets.faultCategory);
+  buildCheckboxMenu(els.faultCategoryMenu, optionSets.faultCategory);
+  updateFaultCategoryPicker();
+}
+
 function fillStaticOptions() {
   fillSelect(els.statusFilter, optionSets.finalStatus, true);
   fillSelect(els.ownershipFilter, optionSets.faultOwnership, true);
-  fillSelect(els.categoryFilter, optionSets.faultCategory, true);
+  fillCategoryFilterPicker();
   fillSelect(els.modelFilter, optionSets.model, true);
   fillSelect(els.areaFilter, optionSets.area, true);
   fillRequiredSelect(els.recordForm.elements.model, optionSets.model);
   fillRequiredSelect(els.recordForm.elements.hasPower, optionSets.hasPower);
   fillSelect(els.recordForm.elements.finalStatus, optionSets.finalStatus);
   fillRequiredSelect(els.recordForm.elements.faultOwnership, optionSets.faultOwnership);
-  fillRequiredSelect(els.recordForm.elements.faultCategory, optionSets.faultCategory);
+  fillFaultCategoryPicker();
 }
 
 function updateDynamicFilterOptions() {
@@ -392,7 +510,7 @@ function getFilters() {
     search: els.searchInput.value.trim().toLowerCase(),
     status: els.statusFilter.value,
     ownership: els.ownershipFilter.value,
-    category: els.categoryFilter.value,
+    categories: getMultiSelectValues(els.categoryFilter),
     model: els.modelFilter.value,
     region: els.regionFilter.value,
     area: els.areaFilter.value,
@@ -414,7 +532,8 @@ function applyFilters() {
       (!filters.search || text.includes(filters.search)) &&
       (!filters.status || record.finalStatus === filters.status) &&
       (!filters.ownership || record.faultOwnership === filters.ownership) &&
-      (!filters.category || record.faultCategory === filters.category) &&
+      (filters.categories.length === 0 ||
+        filters.categories.some((category) => normalizeFaultCategories(record.faultCategory).includes(category))) &&
       (!filters.model || record.model === filters.model) &&
       (!filters.region || record.region === filters.region) &&
       (!filters.area || record.area === filters.area) &&
@@ -467,6 +586,12 @@ function compact(value, fallback = "-") {
   return value ? escapeHtml(value) : `<span class="muted">${fallback}</span>`;
 }
 
+function renderFaultCategoryTags(record) {
+  return normalizeFaultCategories(record.faultCategory)
+    .map((category) => `<span class="tag">${escapeHtml(category)}</span>`)
+    .join("");
+}
+
 function formatDateTime(value) {
   if (!value) return "";
   return String(value).replace("T", " ");
@@ -504,7 +629,7 @@ function renderTable() {
           </td>
           <td><span class="tag ${statusClass(record.finalStatus)}">${compact(record.finalStatus)}</span></td>
           <td><span class="tag ${ownershipClass(record.faultOwnership)}">${compact(record.faultOwnership)}</span></td>
-          <td><span class="tag">${compact(record.faultCategory)}</span></td>
+          <td><div class="tag-list">${renderFaultCategoryTags(record)}</div></td>
           <td class="address-cell">${renderAddress(record)}</td>
           <td class="actions-col">
             <div class="row-actions">
@@ -536,7 +661,9 @@ function resetForm() {
   els.recordForm.elements.hasPower.value = "";
   els.recordForm.elements.finalStatus.value = "维修中";
   els.recordForm.elements.faultOwnership.value = "";
-  els.recordForm.elements.faultCategory.value = "";
+  clearMultiSelect(els.recordForm.elements.faultCategory);
+  updateFaultCategoryPicker();
+  closeFaultCategoryPicker();
   els.recordForm.elements.model.value = "";
 }
 
@@ -553,6 +680,12 @@ function fillForm(record) {
 
   exportFields.forEach(([key]) => {
     if (els.recordForm.elements[key]) {
+      if (key === "faultCategory") {
+        setMultiSelectValues(els.recordForm.elements.faultCategory, record[key]);
+        updateFaultCategoryPicker();
+        closeFaultCategoryPicker();
+        return;
+      }
       els.recordForm.elements[key].value = record[key] || "";
     }
   });
@@ -571,8 +704,14 @@ function getFormRecord() {
   const id = els.recordId.value || createId();
   const record = { id };
   exportFields.forEach(([key]) => {
-    record[key] = String(formData.get(key) || "").trim();
+    record[key] = key === "faultCategory"
+      ? formData.getAll(key).map((value) => String(value).trim()).filter(Boolean)
+      : String(formData.get(key) || "").trim();
   });
+  if (record.faultCategory.length === 0) {
+    showToast("请选择故障分类");
+    return null;
+  }
   record.updatedAt = new Date().toISOString();
   return normalizeRecord(record);
 }
@@ -633,7 +772,9 @@ function resetFilters() {
   els.searchInput.value = "";
   els.statusFilter.value = "";
   els.ownershipFilter.value = "";
-  els.categoryFilter.value = "";
+  clearMultiSelect(els.categoryFilter);
+  updateCategoryFilterPicker();
+  closeCategoryFilterPicker();
   els.modelFilter.value = "";
   els.regionFilter.value = "";
   els.areaFilter.value = "";
@@ -1155,6 +1296,34 @@ function bindEvents() {
   els.exportJsonBtn.addEventListener("click", exportJson);
   els.closeDialogBtn.addEventListener("click", () => els.recordDialog.close());
   els.cancelDialogBtn.addEventListener("click", () => els.recordDialog.close());
+  els.categoryFilterToggle.addEventListener("click", toggleCategoryFilterPicker);
+  els.categoryFilterMenu.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("input[type='checkbox']");
+    if (!checkbox) return;
+    const option = Array.from(els.categoryFilter.options).find((item) => item.value === checkbox.value);
+    if (option) option.selected = checkbox.checked;
+    updateCategoryFilterPicker();
+    render();
+  });
+  els.faultCategoryToggle.addEventListener("click", toggleFaultCategoryPicker);
+  els.faultCategoryMenu.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("input[type='checkbox']");
+    if (!checkbox) return;
+    const option = Array.from(els.recordForm.elements.faultCategory.options)
+      .find((item) => item.value === checkbox.value);
+    if (option) option.selected = checkbox.checked;
+    updateFaultCategoryPicker();
+  });
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("#categoryFilterPicker")) closeCategoryFilterPicker();
+    if (!event.target.closest("#faultCategoryPicker")) closeFaultCategoryPicker();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeCategoryFilterPicker();
+      closeFaultCategoryPicker();
+    }
+  });
   els.copyShareUrlBtn.addEventListener("click", copyShareUrlToClipboard);
   els.closeShareDialogBtn.addEventListener("click", () => els.shareDialog.close());
   els.doneShareDialogBtn.addEventListener("click", () => els.shareDialog.close());
@@ -1166,7 +1335,9 @@ function bindEvents() {
 
   els.recordForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    await upsertRecord(getFormRecord());
+    const record = getFormRecord();
+    if (!record) return;
+    await upsertRecord(record);
     els.recordDialog.close();
   });
 
