@@ -295,6 +295,36 @@ function normalizeDate(value) {
   return toInputDate(date);
 }
 
+function parseRecordTime(value) {
+  if (!value) return 0;
+  const text = String(value).trim();
+  const normalizedText = text
+    .replace(/[年月]/g, "-")
+    .replace(/日/g, "")
+    .replace(/\//g, "-")
+    .replace(/\s+/g, " ");
+  const match = normalizedText.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{1,2}))?/);
+  if (match) {
+    const [, year, month, day, hour = "0", minute = "0"] = match;
+    const parsed = new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute)
+    );
+    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+  }
+
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
+function recordDateKey(value) {
+  const parsed = parseRecordTime(value);
+  return parsed ? toInputDate(new Date(parsed)) : String(value || "").slice(0, 10);
+}
+
 function toInputDateTime(date) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 16);
@@ -525,7 +555,7 @@ function applyFilters() {
       .map(([key]) => record[key])
       .join(" ")
       .toLowerCase();
-    const date = record.createdTime.slice(0, 10);
+    const date = recordDateKey(record.createdTime);
 
     return (
       (!filters.search || text.includes(filters.search)) &&
@@ -541,7 +571,11 @@ function applyFilters() {
     );
   });
 
-  filteredRecords.sort((a, b) => (b.createdTime || "").localeCompare(a.createdTime || ""));
+  filteredRecords.sort((a, b) => {
+    const timeDiff = parseRecordTime(b.createdTime) - parseRecordTime(a.createdTime);
+    if (timeDiff !== 0) return timeDiff;
+    return (b.updatedAt || "").localeCompare(a.updatedAt || "");
+  });
 }
 
 function updateStats() {
