@@ -325,6 +325,16 @@ function recordDateKey(value) {
   return parsed ? toInputDate(new Date(parsed)) : String(value || "").slice(0, 10);
 }
 
+function compareRecordsNewestFirst(a, b) {
+  const timeDiff = parseRecordTime(b.createdTime) - parseRecordTime(a.createdTime);
+  if (timeDiff !== 0) return timeDiff;
+  return (b.updatedAt || "").localeCompare(a.updatedAt || "");
+}
+
+function sortRecordsNewestFirst(items) {
+  return items.sort(compareRecordsNewestFirst);
+}
+
 function toInputDateTime(date) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 16);
@@ -337,6 +347,7 @@ function toInputDate(date) {
 
 function saveRecords() {
   if (readonlyMode) return;
+  sortRecordsNewestFirst(records);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
 }
 
@@ -442,7 +453,7 @@ async function loadCloudRecords() {
     if (localRecords.length > 0 && confirm("检测到本机有旧记录，是否同步到云端？")) {
       try {
         await saveCloudRecords(localRecords);
-        records = localRecords;
+        records = sortRecordsNewestFirst(localRecords);
         render();
         showToast("本机记录已同步到云端");
         return;
@@ -453,7 +464,7 @@ async function loadCloudRecords() {
     }
   }
 
-  records = data.map(fromDatabaseRecord);
+  records = sortRecordsNewestFirst(data.map(fromDatabaseRecord));
   render();
 }
 
@@ -571,11 +582,7 @@ function applyFilters() {
     );
   });
 
-  filteredRecords.sort((a, b) => {
-    const timeDiff = parseRecordTime(b.createdTime) - parseRecordTime(a.createdTime);
-    if (timeDiff !== 0) return timeDiff;
-    return (b.updatedAt || "").localeCompare(a.updatedAt || "");
-  });
+  sortRecordsNewestFirst(filteredRecords);
 }
 
 function updateStats() {
@@ -770,6 +777,7 @@ async function upsertRecord(record) {
   } else {
     records.unshift(record);
   }
+  sortRecordsNewestFirst(records);
   if (!cloudMode) saveRecords();
   render();
   showToast("已保存");
@@ -860,7 +868,7 @@ async function loadSampleRecords() {
     return;
   }
 
-  records = incoming.concat(records);
+  records = sortRecordsNewestFirst(incoming.concat(records));
   if (!cloudMode) saveRecords();
   render();
   showToast("示例数据已载入");
@@ -937,9 +945,9 @@ async function importExcelFile(file) {
     const incoming = rowsToRecords(rows);
     if (incoming.length === 0) throw new Error("empty workbook");
 
-    const normalized = incoming.map(normalizeRecord);
+    const normalized = sortRecordsNewestFirst(incoming.map(normalizeRecord));
     if (cloudMode) await saveCloudRecords(normalized);
-    records = normalized.concat(records);
+    records = sortRecordsNewestFirst(normalized.concat(records));
     if (!cloudMode) saveRecords();
     render();
     showToast("已导入 " + incoming.length + " 条");
