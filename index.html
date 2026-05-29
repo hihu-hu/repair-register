@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>打印机售后维修登记</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">WiFi / 蓝牙桌面式打印机</p>
+        <h1>售后维修登记台账</h1>
+        <p class="mode-note" id="modeNote" hidden>只读查看</p>
+      </div>
+      <div class="header-actions">
+        <button class="secondary" id="importExcelBtn" type="button">导入 Excel</button>
+        <button class="secondary" id="sampleBtn" type="button">载入示例</button>
+        <button class="secondary" id="shareReadonlyBtn" type="button">复制只读链接</button>
+        <button class="primary" id="newRecordBtn" type="button">新增记录</button>
+        <input id="importExcelInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+      </div>
+    </header>
+
+    <main>
+      <section class="stats-grid" aria-label="维修统计">
+        <article class="metric">
+          <span>总记录</span>
+          <strong id="totalCount">0</strong>
+        </article>
+        <article class="metric">
+          <span>维修中</span>
+          <strong id="testingCount">0</strong>
+        </article>
+        <article class="metric">
+          <span>今天需要寄</span>
+          <strong id="readyCount">0</strong>
+        </article>
+        <article class="metric">
+          <span>返厂中</span>
+          <strong id="finishedCount">0</strong>
+        </article>
+        <article class="metric">
+          <span>测试中</span>
+          <strong id="testStatusCount">0</strong>
+        </article>
+      </section>
+
+      <section class="toolbar" aria-label="筛选和导出">
+        <div class="date-filter-row">
+          <div class="field date-field">
+            <label for="dateFrom">创建时间从</label>
+            <input id="dateFrom" type="date">
+          </div>
+          <div class="field date-field">
+            <label for="dateTo">创建时间至</label>
+            <input id="dateTo" type="date">
+          </div>
+        </div>
+        <div class="field search-field">
+          <label for="searchInput">关键词</label>
+          <input id="searchInput" type="search" placeholder="快递单号、编号、公司名、地址、问题">
+        </div>
+        <div class="field">
+          <label for="statusFilter">最终状态</label>
+          <select id="statusFilter">
+            <option value="">全部</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="ownershipFilter">故障归属</label>
+          <select id="ownershipFilter">
+            <option value="">全部</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="categoryFilter">故障分类</label>
+          <select id="categoryFilter">
+            <option value="">全部</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="modelFilter">型号</label>
+          <select id="modelFilter">
+            <option value="">全部</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="regionFilter">地区</label>
+          <select id="regionFilter">
+            <option value="">全部</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="areaFilter">区域</label>
+          <select id="areaFilter">
+            <option value="">全部</option>
+          </select>
+        </div>
+        <div class="filter-summary" aria-label="当前筛选统计">
+          <span>总计：</span>
+          <strong id="filterSummaryCount">0</strong>
+        </div>
+        <div class="toolbar-actions">
+          <button class="secondary" id="resetFiltersBtn" type="button">重置</button>
+          <button class="secondary" id="exportCsvBtn" type="button">导出 CSV</button>
+          <button class="secondary" id="exportJsonBtn" type="button">导出 JSON</button>
+        </div>
+      </section>
+
+      <section class="table-shell" aria-label="维修记录列表">
+        <div class="table-title">
+          <h2>维修记录</h2>
+          <span id="filteredCount">0 条</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>创建时间</th>
+                <th>快递单号</th>
+                <th>地区</th>
+                <th>区域</th>
+                <th>编号 / 型号</th>
+                <th>电源</th>
+                <th>公司名</th>
+                <th>客户描述问题</th>
+                <th>维修过程</th>
+                <th>寄回时间 / 单号</th>
+                <th>最终状态</th>
+                <th>故障归属</th>
+                <th>故障分类</th>
+                <th>客户地址</th>
+                <th class="actions-col">操作</th>
+              </tr>
+            </thead>
+            <tbody id="recordsBody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="emptyState" hidden>
+          <strong>暂无匹配记录</strong>
+          <span>调整筛选条件或新增一条维修记录。</span>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="recordDialog">
+      <form method="dialog" id="recordForm">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">维修档案</p>
+            <h2 id="dialogTitle">新增记录</h2>
+          </div>
+          <button class="icon-btn" id="closeDialogBtn" type="button" aria-label="关闭">×</button>
+        </div>
+
+        <input id="recordId" type="hidden">
+        <div class="form-grid">
+          <label>
+            <span>创建时间</span>
+            <input name="createdTime" type="datetime-local" required>
+          </label>
+          <label>
+            <span>快递单号</span>
+            <input name="trackingNumber" required>
+          </label>
+          <label>
+            <span>地区</span>
+            <input name="region" placeholder="例如：上海、浙江、华东">
+          </label>
+          <label>
+            <span>编号</span>
+            <input name="deviceNumber" required>
+          </label>
+          <label>
+            <span>型号</span>
+            <select name="model" required></select>
+          </label>
+          <label>
+            <span>有无电源</span>
+            <select name="hasPower" required></select>
+          </label>
+          <label>
+            <span>公司名</span>
+            <input name="companyName" required>
+          </label>
+          <label>
+            <span>最终状态</span>
+            <select name="finalStatus" required></select>
+          </label>
+          <label>
+            <span>故障归属</span>
+            <select name="faultOwnership" required></select>
+          </label>
+          <label>
+            <span>故障分类</span>
+            <select name="faultCategory" required></select>
+          </label>
+          <label>
+            <span>寄回时间</span>
+            <input name="returnTime" type="date">
+          </label>
+          <label>
+            <span>寄回单号</span>
+            <input name="returnTrackingNumber">
+          </label>
+          <label class="wide">
+            <span>客户描述问题</span>
+            <textarea name="customerIssue" rows="3" required></textarea>
+          </label>
+          <label class="wide">
+            <span>维修过程</span>
+            <textarea name="repairProcess" rows="4" required></textarea>
+          </label>
+          <label class="wide">
+            <span>客户地址</span>
+            <textarea name="customerAddress" rows="3"></textarea>
+          </label>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="danger" id="deleteRecordBtn" type="button">删除</button>
+          <div>
+            <button class="secondary" id="cancelDialogBtn" type="button">取消</button>
+            <button class="primary" id="saveRecordBtn" type="submit">保存</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="shareDialog">
+      <div class="share-dialog">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">只读分享</p>
+            <h2>复制查看链接</h2>
+          </div>
+          <button class="icon-btn" id="closeShareDialogBtn" type="button" aria-label="关闭">×</button>
+        </div>
+
+        <label class="share-link-field">
+          <span>只读链接</span>
+          <textarea id="shareUrlOutput" rows="5" readonly></textarea>
+        </label>
+
+        <div class="dialog-actions share-actions">
+          <button class="primary" id="doneShareDialogBtn" type="button">完成</button>
+        </div>
+      </div>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    <div class="address-popover" id="addressPopover" role="dialog" aria-label="完整客户地址" hidden></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
