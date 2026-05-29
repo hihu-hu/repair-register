@@ -61,7 +61,6 @@ const els = {
   authToggleBtn: document.querySelector("#authToggleBtn"),
   authDialog: document.querySelector("#authDialog"),
   authForm: document.querySelector("#authForm"),
-  signupAdminBtn: document.querySelector("#signupAdminBtn"),
   closeAuthDialogBtn: document.querySelector("#closeAuthDialogBtn"),
   cancelAuthDialogBtn: document.querySelector("#cancelAuthDialogBtn"),
   sampleBtn: document.querySelector("#sampleBtn"),
@@ -1089,40 +1088,6 @@ async function signInAdmin() {
   showToast("管理员已登录");
 }
 
-async function signUpAdmin() {
-  if (!cloudMode || !supabaseClient) return;
-  const formData = new FormData(els.authForm);
-  const email = String(formData.get("email") || "").trim();
-  const password = String(formData.get("password") || "");
-
-  if (email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-    showToast("只能创建管理员邮箱账号");
-    return;
-  }
-
-  const { data, error } = await supabaseClient.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: PUBLIC_SHARE_BASE_URL
-    }
-  });
-
-  if (error) {
-    console.error(error);
-    showToast(error.message.includes("registered") ? "账号已存在，请直接登录" : "账号创建失败");
-    return;
-  }
-
-  if (data.session) {
-    els.authDialog.close();
-    showToast("管理员账号已创建");
-    return;
-  }
-
-  showToast("请先到邮箱确认账号");
-}
-
 async function signOutAdmin() {
   if (!cloudMode || !supabaseClient) return;
   await supabaseClient.auth.signOut();
@@ -1178,7 +1143,6 @@ function bindEvents() {
   });
 
   els.authToggleBtn.addEventListener("click", openAuthDialog);
-  els.signupAdminBtn.addEventListener("click", signUpAdmin);
   els.closeAuthDialogBtn.addEventListener("click", () => els.authDialog.close());
   els.cancelAuthDialogBtn.addEventListener("click", () => els.authDialog.close());
   els.newRecordBtn.addEventListener("click", openNewDialog);
