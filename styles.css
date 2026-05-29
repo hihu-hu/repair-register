@@ -526,6 +526,10 @@ dialog::backdrop {
   grid-template-columns: 1fr;
 }
 
+#signupAdminBtn {
+  display: none !important;
+}
+
 .form-grid label span {
   display: block;
   margin-bottom: 6px;
