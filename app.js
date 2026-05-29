@@ -66,6 +66,7 @@ const els = {
   deleteRecordBtn: document.querySelector("#deleteRecordBtn"),
   shareDialog: document.querySelector("#shareDialog"),
   shareUrlOutput: document.querySelector("#shareUrlOutput"),
+  copyShareUrlBtn: document.querySelector("#copyShareUrlBtn"),
   closeShareDialogBtn: document.querySelector("#closeShareDialogBtn"),
   doneShareDialogBtn: document.querySelector("#doneShareDialogBtn"),
   modeNote: document.querySelector("#modeNote"),
@@ -823,11 +824,17 @@ async function copyReadonlyShareLink() {
   }
 
   const url = createReadonlyShareUrl();
+  showShareDialog(url);
+  copyShareUrlToClipboard();
+}
+
+async function copyShareUrlToClipboard() {
+  const url = els.shareUrlOutput.value;
   try {
     await navigator.clipboard.writeText(url);
     showToast("只读链接已复制");
   } catch {
-    showShareDialog(url);
+    showToast("请在弹窗里手动复制链接");
   }
 }
 
@@ -894,6 +901,7 @@ function bindEvents() {
   els.exportJsonBtn.addEventListener("click", exportJson);
   els.closeDialogBtn.addEventListener("click", () => els.recordDialog.close());
   els.cancelDialogBtn.addEventListener("click", () => els.recordDialog.close());
+  els.copyShareUrlBtn.addEventListener("click", copyShareUrlToClipboard);
   els.closeShareDialogBtn.addEventListener("click", () => els.shareDialog.close());
   els.doneShareDialogBtn.addEventListener("click", () => els.shareDialog.close());
 
