@@ -14,6 +14,7 @@
         <p class="mode-note" id="modeNote" hidden>只读查看</p>
       </div>
       <div class="header-actions">
+        <button class="secondary" id="authToggleBtn" type="button" hidden>管理员登录</button>
         <button class="secondary" id="importExcelBtn" type="button">导入 Excel</button>
         <button class="secondary" id="sampleBtn" type="button">载入示例</button>
         <button class="secondary" id="shareReadonlyBtn" type="button">复制只读链接</button>
@@ -228,6 +229,37 @@
       </form>
     </dialog>
 
+    <dialog id="authDialog">
+      <form method="dialog" id="authForm">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">管理员</p>
+            <h2>登录后编辑</h2>
+          </div>
+          <button class="icon-btn" id="closeAuthDialogBtn" type="button" aria-label="关闭">×</button>
+        </div>
+
+        <div class="form-grid single-column">
+          <label>
+            <span>邮箱</span>
+            <input name="email" type="email" value="1041852311@qq.com" required>
+          </label>
+          <label>
+            <span>密码</span>
+            <input name="password" type="password" autocomplete="current-password" required>
+          </label>
+        </div>
+
+        <div class="dialog-actions">
+          <div>
+            <button class="secondary" id="signupAdminBtn" type="button">创建管理员账号</button>
+            <button class="secondary" id="cancelAuthDialogBtn" type="button">取消</button>
+          </div>
+          <button class="primary" type="submit">登录</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="shareDialog">
       <div class="share-dialog">
         <div class="dialog-head">
@@ -253,6 +285,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
     <div class="address-popover" id="addressPopover" role="dialog" aria-label="完整客户地址" hidden></div>
 
-    <script src="app.js?v=20260529-public-share"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js?v=20260529-supabase"></script>
   </body>
 </html>
