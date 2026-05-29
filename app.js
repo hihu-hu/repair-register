@@ -107,6 +107,30 @@ function readSharedRecords() {
   }
 }
 
+function applyHashRoute() {
+  const sharedRecords = readSharedRecords();
+  if (sharedRecords) {
+    records = sharedRecords;
+    closeOpenDialogs();
+    render();
+    return;
+  }
+
+  if (readonlyMode) {
+    readonlyMode = false;
+    document.body.classList.remove("readonly");
+    els.modeNote.hidden = true;
+    records = loadRecords();
+    render();
+  }
+}
+
+function closeOpenDialogs() {
+  [els.recordDialog, els.shareDialog].forEach((dialog) => {
+    if (dialog.open) dialog.close();
+  });
+}
+
 function normalizeRecord(record = {}) {
   const region = String(record.region || "");
   return {
@@ -939,6 +963,7 @@ function bindEvents() {
   });
 
   window.addEventListener("scroll", hideAddressPopover, true);
+  window.addEventListener("hashchange", applyHashRoute);
 }
 
 fillStaticOptions();
