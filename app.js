@@ -626,6 +626,37 @@ function compact(value, fallback = "-") {
   return value ? escapeHtml(value) : `<span class="muted">${fallback}</span>`;
 }
 
+function isPointInsideRect(x, y, rect) {
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+
+function isDoubleClickOnRowContent(event, row) {
+  if (!(event.target instanceof Element)) return false;
+  if (event.target.closest("button, a, input, select, textarea, label, .tag, .cell-main, .cell-sub, .address-preview")) {
+    return true;
+  }
+
+  const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      return node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    }
+  });
+
+  let node = walker.nextNode();
+  while (node) {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const isTextHit = Array.from(range.getClientRects()).some((rect) =>
+      isPointInsideRect(event.clientX, event.clientY, rect)
+    );
+    range.detach();
+    if (isTextHit) return true;
+    node = walker.nextNode();
+  }
+
+  return false;
+}
+
 function renderFaultCategoryTags(record) {
   return normalizeFaultCategories(record.faultCategory)
     .map((category) => `<span class="tag">${escapeHtml(category)}</span>`)
@@ -1404,6 +1435,7 @@ function bindEvents() {
 
     const row = event.target.closest("tr[data-id]");
     if (!row) return;
+    if (isDoubleClickOnRowContent(event, row)) return;
     openEditDialog(row.dataset.id);
   });
 
