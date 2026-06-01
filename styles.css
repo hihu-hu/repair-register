@@ -455,6 +455,10 @@ tbody tr:hover {
   background: #fbfcfd;
 }
 
+body:not(.readonly) tbody tr {
+  cursor: pointer;
+}
+
 .muted {
   color: var(--muted);
 }

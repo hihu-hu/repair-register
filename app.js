@@ -650,7 +650,7 @@ function renderTable() {
   els.recordsBody.innerHTML = filteredRecords
     .map(
       (record) => `
-        <tr>
+        <tr data-id="${escapeHtml(record.id)}">
           <td>${compact(formatDateTime(record.createdTime))}</td>
           <td><span class="cell-main">${compact(record.trackingNumber)}</span></td>
           <td>${compact(record.region)}</td>
@@ -1396,6 +1396,15 @@ function bindEvents() {
     }
     if (button.dataset.action === "edit") openEditDialog(button.dataset.id);
     if (button.dataset.action === "delete") deleteRecord(button.dataset.id);
+  });
+
+  els.recordsBody.addEventListener("dblclick", (event) => {
+    if (readonlyMode) return;
+    if (event.target.closest("button, a, input, select, textarea, label")) return;
+
+    const row = event.target.closest("tr[data-id]");
+    if (!row) return;
+    openEditDialog(row.dataset.id);
   });
 
   document.addEventListener("click", (event) => {
