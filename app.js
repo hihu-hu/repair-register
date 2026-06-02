@@ -58,7 +58,6 @@ const els = {
   dateTo: document.querySelector("#dateTo"),
   resetFiltersBtn: document.querySelector("#resetFiltersBtn"),
   exportCsvBtn: document.querySelector("#exportCsvBtn"),
-  exportJsonBtn: document.querySelector("#exportJsonBtn"),
   importExcelBtn: document.querySelector("#importExcelBtn"),
   importExcelInput: document.querySelector("#importExcelInput"),
   authToggleBtn: document.querySelector("#authToggleBtn"),
@@ -866,10 +865,6 @@ function exportCsv() {
   downloadFile(`打印机维修记录_${dateStamp()}.csv`, "\ufeff" + [header, ...rows].join("\n"), "text/csv;charset=utf-8");
 }
 
-function exportJson() {
-  downloadFile(`打印机维修记录_${dateStamp()}.json`, JSON.stringify(filteredRecords, null, 2), "application/json;charset=utf-8");
-}
-
 function downloadFile(filename, content, type) {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
@@ -1364,7 +1359,6 @@ function bindEvents() {
   els.importExcelInput.addEventListener("change", () => importExcelFile(els.importExcelInput.files[0]));
   els.resetFiltersBtn.addEventListener("click", resetFilters);
   els.exportCsvBtn.addEventListener("click", exportCsv);
-  els.exportJsonBtn.addEventListener("click", exportJson);
   els.closeDialogBtn.addEventListener("click", () => els.recordDialog.close());
   els.cancelDialogBtn.addEventListener("click", () => els.recordDialog.close());
   els.categoryFilterToggle.addEventListener("click", toggleCategoryFilterPicker);

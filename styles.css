@@ -693,7 +693,6 @@ body.readonly .header-actions #newRecordBtn,
 body.readonly .header-actions #importExcelBtn,
 body.readonly .header-actions #shareReadonlyBtn,
 body.readonly .toolbar-actions #exportCsvBtn,
-body.readonly .toolbar-actions #exportJsonBtn,
 body.readonly .actions-col,
 body.readonly .row-actions {
   display: none;
