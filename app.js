@@ -1,5 +1,9 @@
 const STORAGE_KEY = "printer_repair_records_v3";
+const CUSTOMER_SUBMISSIONS_STORAGE_KEY = "printer_customer_submissions_v1";
+const LAST_CUSTOMER_SUBMISSION_KEY = "printer_last_customer_submission_v1";
 const PUBLIC_SHARE_BASE_URL = "https://hihu-hu.github.io/repair-register/";
+const CUSTOMER_REGISTER_URL = `${PUBLIC_SHARE_BASE_URL}#customer`;
+const LOCAL_CUSTOMER_REGISTER_URL = "http://192.168.1.211:5173/#customer";
 const ADMIN_USERNAME = "CCCC";
 const ADMIN_EMAIL = "1041852311@qq.com";
 const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
@@ -12,8 +16,23 @@ const optionSets = {
   finalStatus: ["维修中", "邮寄并结束", "已寄出", "返厂中", "今天需要寄", "待寄出", "测试中"],
   faultOwnership: ["硬件损坏", "非硬件", "外接因素"],
   faultCategory: ["传感器", "主板", "打印头", "模块", "屏幕", "塑料件", "其他"],
-  model: ["GMX", "GMI", "GMH", "GMT", "DK110A", "DK80", "DK110S", "DK110B"]
+  model: ["GMX", "GMI", "GMT", "GMH", "GMX-5G", "GMT-5G", "DK110A", "DK110B", "DK110S", "DK80", "新北洋110", "芯烨80"]
 };
+
+const modelPrefixRules = [
+  ["1009", "GMX"],
+  ["10064", "GMI"],
+  ["2003", "GMT"],
+  ["10063", "GMH"],
+  ["2009", "GMX-5G"],
+  ["3003", "GMT-5G"],
+  ["1002", "DK110A"],
+  ["1007", "DK110B"],
+  ["2002", "DK110S"],
+  ["1003", "DK80"],
+  ["7", "新北洋110"],
+  ["9", "芯烨80"]
+];
 
 const directCities = ["杭州", "广州", "郑州", "苏州", "武汉", "株洲", "成都"];
 
@@ -38,6 +57,30 @@ const exportFields = [
 
 const els = {
   totalCount: document.querySelector("#totalCount"),
+  repairViewBtn: document.querySelector("#repairViewBtn"),
+  submissionsViewBtn: document.querySelector("#submissionsViewBtn"),
+  customerViewBtn: document.querySelector("#customerViewBtn"),
+  repairViews: document.querySelectorAll(".repair-view"),
+  customerPage: document.querySelector("#customerPage"),
+  customerIntro: document.querySelector(".customer-intro"),
+  customerRecent: document.querySelector("#customerRecent"),
+  customerRecentDetail: document.querySelector("#customerRecentDetail"),
+  newCustomerSubmissionBtn: document.querySelector("#newCustomerSubmissionBtn"),
+  submissionsPage: document.querySelector("#submissionsPage"),
+  customerQrImage: document.querySelector("#customerQrImage"),
+  copyCustomerLinkBtn: document.querySelector("#copyCustomerLinkBtn"),
+  customerForm: document.querySelector("#customerForm"),
+  areaPickerDialog: document.querySelector("#areaPickerDialog"),
+  areaPickerTitle: document.querySelector("#areaPickerTitle"),
+  areaPickerOptions: document.querySelector("#areaPickerOptions"),
+  closeAreaPickerBtn: document.querySelector("#closeAreaPickerBtn"),
+  submissionDialog: document.querySelector("#submissionDialog"),
+  submissionForm: document.querySelector("#submissionForm"),
+  closeSubmissionDialogBtn: document.querySelector("#closeSubmissionDialogBtn"),
+  cancelSubmissionDialogBtn: document.querySelector("#cancelSubmissionDialogBtn"),
+  submissionsBody: document.querySelector("#submissionsBody"),
+  submissionCount: document.querySelector("#submissionCount"),
+  submissionsEmptyState: document.querySelector("#submissionsEmptyState"),
   testingCount: document.querySelector("#testingCount"),
   readyCount: document.querySelector("#readyCount"),
   finishedCount: document.querySelector("#finishedCount"),
@@ -77,6 +120,8 @@ const els = {
   closeDialogBtn: document.querySelector("#closeDialogBtn"),
   cancelDialogBtn: document.querySelector("#cancelDialogBtn"),
   deleteRecordBtn: document.querySelector("#deleteRecordBtn"),
+  saveRecordBtn: document.querySelector("#saveRecordBtn"),
+  matchBox: document.querySelector("#matchBox"),
   shareDialog: document.querySelector("#shareDialog"),
   shareUrlOutput: document.querySelector("#shareUrlOutput"),
   copyShareUrlBtn: document.querySelector("#copyShareUrlBtn"),
@@ -93,8 +138,13 @@ let cloudMode = false;
 let adminMode = false;
 let forceReadonlyMode = false;
 let supabaseClient = null;
-let records = readSharedRecords() || loadRecords();
+const sharedData = readSharedData();
+let records = sharedData ? sharedData.records : loadRecords();
 let filteredRecords = [];
+let customerSubmissions = sharedData ? sharedData.submissions : loadCustomerSubmissions();
+let currentView = "repair";
+let areaData = null;
+let appliedSubmissionSnapshot = null;
 
 function loadRecords() {
   try {
@@ -105,7 +155,16 @@ function loadRecords() {
   }
 }
 
-function readSharedRecords() {
+function loadCustomerSubmissions() {
+  try {
+    const raw = localStorage.getItem(CUSTOMER_SUBMISSIONS_STORAGE_KEY);
+    return raw ? JSON.parse(raw).map(normalizeCustomerSubmission) : [];
+  } catch {
+    return [];
+  }
+}
+
+function readSharedData() {
   const params = new URLSearchParams(location.hash.replace(/^#/, ""));
   const payload = params.get("view") || params.get("v");
   forceReadonlyMode = location.hash.replace(/^#/, "") === "readonly" || Boolean(payload);
@@ -113,17 +172,20 @@ function readSharedRecords() {
   if (!payload) return null;
 
   try {
-    return decodePayload(payload).map(normalizeRecord);
+    return unpackSharedData(decodePayload(payload));
   } catch {
     showToast("分享链接无法读取");
-    return [];
+    return { records: [], submissions: [] };
   }
 }
 
 function applyHashRoute() {
-  const sharedRecords = readSharedRecords();
-  if (sharedRecords) {
-    records = sharedRecords;
+  if (applyViewFromHash()) return;
+
+  const hashSharedData = readSharedData();
+  if (hashSharedData) {
+    records = hashSharedData.records;
+    customerSubmissions = hashSharedData.submissions;
     closeOpenDialogs();
     render();
     return;
@@ -136,6 +198,7 @@ function applyHashRoute() {
   }
 
   setReadonlyMode(false);
+  setView("repair");
   records = loadRecords();
   render();
 }
@@ -144,6 +207,22 @@ function closeOpenDialogs() {
   [els.recordDialog, els.shareDialog].forEach((dialog) => {
     if (dialog.open) dialog.close();
   });
+}
+
+function normalizeCustomerSubmission(item = {}) {
+  return {
+    id: String(item.id || createCustomerSubmissionId()),
+    createdTime: normalizeDateTime(item.createdTime || item.created_at || new Date()),
+    deviceNumber: String(item.deviceNumber || item.device_number || "").trim(),
+    model: normalizeOption(item.model, optionSets.model, "GMX"),
+    companyName: String(item.companyName || item.company_name || "").trim(),
+    contactName: String(item.contactName || item.contact_name || "").trim(),
+    phone: String(item.phone || "").trim(),
+    trackingNumber: String(item.trackingNumber || item.tracking_number || "").trim(),
+    customerIssue: String(item.customerIssue || item.customer_issue || "").trim(),
+    customerAddress: String(item.customerAddress || item.customer_address || "").trim(),
+    updatedAt: String(item.updatedAt || item.updated_at || new Date().toISOString())
+  };
 }
 
 function normalizeRecord(record = {}) {
@@ -173,6 +252,12 @@ function normalizeRecord(record = {}) {
 function normalizeOption(value, options, fallback) {
   const text = String(value || "").trim();
   return options.includes(text) ? text : fallback;
+}
+
+function inferModelFromDeviceNumber(deviceNumber) {
+  const number = String(deviceNumber || "").replace(/\D/g, "");
+  const rule = modelPrefixRules.find(([prefix]) => number.startsWith(prefix));
+  return rule?.[1] || "";
 }
 
 function normalizeFaultCategories(value) {
@@ -243,7 +328,16 @@ function updateFaultCategoryPicker() {
   const selected = getMultiSelectValues(select);
   els.faultCategoryToggle.textContent = selected.length > 0 ? selected.join(MULTI_VALUE_SEPARATOR) : "请选择";
   els.faultCategoryToggle.classList.toggle("is-placeholder", selected.length === 0);
+  els.faultCategoryToggle.classList.toggle("is-invalid", selected.length === 0 && els.faultCategoryToggle.classList.contains("is-invalid"));
   syncCheckboxMenu(els.faultCategoryMenu, selected);
+}
+
+function showFaultCategoryRequired() {
+  showToast("请选择故障分类");
+  els.faultCategoryToggle.classList.add("is-invalid");
+  els.faultCategoryToggle.scrollIntoView({ block: "center", behavior: "smooth" });
+  els.faultCategoryToggle.focus();
+  if (els.faultCategoryMenu.hidden) toggleFaultCategoryPicker();
 }
 
 function closeCategoryFilterPicker() {
@@ -335,6 +429,14 @@ function sortRecordsNewestFirst(items) {
   return items.sort(compareRecordsNewestFirst);
 }
 
+function sortCustomerSubmissionsNewestFirst(items) {
+  return items.sort((a, b) => {
+    const timeDiff = parseRecordTime(b.createdTime) - parseRecordTime(a.createdTime);
+    if (timeDiff !== 0) return timeDiff;
+    return (b.updatedAt || "").localeCompare(a.updatedAt || "");
+  });
+}
+
 function toInputDateTime(date) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 16);
@@ -349,6 +451,11 @@ function saveRecords() {
   if (readonlyMode) return;
   sortRecordsNewestFirst(records);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+}
+
+function saveCustomerSubmissions() {
+  sortCustomerSubmissionsNewestFirst(customerSubmissions);
+  localStorage.setItem(CUSTOMER_SUBMISSIONS_STORAGE_KEY, JSON.stringify(customerSubmissions));
 }
 
 function setReadonlyMode(value) {
@@ -366,6 +473,7 @@ function refreshAccessMode() {
   setReadonlyMode(forceReadonlyMode || !adminMode);
   els.authToggleBtn.hidden = forceReadonlyMode;
   els.authToggleBtn.textContent = adminMode ? "退出登录" : "管理员登录";
+  renderSubmissions();
 }
 
 function toDatabaseRecord(record) {
@@ -414,6 +522,38 @@ function fromDatabaseRecord(record) {
   });
 }
 
+function toDatabaseSubmission(item) {
+  return {
+    id: item.id,
+    created_time: item.createdTime || "",
+    device_number: item.deviceNumber || "",
+    model: item.model || "",
+    company_name: item.companyName || "",
+    contact_name: item.contactName || "",
+    phone: item.phone || "",
+    tracking_number: item.trackingNumber || "",
+    customer_issue: item.customerIssue || "",
+    customer_address: item.customerAddress || "",
+    updated_at: item.updatedAt || new Date().toISOString()
+  };
+}
+
+function fromDatabaseSubmission(item) {
+  return normalizeCustomerSubmission({
+    id: item.id,
+    createdTime: item.created_time,
+    deviceNumber: item.device_number,
+    model: item.model,
+    companyName: item.company_name,
+    contactName: item.contact_name,
+    phone: item.phone,
+    trackingNumber: item.tracking_number,
+    customerIssue: item.customer_issue,
+    customerAddress: item.customer_address,
+    updatedAt: item.updated_at
+  });
+}
+
 async function initializeCloud() {
   if (!hasSupabaseConfig() || (forceReadonlyMode && location.hash.includes("view="))) return;
 
@@ -425,12 +565,14 @@ async function initializeCloud() {
   adminMode = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
   refreshAccessMode();
   await loadCloudRecords();
+  await loadCloudSubmissions();
 
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     const sessionEmail = session?.user?.email || "";
     adminMode = sessionEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase();
     refreshAccessMode();
     loadCloudRecords();
+    loadCloudSubmissions();
   });
 }
 
@@ -487,8 +629,47 @@ async function deleteCloudRecord(id) {
   if (error) throw error;
 }
 
+async function loadCloudSubmissions() {
+  if (!cloudMode || !supabaseClient) return;
+  if (!adminMode) {
+    renderSubmissions();
+    return;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("customer_repair_submissions")
+    .select("*")
+    .order("created_time", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    showToast("客户提交读取失败，请确认数据库已更新");
+    renderSubmissions();
+    return;
+  }
+
+  customerSubmissions = sortCustomerSubmissionsNewestFirst(data.map(fromDatabaseSubmission));
+  renderSubmissions();
+}
+
+async function saveCloudSubmission(item) {
+  const { error } = await supabaseClient
+    .from("customer_repair_submissions")
+    .upsert(toDatabaseSubmission(item), { onConflict: "id" });
+  if (error) throw error;
+}
+
+async function deleteCloudSubmission(id) {
+  const { error } = await supabaseClient.from("customer_repair_submissions").delete().eq("id", id);
+  if (error) throw error;
+}
+
 function createId() {
   return `repair-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function createCustomerSubmissionId() {
+  return `customer-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function fillSelect(select, values, includeAll = false) {
@@ -526,11 +707,297 @@ function fillStaticOptions() {
   fillCategoryFilterPicker();
   fillSelect(els.modelFilter, optionSets.model, true);
   fillSelect(els.areaFilter, optionSets.area, true);
-  fillRequiredSelect(els.recordForm.elements.model, optionSets.model);
+  fillRequiredSelect(els.submissionForm.elements.model, optionSets.model);
   fillRequiredSelect(els.recordForm.elements.hasPower, optionSets.hasPower);
   fillSelect(els.recordForm.elements.finalStatus, optionSets.finalStatus);
   fillRequiredSelect(els.recordForm.elements.faultOwnership, optionSets.faultOwnership);
   fillFaultCategoryPicker();
+  fillAddressSelects();
+}
+
+function fillAddressSelects() {
+  const form = els.customerForm.elements;
+  if (!form.addressProvince || !form.addressCity || !form.addressDistrict) return;
+  fillRequiredSelect(form.addressProvince, []);
+  fillRequiredSelect(form.addressCity, []);
+  fillRequiredSelect(form.addressDistrict, []);
+}
+
+function fillAreaSelect(select, items, placeholder = "请选择") {
+  select.replaceChildren(new Option(placeholder, ""));
+  Object.entries(items || {}).forEach(([code, name]) => {
+    select.append(new Option(name, code));
+  });
+}
+
+function setAreaButton(level, text, isPlaceholder = false) {
+  const button = els.customerForm.querySelector(`[data-area-level="${level}"]`);
+  if (!button) return;
+  button.textContent = text;
+  button.classList.toggle("is-placeholder", isPlaceholder);
+}
+
+function syncAreaButtons() {
+  const form = els.customerForm.elements;
+  const province = selectedOptionText(form.addressProvince);
+  const city = selectedOptionText(form.addressCity);
+  const district = selectedOptionText(form.addressDistrict);
+  setAreaButton("province", province || "请选择省", !province);
+  setAreaButton("city", city || (form.addressProvince.value ? "请选择市" : "请先选择省"), !city);
+  setAreaButton("district", district || (form.addressCity.value ? "请选择区 / 县" : "请先选择市"), !district);
+}
+
+function syncSimpleSelectButton(selectName) {
+  const select = els.customerForm.elements[selectName];
+  const button = els.customerForm.querySelector(`[data-simple-select="${selectName}"]`);
+  if (!select || !button) return;
+  const text = selectedOptionText(select);
+  button.textContent = text || "请选择";
+  button.classList.toggle("is-placeholder", !text);
+}
+
+function openSimpleSelectPicker(selectName, title) {
+  const select = els.customerForm.elements[selectName];
+  if (!select) return;
+  els.areaPickerTitle.textContent = title;
+  els.areaPickerOptions.replaceChildren();
+
+  Array.from(select.options).forEach((option) => {
+    const button = document.createElement("button");
+    button.className = "area-option";
+    button.type = "button";
+    button.textContent = option.textContent;
+    button.dataset.simpleSelect = selectName;
+    button.dataset.optionValue = option.value;
+    button.classList.toggle("is-active", select.value === option.value);
+    els.areaPickerOptions.append(button);
+  });
+  els.areaPickerDialog.showModal();
+}
+
+function chooseSimpleSelectOption(selectName, value) {
+  const select = els.customerForm.elements[selectName];
+  if (!select) return;
+  select.value = value;
+  syncSimpleSelectButton(selectName);
+  els.areaPickerDialog.close();
+}
+
+function getAreaPickerConfig(level) {
+  const form = els.customerForm.elements;
+  if (level === "province") {
+    return {
+      title: "选择省",
+      select: form.addressProvince,
+      items: areaData?.["86"] || {},
+      emptyText: "省市区数据加载中"
+    };
+  }
+  if (level === "city") {
+    return {
+      title: "选择市",
+      select: form.addressCity,
+      items: areaData?.[form.addressProvince.value] || {},
+      emptyText: form.addressProvince.value ? "暂无城市数据" : "请先选择省"
+    };
+  }
+  return {
+    title: "选择区 / 县",
+    select: form.addressDistrict,
+    items: areaData?.[form.addressCity.value] || {},
+    emptyText: form.addressCity.value ? "暂无区县数据" : "请先选择市"
+  };
+}
+
+function openAreaPicker(level) {
+  const config = getAreaPickerConfig(level);
+  els.areaPickerTitle.textContent = config.title;
+  els.areaPickerOptions.replaceChildren();
+
+  const entries = Object.entries(config.items || {});
+  if (entries.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state compact-empty";
+    empty.textContent = config.emptyText;
+    els.areaPickerOptions.append(empty);
+    els.areaPickerDialog.showModal();
+    return;
+  }
+
+  entries.forEach(([code, name]) => {
+    const button = document.createElement("button");
+    button.className = "area-option";
+    button.type = "button";
+    button.textContent = name;
+    button.dataset.areaLevel = level;
+    button.dataset.areaCode = code;
+    button.classList.toggle("is-active", config.select.value === code);
+    els.areaPickerOptions.append(button);
+  });
+  els.areaPickerDialog.showModal();
+}
+
+function chooseAreaOption(level, code) {
+  const config = getAreaPickerConfig(level);
+  config.select.value = code;
+  if (level === "province") updateAddressCities();
+  if (level === "city") updateAddressDistricts();
+  if (level === "district") syncAreaButtons();
+  els.areaPickerDialog.close();
+}
+
+async function loadAreaData() {
+  const form = els.customerForm.elements;
+  if (!form.addressProvince) return;
+
+  try {
+    if (window.CHINA_AREA_DATA) {
+      areaData = window.CHINA_AREA_DATA;
+    } else {
+      const response = await fetch("area-data.json");
+      if (!response.ok) throw new Error("area data failed");
+      areaData = await response.json();
+    }
+    fillAreaSelect(form.addressProvince, areaData["86"], "请选择省");
+    fillAreaSelect(form.addressCity, {}, "请先选择省");
+    fillAreaSelect(form.addressDistrict, {}, "请先选择市");
+    syncAreaButtons();
+  } catch (error) {
+    console.error(error);
+    showToast("省市区数据加载失败，请刷新页面");
+  }
+}
+
+function updateAddressCities() {
+  const form = els.customerForm.elements;
+  const provinceCode = form.addressProvince.value;
+  fillAreaSelect(form.addressCity, areaData?.[provinceCode], provinceCode ? "请选择市" : "请先选择省");
+  fillAreaSelect(form.addressDistrict, {}, "请先选择市");
+  syncAreaButtons();
+}
+
+function updateAddressDistricts() {
+  const form = els.customerForm.elements;
+  const cityCode = form.addressCity.value;
+  fillAreaSelect(form.addressDistrict, areaData?.[cityCode], cityCode ? "请选择区 / 县" : "请先选择市");
+  syncAreaButtons();
+}
+
+function selectedOptionText(select) {
+  return select.selectedOptions[0]?.textContent || "";
+}
+
+function getCustomerAddressFromForm() {
+  const form = els.customerForm.elements;
+  const province = selectedOptionText(form.addressProvince);
+  const city = selectedOptionText(form.addressCity);
+  const district = selectedOptionText(form.addressDistrict);
+  const detail = String(form.addressDetail.value || "").trim();
+  return [province, city, district, detail].filter(Boolean).join("");
+}
+
+function getCustomerRegisterUrl() {
+  if (["localhost", "127.0.0.1"].includes(location.hostname)) {
+    return LOCAL_CUSTOMER_REGISTER_URL;
+  }
+  return CUSTOMER_REGISTER_URL;
+}
+
+function updateCustomerQrCode() {
+  const url = getCustomerRegisterUrl();
+  els.customerQrImage.src = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(url);
+}
+
+function getLastCustomerSubmission() {
+  try {
+    const raw = localStorage.getItem(LAST_CUSTOMER_SUBMISSION_KEY);
+    return raw ? normalizeCustomerSubmission(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveLastCustomerSubmission(submission) {
+  try {
+    localStorage.setItem(LAST_CUSTOMER_SUBMISSION_KEY, JSON.stringify(submission));
+  } catch {
+    // 本机保存失败不影响云端提交。
+  }
+}
+
+function showCustomerForm() {
+  els.customerForm.hidden = false;
+  els.customerRecent.hidden = true;
+}
+
+function showCustomerPortal() {
+  const lastSubmission = getLastCustomerSubmission();
+  if (!lastSubmission) {
+    showCustomerForm();
+    return;
+  }
+
+  els.customerForm.hidden = true;
+  els.customerRecent.hidden = false;
+  els.customerRecentDetail.innerHTML = `
+    <dl>
+      <div><dt>提交时间</dt><dd>${compact(formatDateTime(lastSubmission.createdTime))}</dd></div>
+      <div><dt>打印机编号</dt><dd>${compact(lastSubmission.deviceNumber)}</dd></div>
+      <div><dt>公司名</dt><dd>${compact(lastSubmission.companyName)}</dd></div>
+      <div><dt>收件人</dt><dd>${compact(lastSubmission.contactName)}</dd></div>
+      <div><dt>手机号码</dt><dd>${compact(lastSubmission.phone)}</dd></div>
+      <div><dt>寄出快递</dt><dd>${compact(lastSubmission.trackingNumber)}</dd></div>
+      <div><dt>故障原因</dt><dd>${compact(lastSubmission.customerIssue)}</dd></div>
+      <div><dt>收件地址</dt><dd>${compact(lastSubmission.customerAddress)}</dd></div>
+    </dl>
+  `;
+}
+
+function setView(view) {
+  currentView = view;
+  const isCustomerPortal = view === "customer";
+  const isCustomerAdmin = view === "customerAdmin";
+  document.body.classList.toggle("customer-portal", isCustomerPortal);
+  els.repairViews.forEach((section) => {
+    section.hidden = view !== "repair";
+  });
+  els.customerPage.hidden = !isCustomerPortal && !isCustomerAdmin;
+  els.submissionsPage.hidden = view !== "submissions";
+  els.customerIntro.hidden = !isCustomerAdmin;
+
+  els.repairViewBtn.classList.toggle("is-active", view === "repair");
+  els.customerViewBtn.classList.toggle("is-active", isCustomerAdmin);
+  els.submissionsViewBtn.classList.toggle("is-active", view === "submissions");
+
+  const adminActionsHidden = view !== "repair";
+  els.importExcelBtn.hidden = adminActionsHidden || readonlyMode;
+  els.shareReadonlyBtn.hidden = adminActionsHidden || readonlyMode;
+  els.newRecordBtn.hidden = adminActionsHidden || readonlyMode;
+
+  if (view === "submissions") renderSubmissions();
+  if (isCustomerAdmin) {
+    updateCustomerQrCode();
+    showCustomerForm();
+  }
+  if (isCustomerPortal) showCustomerPortal();
+}
+
+function applyViewFromHash() {
+  const hash = location.hash.replace(/^#/, "");
+  if (hash === "customer-admin") {
+    setView("customerAdmin");
+    return true;
+  }
+  if (hash === "customer") {
+    setReadonlyMode(false);
+    setView("customer");
+    return true;
+  }
+  if (hash === "submissions") {
+    setView("submissions");
+    return true;
+  }
+  return false;
 }
 
 function updateDynamicFilterOptions() {
@@ -663,6 +1130,10 @@ function renderFaultCategoryTags(record) {
     .join("");
 }
 
+function powerClass(hasPower) {
+  return hasPower === "有" ? "power-yes" : "";
+}
+
 function formatDateTime(value) {
   if (!value) return "";
   return String(value).replace("T", " ");
@@ -690,7 +1161,7 @@ function renderTable() {
             <span class="cell-main">${compact(record.deviceNumber)}</span>
             <span class="cell-sub">${compact(record.model)}</span>
           </td>
-          <td><span class="tag">${compact(record.hasPower)}</span></td>
+          <td><span class="tag ${powerClass(record.hasPower)}">${compact(record.hasPower)}</span></td>
           <td><span class="cell-main">${compact(record.companyName)}</span></td>
           <td class="text-cell">${compact(record.customerIssue)}</td>
           <td class="text-cell">${compact(record.repairProcess)}</td>
@@ -721,6 +1192,39 @@ function render() {
   applyFilters();
   updateStats();
   renderTable();
+  renderSubmissions();
+  if (currentView === "customer") updateCustomerQrCode();
+}
+
+function renderSubmissions() {
+  els.submissionCount.textContent = `${customerSubmissions.length} 条`;
+  els.submissionsBody.innerHTML = customerSubmissions
+    .map((item) => `
+      <tr data-id="${escapeHtml(item.id)}">
+        <td>${compact(formatDateTime(item.createdTime))}</td>
+        <td>
+          <span class="cell-main">${compact(item.deviceNumber)}</span>
+          <span class="cell-sub">${compact(item.model)}</span>
+        </td>
+        <td>
+          <span class="cell-main">${compact(item.companyName)}</span>
+          <span class="cell-sub">${compact(item.contactName)}</span>
+        </td>
+        <td>${compact(item.phone)}</td>
+        <td>${compact(item.trackingNumber)}</td>
+        <td class="text-cell">${compact(cleanCustomerIssueForRecord(item))}</td>
+        <td class="text-cell address-cell">${compact(item.customerAddress)}</td>
+        <td class="actions-col">
+          <div class="row-actions">
+            <button class="secondary" type="button" data-action="use-submission" data-id="${escapeHtml(item.id)}">生成维修</button>
+            <button class="secondary" type="button" data-action="edit-submission" data-id="${escapeHtml(item.id)}">编辑</button>
+            <button class="danger" type="button" data-action="delete-submission" data-id="${escapeHtml(item.id)}">删除</button>
+          </div>
+        </td>
+      </tr>
+    `)
+    .join("");
+  els.submissionsEmptyState.hidden = customerSubmissions.length > 0;
 }
 
 function resetForm() {
@@ -734,14 +1238,170 @@ function resetForm() {
   els.recordForm.elements.faultOwnership.value = "";
   clearMultiSelect(els.recordForm.elements.faultCategory);
   updateFaultCategoryPicker();
+  els.faultCategoryToggle.classList.remove("is-invalid");
   closeFaultCategoryPicker();
   els.recordForm.elements.model.value = "";
+  lockAutoField(els.recordForm.elements.companyName);
+  lockAutoField(els.recordForm.elements.customerIssue);
+  els.recordForm.elements.customerPowerAdapter.value = "";
+  hideMatchBox();
 }
 
 function openNewDialog() {
   if (readonlyMode) return;
   resetForm();
   els.recordDialog.showModal();
+}
+
+function findSubmissionByDeviceNumber(deviceNumber) {
+  const key = String(deviceNumber || "").trim().toLowerCase();
+  if (!key) return null;
+  const matches = customerSubmissions.filter((item) => item.deviceNumber.toLowerCase() === key);
+  return sortCustomerSubmissionsNewestFirst([...matches])[0] || null;
+}
+
+function buildAddressWithContact(submission) {
+  const parts = [
+    submission.customerAddress,
+    submission.contactName,
+    submission.phone
+  ].filter(Boolean);
+  return parts.join(" ");
+}
+
+function extractPowerAdapterAnswer(submission) {
+  const match = String(submission?.customerIssue || "").match(/电源适配器是否寄回[:：]\s*(是|否)/);
+  return match?.[1] || "";
+}
+
+function cleanCustomerIssueForRecord(submission) {
+  return String(submission?.customerIssue || "")
+    .replace(/^\s*电源适配器是否寄回[:：]\s*(是|否)\s*\n?/m, "")
+    .replace(/^\s*故障描述[:：]\s*/m, "")
+    .trim();
+}
+
+function applySubmissionToRecordForm(submission, { keepDeviceNumber = true } = {}) {
+  if (!submission) return;
+  const form = els.recordForm.elements;
+  if (!appliedSubmissionSnapshot) {
+    appliedSubmissionSnapshot = {
+      companyName: form.companyName.value,
+      customerPowerAdapter: form.customerPowerAdapter.value,
+      customerIssue: form.customerIssue.value,
+      customerAddress: form.customerAddress.value
+    };
+  }
+  if (!keepDeviceNumber) form.deviceNumber.value = submission.deviceNumber;
+  autoFillRecordModel();
+  form.customerPowerAdapter.value = extractPowerAdapterAnswer(submission);
+  form.companyName.value = submission.companyName || form.companyName.value;
+  form.customerIssue.value = cleanCustomerIssueForRecord(submission) || form.customerIssue.value;
+  form.customerAddress.value = buildAddressWithContact(submission) || form.customerAddress.value;
+  showToast("已带入客户提交的信息");
+}
+
+function undoSubmissionToRecordForm() {
+  if (!appliedSubmissionSnapshot) {
+    hideMatchBox();
+    return;
+  }
+
+  const form = els.recordForm.elements;
+  form.companyName.value = appliedSubmissionSnapshot.companyName;
+  form.customerPowerAdapter.value = appliedSubmissionSnapshot.customerPowerAdapter;
+  form.customerIssue.value = appliedSubmissionSnapshot.customerIssue;
+  form.customerAddress.value = appliedSubmissionSnapshot.customerAddress;
+  appliedSubmissionSnapshot = null;
+  showToast("已取消带入");
+}
+
+function showMatchedSubmission(submission) {
+  if (!submission || els.recordId.value) {
+    hideMatchBox();
+    return;
+  }
+
+  els.matchBox.hidden = false;
+  els.matchBox.innerHTML = `
+    <div>
+      <strong>找到客户提交的信息</strong>
+    </div>
+    <div class="match-actions">
+      <button class="secondary" type="button" id="cancelSubmissionBtn">取消带入</button>
+      <button class="primary" type="button" id="applySubmissionBtn">带入表单</button>
+    </div>
+  `;
+  document.querySelector("#applySubmissionBtn").addEventListener("click", () => {
+    applySubmissionToRecordForm(submission);
+  });
+  document.querySelector("#cancelSubmissionBtn").addEventListener("click", undoSubmissionToRecordForm);
+}
+
+function hideMatchBox() {
+  els.matchBox.hidden = true;
+  els.matchBox.replaceChildren();
+  appliedSubmissionSnapshot = null;
+}
+
+function checkDeviceNumberMatch() {
+  autoFillRecordModel();
+  const submission = findSubmissionByDeviceNumber(els.recordForm.elements.deviceNumber.value);
+  showMatchedSubmission(submission);
+}
+
+function autoFillRecordModel() {
+  const form = els.recordForm.elements;
+  const model = inferModelFromDeviceNumber(form.deviceNumber.value);
+  if (model) form.model.value = model;
+}
+
+function autoFillSubmissionModel(form) {
+  const model = inferModelFromDeviceNumber(form.deviceNumber.value);
+  if (model) form.model.value = model;
+}
+
+function lockAutoField(input) {
+  input.readOnly = true;
+  input.classList.add("readonly-field");
+}
+
+function unlockAutoField(input) {
+  input.readOnly = false;
+  input.classList.remove("readonly-field");
+  input.focus();
+  input.select();
+}
+
+function openNewDialogFromSubmission(id) {
+  if (readonlyMode) return;
+  const submission = customerSubmissions.find((item) => item.id === id);
+  if (!submission) return;
+  resetForm();
+  applySubmissionToRecordForm(submission, { keepDeviceNumber: false });
+  els.recordDialog.showModal();
+}
+
+function openSubmissionEditDialog(id) {
+  if (cloudMode && !adminMode) {
+    showToast("请先管理员登录");
+    return;
+  }
+
+  const submission = customerSubmissions.find((item) => item.id === id);
+  if (!submission) return;
+
+  const form = els.submissionForm.elements;
+  form.id.value = submission.id;
+  form.deviceNumber.value = submission.deviceNumber || "";
+  form.companyName.value = submission.companyName || "";
+  form.contactName.value = submission.contactName || "";
+  form.phone.value = submission.phone || "";
+  form.trackingNumber.value = submission.trackingNumber || "";
+  form.model.value = inferModelFromDeviceNumber(submission.deviceNumber) || submission.model || "";
+  form.customerIssue.value = submission.customerIssue || "";
+  form.customerAddress.value = submission.customerAddress || "";
+  els.submissionDialog.showModal();
 }
 
 function fillForm(record) {
@@ -754,12 +1414,17 @@ function fillForm(record) {
       if (key === "faultCategory") {
         setMultiSelectValues(els.recordForm.elements.faultCategory, record[key]);
         updateFaultCategoryPicker();
+        els.faultCategoryToggle.classList.remove("is-invalid");
         closeFaultCategoryPicker();
         return;
       }
       els.recordForm.elements[key].value = record[key] || "";
     }
   });
+  lockAutoField(els.recordForm.elements.companyName);
+  lockAutoField(els.recordForm.elements.customerIssue);
+  els.recordForm.elements.customerPowerAdapter.value = "";
+  hideMatchBox();
 }
 
 function openEditDialog(id) {
@@ -779,8 +1444,9 @@ function getFormRecord() {
       ? formData.getAll(key).map((value) => String(value).trim()).filter(Boolean)
       : String(formData.get(key) || "").trim();
   });
+  record.model = inferModelFromDeviceNumber(record.deviceNumber) || record.model;
   if (record.faultCategory.length === 0) {
-    showToast("请选择故障分类");
+    showFaultCategoryRequired();
     return null;
   }
   record.updatedAt = new Date().toISOString();
@@ -812,6 +1478,160 @@ async function upsertRecord(record) {
   if (!cloudMode) saveRecords();
   render();
   showToast("已保存");
+}
+
+function getCustomerSubmissionFromForm() {
+  const deviceNumber = String(els.customerForm.elements.deviceNumber.value || "").trim();
+  if (!/^\d{10}$/.test(deviceNumber)) {
+    showToast("打印机编号必须填写 10 位数字");
+    els.customerForm.elements.deviceNumber.focus();
+    return null;
+  }
+  const phone = String(els.customerForm.elements.phone.value || "").trim();
+  if (!/^\d{11}$/.test(phone)) {
+    showToast("手机号码必须填写 11 位数字");
+    els.customerForm.elements.phone.focus();
+    return null;
+  }
+
+  const formData = new FormData(els.customerForm);
+  const customerIssue = String(formData.get("customerIssue") || "").trim();
+  const powerAdapterReturned = String(formData.get("powerAdapterReturned") || "").trim();
+  if (!powerAdapterReturned) {
+    showToast("请选择电源适配器是否寄回");
+    els.customerForm.elements.powerAdapterReturned.focus();
+    return null;
+  }
+  return normalizeCustomerSubmission({
+    id: createCustomerSubmissionId(),
+    createdTime: toInputDateTime(new Date()),
+    deviceNumber,
+    model: inferModelFromDeviceNumber(deviceNumber),
+    companyName: String(formData.get("companyName") || ""),
+    contactName: String(formData.get("contactName") || ""),
+    phone,
+    trackingNumber: String(formData.get("trackingNumber") || ""),
+    customerIssue: `电源适配器是否寄回：${powerAdapterReturned}\n故障描述：${customerIssue}`,
+    customerAddress: getCustomerAddressFromForm(),
+    updatedAt: new Date().toISOString()
+  });
+}
+
+async function submitCustomerForm() {
+  const submission = getCustomerSubmissionFromForm();
+  if (!submission) return;
+
+  try {
+    if (cloudMode) await saveCloudSubmission(submission);
+  } catch (error) {
+    console.error(error);
+    if (error?.code === "PGRST205" || String(error?.message || "").includes("customer_repair_submissions")) {
+      showToast("云端还没升级客户登记表，请先执行数据库 SQL");
+    } else if (error?.code === "42501") {
+      showToast("云端权限没打开，请检查客户登记表权限");
+    } else {
+      showToast("提交失败，请稍后再试");
+    }
+    return;
+  }
+
+  customerSubmissions.unshift(submission);
+  sortCustomerSubmissionsNewestFirst(customerSubmissions);
+  if (!cloudMode) saveCustomerSubmissions();
+  saveLastCustomerSubmission(submission);
+  els.customerForm.reset();
+  updateAddressCities();
+  syncAreaButtons();
+  syncSimpleSelectButton("powerAdapterReturned");
+  if (currentView === "customer") showCustomerPortal();
+  renderSubmissions();
+  showToast("登记成功，工作人员会尽快处理");
+}
+
+function getSubmissionEditFormValue() {
+  const form = els.submissionForm.elements;
+  const id = String(form.id.value || "").trim();
+  const oldSubmission = customerSubmissions.find((item) => item.id === id);
+  if (!oldSubmission) return null;
+
+  const deviceNumber = String(form.deviceNumber.value || "").trim();
+  if (!/^\d{10}$/.test(deviceNumber)) {
+    showToast("打印机编号必须填写 10 位数字");
+    form.deviceNumber.focus();
+    return null;
+  }
+
+  const phone = String(form.phone.value || "").trim();
+  if (!/^\d{11}$/.test(phone)) {
+    showToast("手机号码必须填写 11 位数字");
+    form.phone.focus();
+    return null;
+  }
+
+  return normalizeCustomerSubmission({
+    ...oldSubmission,
+    deviceNumber,
+    model: inferModelFromDeviceNumber(deviceNumber) || String(form.model.value || ""),
+    companyName: String(form.companyName.value || ""),
+    contactName: String(form.contactName.value || ""),
+    phone,
+    trackingNumber: String(form.trackingNumber.value || ""),
+    customerIssue: String(form.customerIssue.value || ""),
+    customerAddress: String(form.customerAddress.value || ""),
+    updatedAt: new Date().toISOString()
+  });
+}
+
+async function updateSubmissionFromEditForm() {
+  if (cloudMode && !adminMode) {
+    showToast("请先管理员登录");
+    return false;
+  }
+
+  const submission = getSubmissionEditFormValue();
+  if (!submission) return false;
+
+  try {
+    if (cloudMode) await saveCloudSubmission(submission);
+  } catch (error) {
+    console.error(error);
+    showToast("客户提交保存失败");
+    return false;
+  }
+
+  customerSubmissions = customerSubmissions.map((item) => (
+    item.id === submission.id ? submission : item
+  ));
+  sortCustomerSubmissionsNewestFirst(customerSubmissions);
+  if (!cloudMode) saveCustomerSubmissions();
+  renderSubmissions();
+  showToast("客户提交已保存");
+  return true;
+}
+
+async function deleteSubmission(id) {
+  if (cloudMode && !adminMode) {
+    showToast("请先管理员登录");
+    return;
+  }
+
+  const submission = customerSubmissions.find((item) => item.id === id);
+  if (!submission) return;
+  const label = submission.deviceNumber || submission.companyName || "这条客户提交";
+  if (!confirm(`确认删除 ${label}？`)) return;
+
+  try {
+    if (cloudMode) await deleteCloudSubmission(id);
+  } catch (error) {
+    console.error(error);
+    showToast("客户提交删除失败");
+    return;
+  }
+
+  customerSubmissions = customerSubmissions.filter((item) => item.id !== id);
+  if (!cloudMode) saveCustomerSubmissions();
+  renderSubmissions();
+  showToast("已删除客户提交");
 }
 
 async function deleteRecord(id) {
@@ -1181,9 +2001,9 @@ function decodePayload(payload) {
   const base64 = payload.replaceAll("-", "+").replaceAll("_", "/");
   const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
   try {
-    return unpackSharedRecords(JSON.parse(decodeBase64Utf8(padded)));
+    return JSON.parse(decodeBase64Utf8(padded));
   } catch {
-    return unpackSharedRecords(JSON.parse(decodeURIComponent(atob(padded))));
+    return JSON.parse(decodeURIComponent(atob(padded)));
   }
 }
 
@@ -1196,13 +2016,16 @@ function encodePayload(value) {
 
 function createReadonlyShareUrl() {
   const url = new URL(PUBLIC_SHARE_BASE_URL);
-  if (cloudMode) {
-    url.hash = "readonly";
-    return url.toString();
-  }
-
-  url.hash = "view=" + encodePayload(packSharedRecords(records));
+  url.hash = "view=" + encodePayload(packSharedData());
   return url.toString();
+}
+
+function packSharedData() {
+  return {
+    version: "r2",
+    records: packSharedRecords(records),
+    submissions: packSharedSubmissions(customerSubmissions)
+  };
 }
 
 function packSharedRecords(items) {
@@ -1210,6 +2033,29 @@ function packSharedRecords(items) {
     "r1",
     items.map((record) => exportFields.map(([key]) => record[key] || ""))
   ];
+}
+
+function packSharedSubmissions(items) {
+  const fields = ["id", "createdTime", "deviceNumber", "model", "companyName", "contactName", "phone", "trackingNumber", "customerIssue", "customerAddress", "updatedAt"];
+  return [
+    "s1",
+    fields,
+    items.map((item) => fields.map((key) => item[key] || ""))
+  ];
+}
+
+function unpackSharedData(payload) {
+  if (payload?.version === "r2") {
+    return {
+      records: unpackSharedRecords(payload.records).map(normalizeRecord),
+      submissions: unpackSharedSubmissions(payload.submissions).map(normalizeCustomerSubmission)
+    };
+  }
+
+  return {
+    records: unpackSharedRecords(payload).map(normalizeRecord),
+    submissions: []
+  };
 }
 
 function unpackSharedRecords(payload) {
@@ -1221,6 +2067,18 @@ function unpackSharedRecords(payload) {
       record[key] = row[index] || "";
     });
     return record;
+  });
+}
+
+function unpackSharedSubmissions(payload) {
+  if (!Array.isArray(payload) || payload[0] !== "s1") return [];
+  const fields = payload[1] || [];
+  return (payload[2] || []).map((row) => {
+    const submission = {};
+    fields.forEach((key, index) => {
+      submission[key] = row[index] || "";
+    });
+    return submission;
   });
 }
 
@@ -1241,7 +2099,7 @@ function decodeBase64Utf8(base64) {
 
 async function copyReadonlyShareLink() {
   if (readonlyMode) return;
-  if (records.length === 0) {
+  if (records.length === 0 && customerSubmissions.length === 0) {
     showToast("暂无记录可分享");
     return;
   }
@@ -1355,9 +2213,33 @@ function bindEvents() {
     });
   });
 
+  els.repairViewBtn.addEventListener("click", () => {
+    location.hash = "";
+    setView("repair");
+  });
+  els.submissionsViewBtn.addEventListener("click", () => {
+    location.hash = "submissions";
+    setView("submissions");
+  });
+  els.customerViewBtn.addEventListener("click", () => {
+    location.hash = "customer-admin";
+    setView("customerAdmin");
+  });
+  els.copyCustomerLinkBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(getCustomerRegisterUrl());
+      showToast("客户登记链接已复制");
+    } catch {
+      showToast("复制失败，请手动复制浏览器地址");
+    }
+  });
+  els.newCustomerSubmissionBtn.addEventListener("click", showCustomerForm);
   els.authToggleBtn.addEventListener("click", openAuthDialog);
   els.closeAuthDialogBtn.addEventListener("click", () => els.authDialog.close());
   els.cancelAuthDialogBtn.addEventListener("click", () => els.authDialog.close());
+  els.closeAreaPickerBtn.addEventListener("click", () => els.areaPickerDialog.close());
+  els.closeSubmissionDialogBtn.addEventListener("click", () => els.submissionDialog.close());
+  els.cancelSubmissionDialogBtn.addEventListener("click", () => els.submissionDialog.close());
   els.newRecordBtn.addEventListener("click", openNewDialog);
   els.shareReadonlyBtn.addEventListener("click", copyReadonlyShareLink);
   els.importExcelBtn.addEventListener("click", () => els.importExcelInput.click());
@@ -1411,6 +2293,80 @@ function bindEvents() {
     els.recordDialog.close();
   });
 
+  els.saveRecordBtn.addEventListener("click", (event) => {
+    if (getMultiSelectValues(els.recordForm.elements.faultCategory).length > 0) return;
+    event.preventDefault();
+    showFaultCategoryRequired();
+  });
+
+  els.recordForm.elements.deviceNumber.addEventListener("input", checkDeviceNumberMatch);
+  els.recordForm.elements.deviceNumber.addEventListener("change", checkDeviceNumberMatch);
+  els.recordForm.elements.companyName.addEventListener("dblclick", () => {
+    unlockAutoField(els.recordForm.elements.companyName);
+  });
+  els.recordForm.elements.companyName.addEventListener("blur", () => {
+    lockAutoField(els.recordForm.elements.companyName);
+  });
+  els.recordForm.elements.customerIssue.addEventListener("dblclick", () => {
+    unlockAutoField(els.recordForm.elements.customerIssue);
+  });
+  els.recordForm.elements.customerIssue.addEventListener("blur", () => {
+    lockAutoField(els.recordForm.elements.customerIssue);
+  });
+
+  els.customerForm.elements.deviceNumber.addEventListener("input", () => {
+    const input = els.customerForm.elements.deviceNumber;
+    input.value = input.value.replace(/\D/g, "").slice(0, 10);
+    autoFillSubmissionModel(els.customerForm.elements);
+  });
+  els.customerForm.elements.phone.addEventListener("input", () => {
+    const input = els.customerForm.elements.phone;
+    input.value = input.value.replace(/\D/g, "").slice(0, 11);
+  });
+  els.customerForm.elements.addressProvince.addEventListener("change", updateAddressCities);
+  els.customerForm.elements.addressCity.addEventListener("change", updateAddressDistricts);
+  els.customerForm.elements.powerAdapterReturned.addEventListener("change", () => {
+    syncSimpleSelectButton("powerAdapterReturned");
+  });
+  syncSimpleSelectButton("powerAdapterReturned");
+  els.customerForm.querySelectorAll("[data-area-level]").forEach((button) => {
+    button.addEventListener("click", () => openAreaPicker(button.dataset.areaLevel));
+  });
+  els.customerForm.querySelectorAll("[data-simple-select]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openSimpleSelectPicker(button.dataset.simpleSelect, "电源适配器是否寄回");
+    });
+  });
+  els.areaPickerOptions.addEventListener("click", (event) => {
+    const button = event.target.closest(".area-option");
+    if (!button) return;
+    if (button.dataset.simpleSelect) {
+      chooseSimpleSelectOption(button.dataset.simpleSelect, button.dataset.optionValue);
+      return;
+    }
+    chooseAreaOption(button.dataset.areaLevel, button.dataset.areaCode);
+  });
+
+  els.customerForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await submitCustomerForm();
+  });
+
+  els.submissionForm.elements.deviceNumber.addEventListener("input", () => {
+    const input = els.submissionForm.elements.deviceNumber;
+    input.value = input.value.replace(/\D/g, "").slice(0, 10);
+    autoFillSubmissionModel(els.submissionForm.elements);
+  });
+  els.submissionForm.elements.phone.addEventListener("input", () => {
+    const input = els.submissionForm.elements.phone;
+    input.value = input.value.replace(/\D/g, "").slice(0, 11);
+  });
+  els.submissionForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const saved = await updateSubmissionFromEditForm();
+    if (saved) els.submissionDialog.close();
+  });
+
   els.deleteRecordBtn.addEventListener("click", async () => {
     await deleteRecord(els.recordId.value);
     els.recordDialog.close();
@@ -1438,6 +2394,14 @@ function bindEvents() {
     openEditDialog(row.dataset.id);
   });
 
+  els.submissionsBody.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+    if (button.dataset.action === "use-submission") openNewDialogFromSubmission(button.dataset.id);
+    if (button.dataset.action === "edit-submission") openSubmissionEditDialog(button.dataset.id);
+    if (button.dataset.action === "delete-submission") deleteSubmission(button.dataset.id);
+  });
+
   document.addEventListener("click", (event) => {
     const clickedAddress = event.target.closest(".address-preview");
     const clickedPopover = event.target.closest("#addressPopover");
@@ -1454,5 +2418,6 @@ function bindEvents() {
 
 fillStaticOptions();
 bindEvents();
-render();
+applyHashRoute();
+loadAreaData();
 initializeCloud();

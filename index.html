@@ -14,16 +14,19 @@
         <p class="mode-note" id="modeNote" hidden>只读查看</p>
       </div>
       <div class="header-actions">
-        <button class="secondary" id="authToggleBtn" type="button" hidden>管理员登录</button>
+        <button class="primary" id="newRecordBtn" type="button">新增工单</button>
         <button class="secondary" id="importExcelBtn" type="button">导入 Excel</button>
         <button class="secondary" id="shareReadonlyBtn" type="button">复制只读链接</button>
-        <button class="primary" id="newRecordBtn" type="button">新增记录</button>
+        <button class="secondary nav-btn" id="repairViewBtn" type="button">维修记录</button>
+        <button class="secondary nav-btn" id="submissionsViewBtn" type="button">客户提交</button>
+        <button class="secondary nav-btn" id="customerViewBtn" type="button">扫码登记</button>
+        <button class="secondary" id="authToggleBtn" type="button" hidden>管理员登录</button>
         <input id="importExcelInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
       </div>
     </header>
 
     <main>
-      <section class="stats-grid" aria-label="维修统计">
+      <section class="stats-grid repair-view" aria-label="维修统计">
         <article class="metric">
           <span>总记录</span>
           <strong id="totalCount">0</strong>
@@ -46,7 +49,7 @@
         </article>
       </section>
 
-      <section class="toolbar" aria-label="筛选和导出">
+      <section class="toolbar repair-view" aria-label="筛选和导出">
         <div class="date-filter-row">
           <div class="field date-field">
             <label for="dateFrom">创建时间从</label>
@@ -111,7 +114,7 @@
         </div>
       </section>
 
-      <section class="table-shell" aria-label="维修记录列表">
+      <section class="table-shell repair-view" aria-label="维修记录列表">
         <div class="table-title">
           <h2>维修记录</h2>
           <span id="filteredCount">0 条</span>
@@ -145,6 +148,132 @@
           <span>调整筛选条件或新增一条维修记录。</span>
         </div>
       </section>
+
+      <section class="customer-page app-view" id="customerPage" hidden>
+        <div class="customer-layout">
+          <article class="customer-intro">
+            <p class="eyebrow">客户自助登记</p>
+            <h2>扫码后填写打印机维修信息</h2>
+            <p>客户填完后，你在“客户提交”里能看到。你新增维修记录时，只要填同一个打印机编号，系统会自动把客户填过的公司、问题、地址等内容带进来。</p>
+            <div class="qr-box">
+              <img id="customerQrImage" alt="客户登记二维码">
+              <div>
+                <strong>客户扫码入口</strong>
+                <button class="secondary" id="copyCustomerLinkBtn" type="button">复制登记链接</button>
+              </div>
+            </div>
+          </article>
+
+          <section class="customer-recent" id="customerRecent" hidden>
+            <div>
+              <p class="eyebrow">最近一次提交</p>
+              <h2>您已提交维修登记</h2>
+            </div>
+            <div class="recent-detail" id="customerRecentDetail"></div>
+            <button class="primary" id="newCustomerSubmissionBtn" type="button">提交新的记录</button>
+          </section>
+
+          <form class="customer-form" id="customerForm">
+            <div class="dialog-head">
+              <div>
+                <p class="eyebrow">维修登记</p>
+                <h2>请填写机器和收件信息</h2>
+              </div>
+            </div>
+            <div class="form-grid">
+              <label>
+                <span>寄出快递单号</span>
+                <input name="trackingNumber" placeholder="输入您邮寄的快递单号和快递公司">
+              </label>
+              <label>
+                <span>打印机编号</span>
+                <input name="deviceNumber" required inputmode="numeric" maxlength="10" pattern="\d{10}" placeholder="编号在打印机底部铭牌查看（十位数字）" title="请填写 10 位阿拉伯数字">
+              </label>
+              <label>
+                <span>公司名</span>
+                <input name="companyName" required placeholder="请在「黑端-更多-公司信息」内查看">
+              </label>
+              <label>
+                <span>收件人（您的名字）</span>
+                <input name="contactName" required>
+              </label>
+              <label>
+                <span>您的手机号码</span>
+                <input name="phone" required inputmode="numeric" maxlength="11" pattern="\d{11}" title="请填写 11 位手机号码">
+              </label>
+              <label class="wide">
+                <span>打印机故障原因</span>
+                <textarea class="compact-textarea" name="customerIssue" rows="3" required placeholder="请详细描述您的打印机故障问题，以便维修人员定位"></textarea>
+              </label>
+              <label class="wide">
+                <span>电源适配器是否寄回（非必要可不寄）</span>
+                <select name="powerAdapterReturned" required>
+                  <option value="">请选择</option>
+                  <option value="否">否</option>
+                  <option value="是">是</option>
+                </select>
+                <button class="area-select-button form-select-button is-placeholder" type="button" data-simple-select="powerAdapterReturned">
+                  请选择
+                </button>
+              </label>
+              <div class="address-picker wide">
+                <span class="address-picker-title">收件地区</span>
+                <label>
+                  <span>省</span>
+                  <select name="addressProvince" required></select>
+                  <button class="area-select-button" type="button" data-area-level="province">请选择省</button>
+                </label>
+                <label>
+                  <span>市</span>
+                  <select name="addressCity" required></select>
+                  <button class="area-select-button is-placeholder" type="button" data-area-level="city">请先选择省</button>
+                </label>
+                <label>
+                  <span>区 / 县</span>
+                  <select name="addressDistrict" required></select>
+                  <button class="area-select-button is-placeholder" type="button" data-area-level="district">请先选择市</button>
+                </label>
+              </div>
+              <label class="wide">
+                <span>详细地址</span>
+                <textarea class="compact-textarea" name="addressDetail" rows="2" required placeholder="请输入街道、门牌号、档口号，避免影响派送时效"></textarea>
+              </label>
+            </div>
+            <div class="dialog-actions">
+              <span class="form-tip">后续维修人员会与您联系</span>
+              <button class="primary" type="submit">提交登记</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="table-shell submissions-page app-view" id="submissionsPage" hidden aria-label="客户提交列表">
+        <div class="table-title">
+          <h2>客户提交</h2>
+          <span id="submissionCount">0 条</span>
+        </div>
+        <div class="table-wrap">
+          <table class="submissions-table">
+            <thead>
+              <tr>
+                <th>提交时间</th>
+                <th>编号 / 型号</th>
+                <th>公司 / 联系人</th>
+                <th>电话</th>
+                <th>寄出单号</th>
+                <th>故障原因</th>
+                <th>收件地址</th>
+                <th class="actions-col">操作</th>
+              </tr>
+            </thead>
+            <tbody id="submissionsBody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="submissionsEmptyState" hidden>
+          <strong>暂无客户提交</strong>
+          <span>把“扫码登记”里的二维码发给客户，客户填完就会出现在这里。</span>
+        </div>
+      </section>
     </main>
 
     <dialog id="recordDialog">
@@ -176,24 +305,24 @@
             <input name="deviceNumber" required>
           </label>
           <label>
-            <span>型号</span>
-            <select name="model" required></select>
-          </label>
-          <label>
-            <span>有无电源</span>
+            <span>有无电源（实际签收）</span>
             <select name="hasPower" required></select>
           </label>
           <label>
-            <span>公司名</span>
-            <input name="companyName" required>
+            <span>型号</span>
+            <input class="readonly-field" name="model" readonly placeholder="填写编号后自动匹配">
+          </label>
+          <label>
+            <span>故障归属</span>
+            <select name="faultOwnership" required></select>
           </label>
           <label>
             <span>最终状态</span>
             <select name="finalStatus" required></select>
           </label>
           <label>
-            <span>故障归属</span>
-            <select name="faultOwnership" required></select>
+            <span>公司名</span>
+            <input class="readonly-field" name="companyName" readonly required placeholder="匹配客户提交后自动显示">
           </label>
           <label>
             <span>故障分类</span>
@@ -210,12 +339,17 @@
             <input name="returnTime" type="date">
           </label>
           <label>
+            <span>电源适配器是否寄回（客户填写）</span>
+            <input class="readonly-field" name="customerPowerAdapter" readonly placeholder="匹配客户提交后自动显示">
+          </label>
+          <label>
             <span>寄回单号</span>
             <input name="returnTrackingNumber">
           </label>
+          <div class="match-box" id="matchBox" hidden></div>
           <label class="wide">
-            <span>客户描述问题</span>
-            <textarea name="customerIssue" rows="3" required></textarea>
+            <span>打印机故障原因（客述）</span>
+            <textarea class="readonly-field" name="customerIssue" rows="3" readonly required placeholder="匹配客户提交后自动显示"></textarea>
           </label>
           <label class="wide">
             <span>维修过程</span>
@@ -267,6 +401,72 @@
       </form>
     </dialog>
 
+    <dialog id="submissionDialog">
+      <form method="dialog" id="submissionForm">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">客户提交</p>
+            <h2>编辑客户提交</h2>
+          </div>
+          <button class="icon-btn" id="closeSubmissionDialogBtn" type="button" aria-label="关闭">×</button>
+        </div>
+
+        <input name="id" type="hidden">
+        <div class="form-grid">
+          <label>
+            <span>打印机编号</span>
+            <input name="deviceNumber" required inputmode="numeric" maxlength="10" pattern="\d{10}">
+          </label>
+          <label>
+            <span>公司名</span>
+            <input name="companyName" required>
+          </label>
+          <label>
+            <span>收件人</span>
+            <input name="contactName" required>
+          </label>
+          <label>
+            <span>手机号码</span>
+            <input name="phone" required inputmode="numeric" maxlength="11" pattern="\d{11}">
+          </label>
+          <label>
+            <span>寄出快递单号</span>
+            <input name="trackingNumber">
+          </label>
+          <label>
+            <span>型号</span>
+            <select name="model" required></select>
+          </label>
+          <label class="wide">
+            <span>故障原因</span>
+            <textarea name="customerIssue" rows="4" required></textarea>
+          </label>
+          <label class="wide">
+            <span>收件地址</span>
+            <textarea name="customerAddress" rows="3" required></textarea>
+          </label>
+        </div>
+
+        <div class="dialog-actions">
+          <div></div>
+          <div>
+            <button class="secondary" id="cancelSubmissionDialogBtn" type="button">取消</button>
+            <button class="primary" type="submit">保存修改</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="areaPickerDialog" class="area-picker-dialog">
+      <div class="area-picker-panel">
+        <div class="area-picker-head">
+          <strong id="areaPickerTitle">请选择</strong>
+          <button class="icon-btn" id="closeAreaPickerBtn" type="button" aria-label="关闭">×</button>
+        </div>
+        <div class="area-picker-options" id="areaPickerOptions"></div>
+      </div>
+    </dialog>
+
     <dialog id="shareDialog">
       <div class="share-dialog">
         <div class="dialog-head">
@@ -293,6 +493,7 @@
     <div class="address-popover" id="addressPopover" role="dialog" aria-label="完整客户地址" hidden></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="area-data.js"></script>
     <script src="app.js?v=20260529-supabase"></script>
   </body>
 </html>
