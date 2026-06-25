@@ -631,7 +631,7 @@ async function deleteCloudRecord(id) {
 
 async function loadCloudSubmissions() {
   if (!cloudMode || !supabaseClient) return;
-  if (!adminMode) {
+  if (!adminMode && !forceReadonlyMode) {
     renderSubmissions();
     return;
   }
@@ -2016,6 +2016,11 @@ function encodePayload(value) {
 
 function createReadonlyShareUrl() {
   const url = new URL(PUBLIC_SHARE_BASE_URL);
+  if (cloudMode) {
+    url.hash = "readonly";
+    return url.toString();
+  }
+
   url.hash = "view=" + encodePayload(packSharedData());
   return url.toString();
 }

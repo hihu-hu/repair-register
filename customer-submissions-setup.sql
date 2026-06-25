@@ -22,6 +22,8 @@ alter table public.customer_repair_submissions enable row level security;
 
 drop policy if exists "customer submissions are publicly insertable"
   on public.customer_repair_submissions;
+drop policy if exists "customer submissions are publicly readable"
+  on public.customer_repair_submissions;
 drop policy if exists "only admin can read customer submissions"
   on public.customer_repair_submissions;
 drop policy if exists "only admin can update customer submissions"
@@ -35,11 +37,11 @@ create policy "customer submissions are publicly insertable"
   to anon, authenticated
   with check (true);
 
-create policy "only admin can read customer submissions"
+create policy "customer submissions are publicly readable"
   on public.customer_repair_submissions
   for select
-  to authenticated
-  using ((auth.jwt() ->> 'email') = '1041852311@qq.com');
+  to anon, authenticated
+  using (true);
 
 create policy "only admin can update customer submissions"
   on public.customer_repair_submissions
