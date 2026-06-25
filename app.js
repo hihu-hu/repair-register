@@ -1,5 +1,6 @@
 const STORAGE_KEY = "printer_repair_records_v3";
 const PUBLIC_SHARE_BASE_URL = "https://hihu-hu.github.io/repair-register/";
+const ADMIN_USERNAME = "CCCC";
 const ADMIN_EMAIL = "1041852311@qq.com";
 const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
@@ -1274,25 +1275,29 @@ function openAuthDialog() {
     return;
   }
   els.authDialog.showModal();
-  els.authForm.elements.email.focus();
+  els.authForm.elements.username.focus();
 }
 
 async function signInAdmin() {
   if (!cloudMode || !supabaseClient) return;
   const formData = new FormData(els.authForm);
-  const email = String(formData.get("email") || "").trim();
+  const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "");
+  if (username !== ADMIN_USERNAME) {
+    showToast("登录失败，请检查账号和密码");
+    return;
+  }
 
-  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  const { error } = await supabaseClient.auth.signInWithPassword({ email: ADMIN_EMAIL, password });
   if (error) {
     console.error(error);
-    showToast("登录失败，请检查邮箱和密码");
+    showToast("登录失败，请检查账号和密码");
     return;
   }
 
   els.authDialog.close();
   els.authForm.reset();
-  els.authForm.elements.email.value = ADMIN_EMAIL;
+  els.authForm.elements.username.value = ADMIN_USERNAME;
   showToast("管理员已登录");
 }
 
