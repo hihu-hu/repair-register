@@ -900,7 +900,10 @@ function getCustomerRegisterUrl() {
   if (["localhost", "127.0.0.1"].includes(location.hostname)) {
     return LOCAL_CUSTOMER_REGISTER_URL;
   }
-  return CUSTOMER_REGISTER_URL;
+  const url = new URL(location.href);
+  url.hash = "customer";
+  url.search = "";
+  return url.toString();
 }
 
 function updateCustomerQrCode() {
