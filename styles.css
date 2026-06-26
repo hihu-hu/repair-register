@@ -26,6 +26,29 @@
   display: none !important;
 }
 
+html.boot-customer .app-header,
+html.boot-customer .repair-view,
+html.boot-customer #submissionsPage,
+html.boot-customer .customer-intro,
+html.boot-customer #customerRecent {
+  display: none !important;
+}
+
+html.boot-customer #customerPage,
+html.boot-customer #customerForm {
+  display: block !important;
+}
+
+html.boot-customer main {
+  padding-top: 20px;
+}
+
+html.boot-customer .customer-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 760px);
+  justify-content: center;
+}
+
 body {
   margin: 0;
   min-width: 320px;

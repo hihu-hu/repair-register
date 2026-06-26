@@ -957,6 +957,7 @@ function showCustomerPortal() {
 }
 
 function setView(view) {
+  document.documentElement.classList.remove("boot-customer");
   currentView = view;
   const isCustomerPortal = view === "customer";
   const isCustomerAdmin = view === "customerAdmin";
