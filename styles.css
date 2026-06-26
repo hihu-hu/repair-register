@@ -642,6 +642,22 @@ body.customer-portal .customer-layout {
   margin-bottom: 10px;
 }
 
+.shipping-note {
+  margin-top: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: #1f2b34;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+.shipping-note p {
+  margin: 0 0 10px;
+}
+
 .submissions-table {
   min-width: 1220px;
 }
