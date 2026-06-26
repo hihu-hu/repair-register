@@ -507,6 +507,45 @@ function hasSupabaseConfig() {
   return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase?.createClient);
 }
 
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const existing = Array.from(document.scripts).find((script) => script.src === src);
+    if (existing) {
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", reject, { once: true });
+      if (hasSupabaseConfig()) resolve();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureSupabaseLoaded() {
+  if (hasSupabaseConfig()) return true;
+
+  const sources = [
+    "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
+    "https://unpkg.com/@supabase/supabase-js@2"
+  ];
+
+  for (const source of sources) {
+    try {
+      await loadScript(source);
+      if (hasSupabaseConfig()) return true;
+    } catch (error) {
+      console.warn("Supabase 脚本加载失败", source, error);
+    }
+  }
+
+  showToast("云端连接加载失败，请刷新页面");
+  return false;
+}
+
 function refreshAccessMode() {
   if (!cloudMode) return;
   setReadonlyMode(forceReadonlyMode || !adminMode);
@@ -594,7 +633,7 @@ function fromDatabaseSubmission(item) {
 }
 
 async function initializeCloud() {
-  if (!hasSupabaseConfig() || (forceReadonlyMode && location.hash.includes("view="))) return;
+  if ((forceReadonlyMode && location.hash.includes("view=")) || !(await ensureSupabaseLoaded())) return;
 
   cloudMode = true;
   supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
