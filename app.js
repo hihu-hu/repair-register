@@ -9,6 +9,7 @@ const ADMIN_EMAIL = "1041852311@qq.com";
 const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
 const MULTI_VALUE_SEPARATOR = "、";
+const CUSTOMER_SUBMIT_FAST_FEEDBACK_MS = 1200;
 
 const optionSets = {
   hasPower: ["有", "没有"],
@@ -975,7 +976,16 @@ function setCustomerSubmitting(isSubmitting) {
   isCustomerSubmitting = isSubmitting;
   if (!els.customerSubmitBtn) return;
   els.customerSubmitBtn.disabled = isSubmitting;
-  els.customerSubmitBtn.textContent = isSubmitting ? "提交中..." : "提交登记";
+  els.customerSubmitBtn.textContent = isSubmitting ? "正在提交" : "提交登记";
+}
+
+function waitForFastFeedback(promise, timeoutMs = CUSTOMER_SUBMIT_FAST_FEEDBACK_MS) {
+  return Promise.race([
+    promise.then(() => ({ ok: true })).catch((error) => ({ ok: false, error })),
+    new Promise((resolve) => {
+      setTimeout(() => resolve({ ok: true, pending: true }), timeoutMs);
+    })
+  ]);
 }
 
 function getCustomerSubmissionFingerprint(submission) {
@@ -1699,10 +1709,11 @@ async function submitCustomerForm() {
   }
 
   setCustomerSubmitting(true);
-  try {
-    if (cloudMode) await saveCloudSubmission(submission);
-  } catch (error) {
-    console.error(error);
+  const savePromise = cloudMode ? saveCloudSubmission(submission) : Promise.resolve();
+  const saveResult = await waitForFastFeedback(savePromise);
+  if (!saveResult.ok) {
+    console.error(saveResult.error);
+    const error = saveResult.error;
     if (error?.code === "PGRST205" || String(error?.message || "").includes("customer_repair_submissions")) {
       showToast("云端还没升级客户登记表，请先执行数据库 SQL");
     } else if (error?.code === "42501") {
@@ -1712,6 +1723,12 @@ async function submitCustomerForm() {
     }
     setCustomerSubmitting(false);
     return;
+  }
+  if (saveResult.pending) {
+    savePromise.catch((error) => {
+      console.error(error);
+      showToast("云端保存较慢，请检查网络后刷新确认");
+    });
   }
 
   lastCustomerSubmitFingerprint = fingerprint;
