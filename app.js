@@ -1277,18 +1277,21 @@ function renderSubmissions() {
       return `
         <tr data-id="${escapeHtml(item.id)}">
           <td>${compact(formatDateTime(item.createdTime))}</td>
+          <td>${compact(item.trackingNumber)}</td>
           <td>
             <span class="cell-main">${compact(item.deviceNumber)}</span>
             <span class="cell-sub">${compact(item.model)}</span>
           </td>
-          <td>
-            <span class="cell-main">${compact(item.companyName)}</span>
-            <span class="cell-sub">${compact(item.contactName)}</span>
+          <td>${compact(extractPowerAdapterAnswer(item))}</td>
+          <td>${compact(item.companyName)}</td>
+          <td class="contact-detail-cell">
+            <span class="contact-line">
+              <span>${compact(item.contactName)}</span>
+              <span>${compact(item.phone)}</span>
+            </span>
+            <span class="cell-sub">${compact(item.customerAddress)}</span>
           </td>
-          <td>${compact(item.phone)}</td>
-          <td>${compact(item.trackingNumber)}</td>
           <td class="text-cell">${compact(cleanCustomerIssueForRecord(item))}</td>
-          <td class="text-cell address-cell">${compact(item.customerAddress)}</td>
           ${
             adminMode && !readonlyMode
               ? `<td class="actions-col">

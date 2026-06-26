@@ -746,6 +746,23 @@ body:not(.readonly) tbody tr {
   max-width: 220px;
 }
 
+.contact-detail-cell {
+  max-width: 300px;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.contact-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-weight: 400;
+}
+
+.contact-detail-cell .cell-sub {
+  margin-top: 2px;
+}
+
 .address-preview {
   display: -webkit-box;
   width: 100%;
