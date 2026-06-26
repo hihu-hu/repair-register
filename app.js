@@ -963,7 +963,7 @@ function showCustomerPortal() {
       </div>
       <div>
         <strong>扫描二维码添加好友</strong>
-        <p>添加后可以接收维修进度和寄回通知。</p>
+        <p>添加后可以与我沟通维修进度</p>
         <button class="secondary" id="addEnterpriseWechatBtn" type="button">添加企业微信</button>
       </div>
     </div>
