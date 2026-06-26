@@ -918,6 +918,8 @@ dialog::backdrop {
   overflow: hidden;
   text-align: left;
   text-overflow: ellipsis;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
   white-space: nowrap;
 }
 
@@ -940,6 +942,13 @@ dialog::backdrop {
 .area-select-button:focus-visible {
   border-color: #b8c9d5;
   box-shadow: 0 0 0 3px var(--accent-soft);
+  outline: none;
+}
+
+.area-select-button:focus:not(:focus-visible),
+.area-select-button:active {
+  background: #fff;
+  box-shadow: none;
   outline: none;
 }
 
@@ -989,7 +998,15 @@ dialog::backdrop {
   background: #fff;
   color: var(--ink);
   font-weight: 800;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
   text-align: left;
+}
+
+.area-option:focus:not(:focus-visible),
+.area-option:active {
+  box-shadow: none;
+  outline: none;
 }
 
 .area-option.is-active {
