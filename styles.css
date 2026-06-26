@@ -646,6 +646,7 @@ body.customer-portal .customer-layout {
   align-self: stretch;
   display: flex;
   flex-direction: column;
+  height: 164px;
   justify-content: flex-end;
 }
 
@@ -1311,6 +1312,7 @@ body.readonly .row-actions {
 
   .qr-copy-panel {
     align-self: auto;
+    height: auto;
   }
 
   .wechat-qr-placeholder {
