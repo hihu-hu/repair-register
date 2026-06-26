@@ -953,7 +953,6 @@ function showCustomerPortal() {
       </div>
       <div>
         <strong>扫描二维码添加好友（以便沟通维修事项）</strong>
-        <p>添加后可以与我沟通维修进度</p>
       </div>
     </div>
     <dl>
