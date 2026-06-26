@@ -110,7 +110,6 @@ const els = {
   authForm: document.querySelector("#authForm"),
   closeAuthDialogBtn: document.querySelector("#closeAuthDialogBtn"),
   cancelAuthDialogBtn: document.querySelector("#cancelAuthDialogBtn"),
-  shareReadonlyBtn: document.querySelector("#shareReadonlyBtn"),
   newRecordBtn: document.querySelector("#newRecordBtn"),
   recordDialog: document.querySelector("#recordDialog"),
   recordForm: document.querySelector("#recordForm"),
@@ -985,6 +984,13 @@ function showCustomerForm() {
   els.customerRecent.hidden = true;
 }
 
+function startNewCustomerSubmission() {
+  if (currentView === "customer") {
+    history.replaceState(null, "", `${location.pathname}?page=customer&entry=form`);
+  }
+  showCustomerForm();
+}
+
 function showCustomerPortal() {
   const forceCustomerForm = new URLSearchParams(location.search).get("entry") === "form";
   const lastSubmission = getLastCustomerSubmission();
@@ -1036,7 +1042,6 @@ function setView(view) {
 
   const adminActionsHidden = view !== "repair";
   els.importExcelBtn.hidden = adminActionsHidden || readonlyMode;
-  els.shareReadonlyBtn.hidden = adminActionsHidden || readonlyMode;
   els.newRecordBtn.hidden = adminActionsHidden || readonlyMode;
 
   if (view === "submissions") renderSubmissions();
@@ -2366,7 +2371,7 @@ function bindEvents() {
       showToast("复制失败，请手动复制浏览器地址");
     }
   });
-  els.newCustomerSubmissionBtn.addEventListener("click", showCustomerForm);
+  els.newCustomerSubmissionBtn.addEventListener("click", startNewCustomerSubmission);
   els.authToggleBtn.addEventListener("click", openAuthDialog);
   els.closeAuthDialogBtn.addEventListener("click", () => els.authDialog.close());
   els.cancelAuthDialogBtn.addEventListener("click", () => els.authDialog.close());
@@ -2374,7 +2379,6 @@ function bindEvents() {
   els.closeSubmissionDialogBtn.addEventListener("click", () => els.submissionDialog.close());
   els.cancelSubmissionDialogBtn.addEventListener("click", () => els.submissionDialog.close());
   els.newRecordBtn.addEventListener("click", openNewDialog);
-  els.shareReadonlyBtn.addEventListener("click", copyReadonlyShareLink);
   els.importExcelBtn.addEventListener("click", () => els.importExcelInput.click());
   els.importExcelInput.addEventListener("change", () => importExcelFile(els.importExcelInput.files[0]));
   els.resetFiltersBtn.addEventListener("click", resetFilters);
