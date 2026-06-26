@@ -952,7 +952,7 @@ function showCustomerPortal() {
         <span>企微</span>
       </div>
       <div>
-        <strong>扫描二维码添加好友</strong>
+        <strong>扫描二维码添加好友（以便沟通维修事项）</strong>
         <p>添加后可以与我沟通维修进度</p>
       </div>
     </div>
