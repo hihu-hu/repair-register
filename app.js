@@ -2,8 +2,8 @@ const STORAGE_KEY = "printer_repair_records_v3";
 const CUSTOMER_SUBMISSIONS_STORAGE_KEY = "printer_customer_submissions_v1";
 const LAST_CUSTOMER_SUBMISSION_KEY = "printer_last_customer_submission_v1";
 const PUBLIC_SHARE_BASE_URL = "https://hihu-hu.github.io/repair-register/";
-const CUSTOMER_REGISTER_URL = `${PUBLIC_SHARE_BASE_URL}?page=customer`;
-const LOCAL_CUSTOMER_REGISTER_URL = "http://192.168.1.211:5173/?page=customer";
+const CUSTOMER_REGISTER_URL = `${PUBLIC_SHARE_BASE_URL}?page=customer&entry=form`;
+const LOCAL_CUSTOMER_REGISTER_URL = "http://192.168.1.211:5173/?page=customer&entry=form";
 const ADMIN_USERNAME = "CCCC";
 const ADMIN_EMAIL = "1041852311@qq.com";
 const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
@@ -964,8 +964,9 @@ function showCustomerForm() {
 }
 
 function showCustomerPortal() {
+  const forceCustomerForm = new URLSearchParams(location.search).get("entry") === "form";
   const lastSubmission = getLastCustomerSubmission();
-  if (!lastSubmission) {
+  if (!lastSubmission || forceCustomerForm) {
     showCustomerForm();
     return;
   }
@@ -1595,7 +1596,10 @@ async function submitCustomerForm() {
   updateAddressCities();
   syncAreaButtons();
   syncSimpleSelectButton("powerAdapterReturned");
-  if (currentView === "customer") showCustomerPortal();
+  if (currentView === "customer") {
+    history.replaceState(null, "", `${location.pathname}?page=customer`);
+    showCustomerPortal();
+  }
   renderSubmissions();
   showToast("登记成功，工作人员会尽快处理");
 }
