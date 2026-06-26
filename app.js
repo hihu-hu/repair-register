@@ -2,8 +2,8 @@ const STORAGE_KEY = "printer_repair_records_v3";
 const CUSTOMER_SUBMISSIONS_STORAGE_KEY = "printer_customer_submissions_v1";
 const LAST_CUSTOMER_SUBMISSION_KEY = "printer_last_customer_submission_v1";
 const PUBLIC_SHARE_BASE_URL = "https://hihu-hu.github.io/repair-register/";
-const CUSTOMER_REGISTER_URL = `${PUBLIC_SHARE_BASE_URL}#customer`;
-const LOCAL_CUSTOMER_REGISTER_URL = "http://192.168.1.211:5173/#customer";
+const CUSTOMER_REGISTER_URL = `${PUBLIC_SHARE_BASE_URL}?page=customer`;
+const LOCAL_CUSTOMER_REGISTER_URL = "http://192.168.1.211:5173/?page=customer";
 const ADMIN_USERNAME = "CCCC";
 const ADMIN_EMAIL = "1041852311@qq.com";
 const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
@@ -933,10 +933,7 @@ function getCustomerRegisterUrl() {
   if (["localhost", "127.0.0.1"].includes(location.hostname)) {
     return LOCAL_CUSTOMER_REGISTER_URL;
   }
-  const url = new URL(location.href);
-  url.hash = "customer";
-  url.search = "";
-  return url.toString();
+  return CUSTOMER_REGISTER_URL;
 }
 
 function updateCustomerQrCode() {
@@ -1029,6 +1026,12 @@ function setView(view) {
 
 function applyViewFromHash() {
   const hash = location.hash.replace(/^#/, "");
+  const page = new URLSearchParams(location.search).get("page");
+  if (page === "customer") {
+    setReadonlyMode(false);
+    setView("customer");
+    return true;
+  }
   if (hash === "customer-admin") {
     setView("customerAdmin");
     return true;
