@@ -147,6 +147,7 @@ let currentView = "repair";
 let areaData = null;
 let appliedSubmissionSnapshot = null;
 let appliedSubmissionId = "";
+let ignoredSubmissionId = "";
 let isCustomerSubmitting = false;
 let lastCustomerSubmitFingerprint = "";
 let lastCustomerSubmitTime = 0;
@@ -1400,12 +1401,14 @@ function undoSubmissionToRecordForm() {
   form.customerIssue.value = appliedSubmissionSnapshot.customerIssue;
   form.customerAddress.value = appliedSubmissionSnapshot.customerAddress;
   appliedSubmissionSnapshot = null;
+  ignoredSubmissionId = appliedSubmissionId;
   appliedSubmissionId = "";
   showToast("已取消带入");
+  hideMatchBox();
 }
 
 function showMatchedSubmission(submission) {
-  if (!submission || els.recordId.value) {
+  if (!submission || els.recordId.value || submission.id === ignoredSubmissionId) {
     hideMatchBox();
     return;
   }
@@ -1433,6 +1436,7 @@ function hideMatchBox() {
 function checkDeviceNumberMatch() {
   autoFillRecordModel();
   const submission = findSubmissionByDeviceNumber(els.recordForm.elements.deviceNumber.value);
+  if (submission?.id !== ignoredSubmissionId) ignoredSubmissionId = "";
   showMatchedSubmission(submission);
 }
 
