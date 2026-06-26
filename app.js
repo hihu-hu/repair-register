@@ -1068,7 +1068,7 @@ function getCustomerRegisterUrl() {
 
 function updateCustomerQrCode() {
   const url = getCustomerRegisterUrl();
-  els.customerQrImage.src = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(url);
+  els.customerQrImage.src = "https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=" + encodeURIComponent(url);
 }
 
 function getLastCustomerSubmission() {
