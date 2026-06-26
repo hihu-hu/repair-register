@@ -28,6 +28,8 @@ drop policy if exists "only admin can read customer submissions"
   on public.customer_repair_submissions;
 drop policy if exists "only admin can update customer submissions"
   on public.customer_repair_submissions;
+drop policy if exists "customer submissions are publicly updatable"
+  on public.customer_repair_submissions;
 drop policy if exists "only admin can delete customer submissions"
   on public.customer_repair_submissions;
 
@@ -43,12 +45,12 @@ create policy "customer submissions are publicly readable"
   to anon, authenticated
   using (true);
 
-create policy "only admin can update customer submissions"
+create policy "customer submissions are publicly updatable"
   on public.customer_repair_submissions
   for update
-  to authenticated
-  using ((auth.jwt() ->> 'email') = '1041852311@qq.com')
-  with check ((auth.jwt() ->> 'email') = '1041852311@qq.com');
+  to anon, authenticated
+  using (true)
+  with check (true);
 
 create policy "only admin can delete customer submissions"
   on public.customer_repair_submissions

@@ -10,6 +10,7 @@ const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
 const MULTI_VALUE_SEPARATOR = "、";
 const CUSTOMER_SUBMIT_FAST_FEEDBACK_MS = 1200;
+const LOCKED_CUSTOMER_EDIT_STATUSES = ["已寄出", "邮寄并结束"];
 
 const optionSets = {
   hasPower: ["有", "没有"],
@@ -67,6 +68,7 @@ const els = {
   customerRecent: document.querySelector("#customerRecent"),
   customerRecentDetail: document.querySelector("#customerRecentDetail"),
   newCustomerSubmissionBtn: document.querySelector("#newCustomerSubmissionBtn"),
+  editCustomerSubmissionBtn: document.querySelector("#editCustomerSubmissionBtn"),
   submissionsPage: document.querySelector("#submissionsPage"),
   customerQrImage: document.querySelector("#customerQrImage"),
   copyCustomerLinkBtn: document.querySelector("#copyCustomerLinkBtn"),
@@ -151,6 +153,7 @@ let appliedSubmissionId = "";
 let ignoredSubmissionId = "";
 let matchedSubmissionForRecord = null;
 let isCustomerSubmitting = false;
+let editingCustomerSubmissionId = "";
 let lastCustomerSubmitFingerprint = "";
 let lastCustomerSubmitTime = 0;
 
@@ -452,6 +455,10 @@ function compareItemsOldestFirst(a, b) {
 }
 
 function getReviewedSubmissionIds() {
+  return new Set(getSubmissionRepairMatches().keys());
+}
+
+function getSubmissionRepairMatches() {
   const submissionsByDevice = new Map();
   customerSubmissions.forEach((submission) => {
     const deviceNumber = String(submission.deviceNumber || "").trim().toLowerCase();
@@ -463,7 +470,7 @@ function getReviewedSubmissionIds() {
   submissionsByDevice.forEach((items) => items.sort(compareItemsOldestFirst));
 
   const recordCountsByDevice = new Map();
-  const reviewedIds = new Set();
+  const matches = new Map();
   records
     .filter((record) => String(record.deviceNumber || "").trim())
     .sort(compareItemsOldestFirst)
@@ -472,10 +479,10 @@ function getReviewedSubmissionIds() {
       const recordCount = recordCountsByDevice.get(deviceNumber) || 0;
       const matchedSubmission = submissionsByDevice.get(deviceNumber)?.[recordCount];
       recordCountsByDevice.set(deviceNumber, recordCount + 1);
-      if (matchedSubmission) reviewedIds.add(matchedSubmission.id);
+      if (matchedSubmission) matches.set(matchedSubmission.id, record);
     });
 
-  return reviewedIds;
+  return matches;
 }
 
 function toInputDateTime(date) {
@@ -688,6 +695,7 @@ async function loadCloudRecords() {
 
   records = sortRecordsNewestFirst(data.map(fromDatabaseRecord));
   render();
+  updateCustomerEditButton();
 }
 
 async function saveCloudRecord(record) {
@@ -972,11 +980,62 @@ function getCustomerAddressFromForm() {
   return [province, city, district, detail].filter(Boolean).join("");
 }
 
+function findAreaCodeByName(items, text) {
+  const normalizedText = String(text || "").trim();
+  if (!normalizedText) return "";
+  const match = Object.entries(items || {}).find(([, name]) => normalizedText.startsWith(name));
+  return match?.[0] || "";
+}
+
+function fillCustomerAddressFields(address) {
+  const form = els.customerForm.elements;
+  const text = String(address || "").trim();
+  form.addressDetail.value = text;
+  if (!areaData || !text) {
+    syncAreaButtons();
+    return;
+  }
+
+  const provinceCode = findAreaCodeByName(areaData["86"], text);
+  if (!provinceCode) {
+    syncAreaButtons();
+    return;
+  }
+  const provinceName = areaData["86"][provinceCode] || "";
+  form.addressProvince.value = provinceCode;
+  updateAddressCities();
+
+  let rest = text.slice(provinceName.length);
+  const cityCode = findAreaCodeByName(areaData[provinceCode], rest);
+  if (!cityCode) {
+    form.addressDetail.value = rest || text;
+    syncAreaButtons();
+    return;
+  }
+  const cityName = areaData[provinceCode][cityCode] || "";
+  form.addressCity.value = cityCode;
+  updateAddressDistricts();
+
+  rest = rest.slice(cityName.length);
+  const districtCode = findAreaCodeByName(areaData[cityCode], rest);
+  if (districtCode) {
+    const districtName = areaData[cityCode][districtCode] || "";
+    form.addressDistrict.value = districtCode;
+    rest = rest.slice(districtName.length);
+  }
+  form.addressDetail.value = rest || "";
+  syncAreaButtons();
+}
+
 function setCustomerSubmitting(isSubmitting) {
   isCustomerSubmitting = isSubmitting;
   if (!els.customerSubmitBtn) return;
   els.customerSubmitBtn.disabled = isSubmitting;
-  els.customerSubmitBtn.textContent = isSubmitting ? "正在提交" : "提交登记";
+  if (isSubmitting) {
+    els.customerSubmitBtn.textContent = editingCustomerSubmissionId ? "正在保存" : "正在提交";
+    return;
+  }
+  els.customerSubmitBtn.textContent = editingCustomerSubmissionId ? "保存修改" : "提交登记";
 }
 
 function waitForFastFeedback(promise, timeoutMs = CUSTOMER_SUBMIT_FAST_FEEDBACK_MS) {
@@ -1032,11 +1091,59 @@ function saveLastCustomerSubmission(submission) {
 function showCustomerForm() {
   els.customerForm.hidden = false;
   els.customerRecent.hidden = true;
+  setCustomerSubmitting(false);
 }
 
 function startNewCustomerSubmission() {
+  editingCustomerSubmissionId = "";
+  els.customerForm.reset();
+  updateAddressCities();
+  syncAreaButtons();
+  syncSimpleSelectButton("powerAdapterReturned");
   if (currentView === "customer") {
     history.replaceState(null, "", `${location.pathname}?page=customer&entry=form`);
+  }
+  showCustomerForm();
+}
+
+function getCustomerSubmissionRepairRecord(submission) {
+  if (!submission) return null;
+  return getSubmissionRepairMatches().get(submission.id) || null;
+}
+
+function canEditCustomerSubmission(submission) {
+  const repairRecord = getCustomerSubmissionRepairRecord(submission);
+  return !repairRecord || !LOCKED_CUSTOMER_EDIT_STATUSES.includes(repairRecord.finalStatus);
+}
+
+function updateCustomerEditButton() {
+  if (!els.editCustomerSubmissionBtn || els.customerRecent.hidden) return;
+  els.editCustomerSubmissionBtn.hidden = !canEditCustomerSubmission(getLastCustomerSubmission());
+}
+
+async function startEditCustomerSubmission() {
+  const lastSubmission = getLastCustomerSubmission();
+  if (!lastSubmission) return;
+  if (!canEditCustomerSubmission(lastSubmission)) {
+    showToast("这条记录已寄出，不能再修改");
+    showCustomerPortal();
+    return;
+  }
+
+  if (!areaData) await loadAreaData();
+  const form = els.customerForm.elements;
+  editingCustomerSubmissionId = lastSubmission.id;
+  form.trackingNumber.value = lastSubmission.trackingNumber || "";
+  form.deviceNumber.value = lastSubmission.deviceNumber || "";
+  form.companyName.value = lastSubmission.companyName || "";
+  form.contactName.value = lastSubmission.contactName || "";
+  form.phone.value = lastSubmission.phone || "";
+  form.customerIssue.value = cleanCustomerIssueForRecord(lastSubmission);
+  form.powerAdapterReturned.value = extractPowerAdapterAnswer(lastSubmission);
+  syncSimpleSelectButton("powerAdapterReturned");
+  fillCustomerAddressFields(lastSubmission.customerAddress);
+  if (currentView === "customer") {
+    history.replaceState(null, "", `${location.pathname}?page=customer&entry=edit`);
   }
   showCustomerForm();
 }
@@ -1055,8 +1162,10 @@ function showCustomerPortal() {
     return;
   }
 
+  editingCustomerSubmissionId = "";
   els.customerForm.hidden = true;
   els.customerRecent.hidden = false;
+  updateCustomerEditButton();
   els.customerRecentDetail.innerHTML = `
     <div class="success-panel">
       <strong>登记成功</strong>
@@ -1680,9 +1789,12 @@ function getCustomerSubmissionFromForm() {
     els.customerForm.elements.powerAdapterReturned.focus();
     return null;
   }
+  const oldSubmission = editingCustomerSubmissionId
+    ? customerSubmissions.find((item) => item.id === editingCustomerSubmissionId) || getLastCustomerSubmission()
+    : null;
   return normalizeCustomerSubmission({
-    id: createCustomerSubmissionId(),
-    createdTime: toInputDateTime(new Date()),
+    id: oldSubmission?.id || createCustomerSubmissionId(),
+    createdTime: oldSubmission?.createdTime || toInputDateTime(new Date()),
     deviceNumber,
     model: inferModelFromDeviceNumber(deviceNumber),
     companyName: String(formData.get("companyName") || ""),
@@ -1703,7 +1815,7 @@ async function submitCustomerForm() {
 
   const fingerprint = getCustomerSubmissionFingerprint(submission);
   const now = Date.now();
-  if (fingerprint === lastCustomerSubmitFingerprint && now - lastCustomerSubmitTime < 30000) {
+  if (!editingCustomerSubmissionId && fingerprint === lastCustomerSubmitFingerprint && now - lastCustomerSubmitTime < 30000) {
     showToast("已经提交过了，请不要重复点击");
     return;
   }
@@ -1733,10 +1845,17 @@ async function submitCustomerForm() {
 
   lastCustomerSubmitFingerprint = fingerprint;
   lastCustomerSubmitTime = now;
-  customerSubmissions.unshift(submission);
+  const existingIndex = customerSubmissions.findIndex((item) => item.id === submission.id);
+  if (existingIndex >= 0) {
+    customerSubmissions[existingIndex] = submission;
+  } else {
+    customerSubmissions.unshift(submission);
+  }
   sortCustomerSubmissionsNewestFirst(customerSubmissions);
   if (!cloudMode) saveCustomerSubmissions();
   saveLastCustomerSubmission(submission);
+  const wasEditing = Boolean(editingCustomerSubmissionId);
+  editingCustomerSubmissionId = "";
   els.customerForm.reset();
   updateAddressCities();
   syncAreaButtons();
@@ -1746,7 +1865,7 @@ async function submitCustomerForm() {
     showCustomerPortal();
   }
   renderSubmissions();
-  showToast("登记成功，工作人员会尽快处理");
+  showToast(wasEditing ? "修改成功" : "登记成功，工作人员会尽快处理");
   setCustomerSubmitting(false);
 }
 
@@ -2441,6 +2560,7 @@ function bindEvents() {
     }
   });
   els.newCustomerSubmissionBtn.addEventListener("click", startNewCustomerSubmission);
+  els.editCustomerSubmissionBtn.addEventListener("click", startEditCustomerSubmission);
   els.authToggleBtn.addEventListener("click", openAuthDialog);
   els.closeAuthDialogBtn.addEventListener("click", () => els.authDialog.close());
   els.cancelAuthDialogBtn.addEventListener("click", () => els.authDialog.close());

@@ -522,7 +522,13 @@ body.customer-portal .customer-layout {
   margin: 0;
 }
 
-.customer-recent-head #newCustomerSubmissionBtn {
+.customer-recent-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.customer-recent-actions button {
   flex: 0 0 auto;
 }
 
@@ -1283,7 +1289,11 @@ body.readonly .row-actions {
     align-items: flex-start;
   }
 
-  .customer-recent-head #newCustomerSubmissionBtn {
+  .customer-recent-actions {
+    flex-direction: column;
+  }
+
+  .customer-recent-actions button {
     min-height: 36px;
     padding: 0 12px;
     font-size: 13px;
