@@ -9,6 +9,7 @@ const ADMIN_EMAIL = "1041852311@qq.com";
 const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
 const MULTI_VALUE_SEPARATOR = "、";
+const ENTERPRISE_WECHAT_ID = "请联系维修人员";
 
 const optionSets = {
   hasPower: ["有", "没有"],
@@ -928,6 +929,15 @@ function saveLastCustomerSubmission(submission) {
   }
 }
 
+async function copyEnterpriseWechatId() {
+  try {
+    await navigator.clipboard.writeText(ENTERPRISE_WECHAT_ID);
+    showToast("企业微信号已复制");
+  } catch {
+    showToast("复制失败，请手动添加企业微信");
+  }
+}
+
 function showCustomerForm() {
   els.customerForm.hidden = false;
   els.customerRecent.hidden = true;
@@ -943,17 +953,28 @@ function showCustomerPortal() {
   els.customerForm.hidden = true;
   els.customerRecent.hidden = false;
   els.customerRecentDetail.innerHTML = `
+    <div class="success-panel">
+      <strong>登记成功</strong>
+      <span>维修人员会尽快处理您的机器信息。</span>
+    </div>
+    <div class="wechat-card">
+      <div class="wechat-qr-placeholder">
+        <span>企微</span>
+      </div>
+      <div>
+        <strong>添加企业微信</strong>
+        <p>添加后可以接收维修进度和寄回通知。</p>
+        <button class="secondary" id="copyEnterpriseWechatBtn" type="button">复制企业微信号</button>
+      </div>
+    </div>
     <dl>
       <div><dt>提交时间</dt><dd>${compact(formatDateTime(lastSubmission.createdTime))}</dd></div>
       <div><dt>打印机编号</dt><dd>${compact(lastSubmission.deviceNumber)}</dd></div>
       <div><dt>公司名</dt><dd>${compact(lastSubmission.companyName)}</dd></div>
       <div><dt>收件人</dt><dd>${compact(lastSubmission.contactName)}</dd></div>
-      <div><dt>手机号码</dt><dd>${compact(lastSubmission.phone)}</dd></div>
-      <div><dt>寄出快递</dt><dd>${compact(lastSubmission.trackingNumber)}</dd></div>
-      <div><dt>故障原因</dt><dd>${compact(lastSubmission.customerIssue)}</dd></div>
-      <div><dt>收件地址</dt><dd>${compact(lastSubmission.customerAddress)}</dd></div>
     </dl>
   `;
+  document.querySelector("#copyEnterpriseWechatBtn")?.addEventListener("click", copyEnterpriseWechatId);
 }
 
 function setView(view) {
