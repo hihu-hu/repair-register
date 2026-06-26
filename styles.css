@@ -844,6 +844,29 @@ body:not(.readonly) tbody tr {
   opacity: 1;
 }
 
+.submission-status-col {
+  white-space: nowrap;
+}
+
+.submission-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.submission-status.reviewed {
+  background: #dff5ee;
+  color: #0f766e;
+}
+
+.submission-status.unreviewed {
+  background: #f1f5f9;
+  color: #475569;
+}
+
 .empty-state {
   display: grid;
   place-items: center;

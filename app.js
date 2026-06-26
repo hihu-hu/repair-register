@@ -670,10 +670,6 @@ async function deleteCloudRecord(id) {
 
 async function loadCloudSubmissions() {
   if (!cloudMode || !supabaseClient) return;
-  if (!adminMode && !forceReadonlyMode) {
-    renderSubmissions();
-    return;
-  }
 
   const { data, error } = await supabaseClient
     .from("customer_repair_submissions")
@@ -1276,6 +1272,8 @@ function renderSubmissions() {
   els.submissionsBody.innerHTML = customerSubmissions
     .map((item) => {
       const isReviewed = reviewedSubmissionIds.has(item.id);
+      const statusText = isReviewed ? "已检修" : "未检修";
+      const statusClass = isReviewed ? "reviewed" : "unreviewed";
       return `
         <tr data-id="${escapeHtml(item.id)}">
           <td>${compact(formatDateTime(item.createdTime))}</td>
@@ -1291,13 +1289,19 @@ function renderSubmissions() {
           <td>${compact(item.trackingNumber)}</td>
           <td class="text-cell">${compact(cleanCustomerIssueForRecord(item))}</td>
           <td class="text-cell address-cell">${compact(item.customerAddress)}</td>
-          <td class="actions-col">
-            <div class="row-actions">
-              <button class="secondary ${isReviewed ? "reviewed" : ""}" type="button" data-action="use-submission" data-id="${escapeHtml(item.id)}" ${isReviewed ? "disabled" : ""}>${isReviewed ? "已检修" : "生成维修"}</button>
-              <button class="secondary" type="button" data-action="edit-submission" data-id="${escapeHtml(item.id)}">编辑</button>
-              <button class="danger" type="button" data-action="delete-submission" data-id="${escapeHtml(item.id)}">删除</button>
-            </div>
-          </td>
+          ${
+            adminMode && !readonlyMode
+              ? `<td class="actions-col">
+                  <div class="row-actions">
+                    <button class="secondary ${isReviewed ? "reviewed" : ""}" type="button" data-action="use-submission" data-id="${escapeHtml(item.id)}" ${isReviewed ? "disabled" : ""}>${isReviewed ? "已检修" : "生成维修"}</button>
+                    <button class="secondary" type="button" data-action="edit-submission" data-id="${escapeHtml(item.id)}">编辑</button>
+                    <button class="danger" type="button" data-action="delete-submission" data-id="${escapeHtml(item.id)}">删除</button>
+                  </div>
+                </td>`
+              : `<td class="submission-status-col">
+                  <span class="submission-status ${statusClass}">${statusText}</span>
+                </td>`
+          }
         </tr>
       `;
     })
