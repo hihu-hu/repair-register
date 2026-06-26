@@ -646,11 +646,7 @@ body.customer-portal .customer-layout {
   align-self: stretch;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-}
-
-.qr-copy-panel strong {
-  margin-bottom: 0;
+  justify-content: flex-end;
 }
 
 .shipping-note {
@@ -1315,10 +1311,6 @@ body.readonly .row-actions {
 
   .qr-copy-panel {
     align-self: auto;
-  }
-
-  .qr-copy-panel strong {
-    margin-bottom: 10px;
   }
 
   .wechat-qr-placeholder {
