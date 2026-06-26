@@ -437,6 +437,39 @@ function sortCustomerSubmissionsNewestFirst(items) {
   });
 }
 
+function compareItemsOldestFirst(a, b) {
+  const timeDiff = parseRecordTime(a.createdTime) - parseRecordTime(b.createdTime);
+  if (timeDiff !== 0) return timeDiff;
+  return String(a.updatedAt || "").localeCompare(String(b.updatedAt || ""));
+}
+
+function getReviewedSubmissionIds() {
+  const submissionsByDevice = new Map();
+  customerSubmissions.forEach((submission) => {
+    const deviceNumber = String(submission.deviceNumber || "").trim().toLowerCase();
+    if (!deviceNumber) return;
+    if (!submissionsByDevice.has(deviceNumber)) submissionsByDevice.set(deviceNumber, []);
+    submissionsByDevice.get(deviceNumber).push(submission);
+  });
+
+  submissionsByDevice.forEach((items) => items.sort(compareItemsOldestFirst));
+
+  const recordCountsByDevice = new Map();
+  const reviewedIds = new Set();
+  records
+    .filter((record) => String(record.deviceNumber || "").trim())
+    .sort(compareItemsOldestFirst)
+    .forEach((record) => {
+      const deviceNumber = String(record.deviceNumber || "").trim().toLowerCase();
+      const recordCount = recordCountsByDevice.get(deviceNumber) || 0;
+      const matchedSubmission = submissionsByDevice.get(deviceNumber)?.[recordCount];
+      recordCountsByDevice.set(deviceNumber, recordCount + 1);
+      if (matchedSubmission) reviewedIds.add(matchedSubmission.id);
+    });
+
+  return reviewedIds;
+}
+
 function toInputDateTime(date) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 16);
@@ -1209,32 +1242,36 @@ function render() {
 }
 
 function renderSubmissions() {
+  const reviewedSubmissionIds = getReviewedSubmissionIds();
   els.submissionCount.textContent = `${customerSubmissions.length} 条`;
   els.submissionsBody.innerHTML = customerSubmissions
-    .map((item) => `
-      <tr data-id="${escapeHtml(item.id)}">
-        <td>${compact(formatDateTime(item.createdTime))}</td>
-        <td>
-          <span class="cell-main">${compact(item.deviceNumber)}</span>
-          <span class="cell-sub">${compact(item.model)}</span>
-        </td>
-        <td>
-          <span class="cell-main">${compact(item.companyName)}</span>
-          <span class="cell-sub">${compact(item.contactName)}</span>
-        </td>
-        <td>${compact(item.phone)}</td>
-        <td>${compact(item.trackingNumber)}</td>
-        <td class="text-cell">${compact(cleanCustomerIssueForRecord(item))}</td>
-        <td class="text-cell address-cell">${compact(item.customerAddress)}</td>
-        <td class="actions-col">
-          <div class="row-actions">
-            <button class="secondary" type="button" data-action="use-submission" data-id="${escapeHtml(item.id)}">生成维修</button>
-            <button class="secondary" type="button" data-action="edit-submission" data-id="${escapeHtml(item.id)}">编辑</button>
-            <button class="danger" type="button" data-action="delete-submission" data-id="${escapeHtml(item.id)}">删除</button>
-          </div>
-        </td>
-      </tr>
-    `)
+    .map((item) => {
+      const isReviewed = reviewedSubmissionIds.has(item.id);
+      return `
+        <tr data-id="${escapeHtml(item.id)}">
+          <td>${compact(formatDateTime(item.createdTime))}</td>
+          <td>
+            <span class="cell-main">${compact(item.deviceNumber)}</span>
+            <span class="cell-sub">${compact(item.model)}</span>
+          </td>
+          <td>
+            <span class="cell-main">${compact(item.companyName)}</span>
+            <span class="cell-sub">${compact(item.contactName)}</span>
+          </td>
+          <td>${compact(item.phone)}</td>
+          <td>${compact(item.trackingNumber)}</td>
+          <td class="text-cell">${compact(cleanCustomerIssueForRecord(item))}</td>
+          <td class="text-cell address-cell">${compact(item.customerAddress)}</td>
+          <td class="actions-col">
+            <div class="row-actions">
+              <button class="secondary ${isReviewed ? "reviewed" : ""}" type="button" data-action="use-submission" data-id="${escapeHtml(item.id)}" ${isReviewed ? "disabled" : ""}>${isReviewed ? "已检修" : "生成维修"}</button>
+              <button class="secondary" type="button" data-action="edit-submission" data-id="${escapeHtml(item.id)}">编辑</button>
+              <button class="danger" type="button" data-action="delete-submission" data-id="${escapeHtml(item.id)}">删除</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    })
     .join("");
   els.submissionsEmptyState.hidden = customerSubmissions.length > 0;
 }

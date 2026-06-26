@@ -836,6 +836,14 @@ body:not(.readonly) tbody tr {
   padding: 0 10px;
 }
 
+.row-actions button.reviewed,
+.row-actions button.reviewed:disabled {
+  border-color: #0f766e;
+  background: #0f8f7c;
+  color: #fff;
+  opacity: 1;
+}
+
 .empty-state {
   display: grid;
   place-items: center;
