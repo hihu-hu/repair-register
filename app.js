@@ -148,6 +148,7 @@ let areaData = null;
 let appliedSubmissionSnapshot = null;
 let appliedSubmissionId = "";
 let ignoredSubmissionId = "";
+let matchedSubmissionForRecord = null;
 let isCustomerSubmitting = false;
 let lastCustomerSubmitFingerprint = "";
 let lastCustomerSubmitTime = 0;
@@ -1411,26 +1412,38 @@ function undoSubmissionToRecordForm() {
   ignoredSubmissionId = appliedSubmissionId;
   appliedSubmissionId = "";
   showToast("已取消带入");
-  hideMatchBox();
+  showMatchedSubmission(matchedSubmissionForRecord, { autoApply: false });
 }
 
-function showMatchedSubmission(submission) {
-  if (!submission || els.recordId.value || submission.id === ignoredSubmissionId) {
+function showMatchedSubmission(submission, { autoApply = true } = {}) {
+  matchedSubmissionForRecord = submission || null;
+  if (!submission || els.recordId.value) {
     hideMatchBox();
     return;
   }
 
-  applySubmissionToRecordForm(submission);
+  const isIgnored = submission.id === ignoredSubmissionId;
+  const isApplied = appliedSubmissionId === submission.id;
+  if (autoApply && !isIgnored) applySubmissionToRecordForm(submission);
+
   els.matchBox.hidden = false;
   els.matchBox.innerHTML = `
     <div>
-      <strong>已自动带入客户提交的信息</strong>
+      <strong>${isIgnored && !isApplied ? "已取消带入客户提交的信息" : "已自动带入客户提交的信息"}</strong>
     </div>
     <div class="match-actions">
-      <button class="secondary" type="button" id="cancelSubmissionBtn">取消带入</button>
+      <button class="secondary" type="button" id="toggleSubmissionBtn">${isIgnored && !isApplied ? "带入" : "取消带入"}</button>
     </div>
   `;
-  document.querySelector("#cancelSubmissionBtn").addEventListener("click", undoSubmissionToRecordForm);
+  document.querySelector("#toggleSubmissionBtn").addEventListener("click", () => {
+    if (isIgnored && !isApplied) {
+      ignoredSubmissionId = "";
+      applySubmissionToRecordForm(submission);
+      showMatchedSubmission(submission, { autoApply: false });
+      return;
+    }
+    undoSubmissionToRecordForm();
+  });
 }
 
 function hideMatchBox() {
@@ -1438,6 +1451,7 @@ function hideMatchBox() {
   els.matchBox.replaceChildren();
   appliedSubmissionSnapshot = null;
   appliedSubmissionId = "";
+  matchedSubmissionForRecord = null;
 }
 
 function checkDeviceNumberMatch() {
