@@ -1034,6 +1034,11 @@ function showCustomerPortal() {
   const forceCustomerForm = new URLSearchParams(location.search).get("entry") === "form";
   const lastSubmission = getLastCustomerSubmission();
   const powerAdapterAnswer = extractPowerAdapterAnswer(lastSubmission);
+  const recipientInfo = [
+    lastSubmission?.contactName,
+    lastSubmission?.phone,
+    lastSubmission?.customerAddress
+  ].filter(Boolean).join(" ");
   if (!lastSubmission || forceCustomerForm) {
     showCustomerForm();
     return;
@@ -1051,7 +1056,7 @@ function showCustomerPortal() {
         <img src="assets/enterprise-wechat-qr.png" alt="企业微信二维码">
       </div>
       <div>
-        <strong>扫描二维码添加好友（以便沟通维修事项）</strong>
+        <strong>长按/扫描二维码添加好友（以便咨询维修进度）</strong>
       </div>
     </div>
     <dl>
@@ -1061,10 +1066,8 @@ function showCustomerPortal() {
       <div><dt>型号</dt><dd>${compact(lastSubmission.model)}</dd></div>
       <div><dt>电源适配器是否寄回</dt><dd>${compact(powerAdapterAnswer)}</dd></div>
       <div><dt>公司名</dt><dd>${compact(lastSubmission.companyName)}</dd></div>
-      <div><dt>收件人</dt><dd>${compact(lastSubmission.contactName)}</dd></div>
-      <div><dt>手机号码</dt><dd>${compact(lastSubmission.phone)}</dd></div>
       <div><dt>故障原因</dt><dd>${compact(cleanCustomerIssueForRecord(lastSubmission))}</dd></div>
-      <div><dt>收件地址</dt><dd>${compact(lastSubmission.customerAddress)}</dd></div>
+      <div><dt>收件信息</dt><dd>${compact(recipientInfo)}</dd></div>
     </dl>
   `;
 }
