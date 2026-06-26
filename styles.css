@@ -669,6 +669,12 @@ body.customer-portal .customer-layout {
   margin: 0 0 10px;
 }
 
+.shipping-note .shipping-address {
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.8;
+}
+
 .submissions-table {
   min-width: 1220px;
 }
