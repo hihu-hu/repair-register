@@ -70,6 +70,7 @@ const els = {
   customerQrImage: document.querySelector("#customerQrImage"),
   copyCustomerLinkBtn: document.querySelector("#copyCustomerLinkBtn"),
   customerForm: document.querySelector("#customerForm"),
+  customerSubmitBtn: document.querySelector("#customerSubmitBtn"),
   areaPickerDialog: document.querySelector("#areaPickerDialog"),
   areaPickerTitle: document.querySelector("#areaPickerTitle"),
   areaPickerOptions: document.querySelector("#areaPickerOptions"),
@@ -145,6 +146,9 @@ let customerSubmissions = sharedData ? sharedData.submissions : loadCustomerSubm
 let currentView = "repair";
 let areaData = null;
 let appliedSubmissionSnapshot = null;
+let isCustomerSubmitting = false;
+let lastCustomerSubmitFingerprint = "";
+let lastCustomerSubmitTime = 0;
 
 function loadRecords() {
   try {
@@ -929,6 +933,25 @@ function getCustomerAddressFromForm() {
   return [province, city, district, detail].filter(Boolean).join("");
 }
 
+function setCustomerSubmitting(isSubmitting) {
+  isCustomerSubmitting = isSubmitting;
+  if (!els.customerSubmitBtn) return;
+  els.customerSubmitBtn.disabled = isSubmitting;
+  els.customerSubmitBtn.textContent = isSubmitting ? "提交中..." : "提交登记";
+}
+
+function getCustomerSubmissionFingerprint(submission) {
+  return [
+    submission.deviceNumber,
+    submission.companyName,
+    submission.contactName,
+    submission.phone,
+    submission.trackingNumber,
+    submission.customerIssue,
+    submission.customerAddress
+  ].join("|");
+}
+
 function getCustomerRegisterUrl() {
   if (["localhost", "127.0.0.1"].includes(location.hostname)) {
     return LOCAL_CUSTOMER_REGISTER_URL;
@@ -1571,9 +1594,19 @@ function getCustomerSubmissionFromForm() {
 }
 
 async function submitCustomerForm() {
+  if (isCustomerSubmitting) return;
+
   const submission = getCustomerSubmissionFromForm();
   if (!submission) return;
 
+  const fingerprint = getCustomerSubmissionFingerprint(submission);
+  const now = Date.now();
+  if (fingerprint === lastCustomerSubmitFingerprint && now - lastCustomerSubmitTime < 30000) {
+    showToast("已经提交过了，请不要重复点击");
+    return;
+  }
+
+  setCustomerSubmitting(true);
   try {
     if (cloudMode) await saveCloudSubmission(submission);
   } catch (error) {
@@ -1585,9 +1618,12 @@ async function submitCustomerForm() {
     } else {
       showToast("提交失败，请稍后再试");
     }
+    setCustomerSubmitting(false);
     return;
   }
 
+  lastCustomerSubmitFingerprint = fingerprint;
+  lastCustomerSubmitTime = now;
   customerSubmissions.unshift(submission);
   sortCustomerSubmissionsNewestFirst(customerSubmissions);
   if (!cloudMode) saveCustomerSubmissions();
@@ -1602,6 +1638,7 @@ async function submitCustomerForm() {
   }
   renderSubmissions();
   showToast("登记成功，工作人员会尽快处理");
+  setCustomerSubmitting(false);
 }
 
 function getSubmissionEditFormValue() {
