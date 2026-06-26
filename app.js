@@ -9,7 +9,7 @@ const ADMIN_EMAIL = "1041852311@qq.com";
 const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
 const MULTI_VALUE_SEPARATOR = "、";
-const ENTERPRISE_WECHAT_ID = "请联系维修人员";
+const ENTERPRISE_WECHAT_ADD_URL = "";
 
 const optionSets = {
   hasPower: ["有", "没有"],
@@ -929,13 +929,13 @@ function saveLastCustomerSubmission(submission) {
   }
 }
 
-async function copyEnterpriseWechatId() {
-  try {
-    await navigator.clipboard.writeText(ENTERPRISE_WECHAT_ID);
-    showToast("企业微信号已复制");
-  } catch {
-    showToast("复制失败，请手动添加企业微信");
+function openEnterpriseWechat() {
+  if (!ENTERPRISE_WECHAT_ADD_URL) {
+    showToast("还没配置企业微信添加链接");
+    return;
   }
+
+  location.href = ENTERPRISE_WECHAT_ADD_URL;
 }
 
 function showCustomerForm() {
@@ -962,9 +962,9 @@ function showCustomerPortal() {
         <span>企微</span>
       </div>
       <div>
-        <strong>添加企业微信</strong>
+        <strong>扫描二维码添加好友</strong>
         <p>添加后可以接收维修进度和寄回通知。</p>
-        <button class="secondary" id="copyEnterpriseWechatBtn" type="button">复制企业微信号</button>
+        <button class="secondary" id="addEnterpriseWechatBtn" type="button">添加企业微信</button>
       </div>
     </div>
     <dl>
@@ -974,7 +974,7 @@ function showCustomerPortal() {
       <div><dt>收件人</dt><dd>${compact(lastSubmission.contactName)}</dd></div>
     </dl>
   `;
-  document.querySelector("#copyEnterpriseWechatBtn")?.addEventListener("click", copyEnterpriseWechatId);
+  document.querySelector("#addEnterpriseWechatBtn")?.addEventListener("click", openEnterpriseWechat);
 }
 
 function setView(view) {
