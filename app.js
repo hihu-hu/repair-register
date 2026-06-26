@@ -1033,6 +1033,7 @@ function startNewCustomerSubmission() {
 function showCustomerPortal() {
   const forceCustomerForm = new URLSearchParams(location.search).get("entry") === "form";
   const lastSubmission = getLastCustomerSubmission();
+  const powerAdapterAnswer = extractPowerAdapterAnswer(lastSubmission);
   if (!lastSubmission || forceCustomerForm) {
     showCustomerForm();
     return;
@@ -1055,9 +1056,15 @@ function showCustomerPortal() {
     </div>
     <dl>
       <div><dt>提交时间</dt><dd>${compact(formatDateTime(lastSubmission.createdTime))}</dd></div>
+      <div><dt>寄出单号</dt><dd>${compact(lastSubmission.trackingNumber)}</dd></div>
       <div><dt>打印机编号</dt><dd>${compact(lastSubmission.deviceNumber)}</dd></div>
+      <div><dt>型号</dt><dd>${compact(lastSubmission.model)}</dd></div>
+      <div><dt>电源适配器是否寄回</dt><dd>${compact(powerAdapterAnswer)}</dd></div>
       <div><dt>公司名</dt><dd>${compact(lastSubmission.companyName)}</dd></div>
       <div><dt>收件人</dt><dd>${compact(lastSubmission.contactName)}</dd></div>
+      <div><dt>手机号码</dt><dd>${compact(lastSubmission.phone)}</dd></div>
+      <div><dt>故障原因</dt><dd>${compact(cleanCustomerIssueForRecord(lastSubmission))}</dd></div>
+      <div><dt>收件地址</dt><dd>${compact(lastSubmission.customerAddress)}</dd></div>
     </dl>
   `;
 }
