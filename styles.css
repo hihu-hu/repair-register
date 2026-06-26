@@ -667,6 +667,7 @@ body.customer-portal .customer-layout {
 }
 
 .shipping-note .shipping-address {
+  color: #000;
   font-size: 18px;
   font-weight: 900;
   line-height: 1.8;
