@@ -86,6 +86,7 @@ const els = {
   readyCount: document.querySelector("#readyCount"),
   finishedCount: document.querySelector("#finishedCount"),
   testStatusCount: document.querySelector("#testStatusCount"),
+  unrepairedSubmissionCount: document.querySelector("#unrepairedSubmissionCount"),
   filteredCount: document.querySelector("#filteredCount"),
   filterSummaryCount: document.querySelector("#filterSummaryCount"),
   recordsBody: document.querySelector("#recordsBody"),
@@ -1178,11 +1179,13 @@ function applyFilters() {
 }
 
 function updateStats() {
+  const reviewedSubmissionIds = getReviewedSubmissionIds();
   els.totalCount.textContent = records.length;
   els.testingCount.textContent = records.filter((record) => record.finalStatus === "维修中").length;
   els.readyCount.textContent = records.filter((record) => record.finalStatus === "今天需要寄").length;
   els.finishedCount.textContent = records.filter((record) => record.finalStatus === "返厂中").length;
   els.testStatusCount.textContent = records.filter((record) => record.finalStatus === "测试中").length;
+  els.unrepairedSubmissionCount.textContent = customerSubmissions.filter((item) => !reviewedSubmissionIds.has(item.id)).length;
   els.filteredCount.textContent = `${filteredRecords.length} 条`;
   els.filterSummaryCount.textContent = filteredRecords.length;
 }
