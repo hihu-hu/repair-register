@@ -139,7 +139,6 @@ const els = {
 let toastTimer = null;
 let readonlyMode = false;
 let cloudMode = false;
-let cloudRecordsLoaded = false;
 let adminMode = false;
 let forceReadonlyMode = false;
 let supabaseClient = null;
@@ -643,12 +642,7 @@ function fromDatabaseSubmission(item) {
 }
 
 async function initializeCloud() {
-  if (forceReadonlyMode && location.hash.includes("view=")) return;
-  if (!(await ensureSupabaseLoaded())) {
-    cloudRecordsLoaded = true;
-    updateCustomerEditButton();
-    return;
-  }
+  if ((forceReadonlyMode && location.hash.includes("view=")) || !(await ensureSupabaseLoaded())) return;
 
   cloudMode = true;
   supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -671,8 +665,6 @@ async function initializeCloud() {
 
 async function loadCloudRecords() {
   if (!cloudMode || !supabaseClient || (forceReadonlyMode && location.hash.includes("view="))) return;
-  cloudRecordsLoaded = false;
-  updateCustomerEditButton();
 
   const { data, error } = await supabaseClient
     .from("repair_records")
@@ -681,8 +673,6 @@ async function loadCloudRecords() {
 
   if (error) {
     console.error(error);
-    cloudRecordsLoaded = false;
-    updateCustomerEditButton();
     showToast("云端数据读取失败");
     return;
   }
@@ -693,9 +683,7 @@ async function loadCloudRecords() {
       try {
         await saveCloudRecords(localRecords);
         records = sortRecordsNewestFirst(localRecords);
-        cloudRecordsLoaded = true;
         render();
-        updateCustomerEditButton();
         showToast("本机记录已同步到云端");
         return;
       } catch (saveError) {
@@ -706,7 +694,6 @@ async function loadCloudRecords() {
   }
 
   records = sortRecordsNewestFirst(data.map(fromDatabaseRecord));
-  cloudRecordsLoaded = true;
   render();
   updateCustomerEditButton();
 }
@@ -1130,15 +1117,7 @@ function canEditCustomerSubmission(submission) {
 }
 
 function updateCustomerEditButton() {
-  if (!els.editCustomerSubmissionBtn) return;
-  if (els.customerRecent.hidden) {
-    els.editCustomerSubmissionBtn.hidden = true;
-    return;
-  }
-  if (SUPABASE_URL && SUPABASE_ANON_KEY && !cloudRecordsLoaded) {
-    els.editCustomerSubmissionBtn.hidden = true;
-    return;
-  }
+  if (!els.editCustomerSubmissionBtn || els.customerRecent.hidden) return;
   els.editCustomerSubmissionBtn.hidden = !canEditCustomerSubmission(getLastCustomerSubmission());
 }
 
