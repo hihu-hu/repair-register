@@ -511,6 +511,21 @@ body.customer-portal .customer-layout {
   padding: 20px;
 }
 
+.customer-recent-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.customer-recent-head h2 {
+  margin: 0;
+}
+
+.customer-recent-head #newCustomerSubmissionBtn {
+  flex: 0 0 auto;
+}
+
 .recent-detail dl {
   display: grid;
   gap: 10px;
@@ -1262,6 +1277,16 @@ body.readonly .row-actions {
   .wechat-qr-placeholder {
     width: 160px;
     flex-basis: auto;
+  }
+
+  .customer-recent-head {
+    align-items: flex-start;
+  }
+
+  .customer-recent-head #newCustomerSubmissionBtn {
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 13px;
   }
 
   .match-actions {
