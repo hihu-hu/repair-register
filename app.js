@@ -949,7 +949,7 @@ function showCustomerPortal() {
     </div>
     <div class="wechat-card">
       <div class="wechat-qr-placeholder">
-        <span>企微</span>
+        <img src="assets/enterprise-wechat-qr.png" alt="企业微信二维码">
       </div>
       <div>
         <strong>扫描二维码添加好友（以便沟通维修事项）</strong>
