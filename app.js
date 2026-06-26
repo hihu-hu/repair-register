@@ -146,6 +146,7 @@ let customerSubmissions = sharedData ? sharedData.submissions : loadCustomerSubm
 let currentView = "repair";
 let areaData = null;
 let appliedSubmissionSnapshot = null;
+let appliedSubmissionId = "";
 let isCustomerSubmitting = false;
 let lastCustomerSubmitFingerprint = "";
 let lastCustomerSubmitTime = 0;
@@ -1359,7 +1360,16 @@ function cleanCustomerIssueForRecord(submission) {
 
 function applySubmissionToRecordForm(submission, { keepDeviceNumber = true } = {}) {
   if (!submission) return;
+  if (appliedSubmissionId === submission.id) return;
   const form = els.recordForm.elements;
+  if (appliedSubmissionSnapshot && appliedSubmissionId && appliedSubmissionId !== submission.id) {
+    form.companyName.value = appliedSubmissionSnapshot.companyName;
+    form.customerPowerAdapter.value = appliedSubmissionSnapshot.customerPowerAdapter;
+    form.customerIssue.value = appliedSubmissionSnapshot.customerIssue;
+    form.customerAddress.value = appliedSubmissionSnapshot.customerAddress;
+    appliedSubmissionSnapshot = null;
+    appliedSubmissionId = "";
+  }
   if (!appliedSubmissionSnapshot) {
     appliedSubmissionSnapshot = {
       companyName: form.companyName.value,
@@ -1374,6 +1384,7 @@ function applySubmissionToRecordForm(submission, { keepDeviceNumber = true } = {
   form.companyName.value = submission.companyName || form.companyName.value;
   form.customerIssue.value = cleanCustomerIssueForRecord(submission) || form.customerIssue.value;
   form.customerAddress.value = buildAddressWithContact(submission) || form.customerAddress.value;
+  appliedSubmissionId = submission.id;
   showToast("已带入客户提交的信息");
 }
 
@@ -1389,6 +1400,7 @@ function undoSubmissionToRecordForm() {
   form.customerIssue.value = appliedSubmissionSnapshot.customerIssue;
   form.customerAddress.value = appliedSubmissionSnapshot.customerAddress;
   appliedSubmissionSnapshot = null;
+  appliedSubmissionId = "";
   showToast("已取消带入");
 }
 
@@ -1398,19 +1410,16 @@ function showMatchedSubmission(submission) {
     return;
   }
 
+  applySubmissionToRecordForm(submission);
   els.matchBox.hidden = false;
   els.matchBox.innerHTML = `
     <div>
-      <strong>找到客户提交的信息</strong>
+      <strong>已自动带入客户提交的信息</strong>
     </div>
     <div class="match-actions">
       <button class="secondary" type="button" id="cancelSubmissionBtn">取消带入</button>
-      <button class="primary" type="button" id="applySubmissionBtn">带入表单</button>
     </div>
   `;
-  document.querySelector("#applySubmissionBtn").addEventListener("click", () => {
-    applySubmissionToRecordForm(submission);
-  });
   document.querySelector("#cancelSubmissionBtn").addEventListener("click", undoSubmissionToRecordForm);
 }
 
@@ -1418,6 +1427,7 @@ function hideMatchBox() {
   els.matchBox.hidden = true;
   els.matchBox.replaceChildren();
   appliedSubmissionSnapshot = null;
+  appliedSubmissionId = "";
 }
 
 function checkDeviceNumberMatch() {
