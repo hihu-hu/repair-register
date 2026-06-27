@@ -1499,7 +1499,6 @@ async function pushRepairStatsToWecom() {
     return;
   }
 
-  const stats = getRepairStats();
   els.pushWecomBtn.disabled = true;
   els.pushWecomBtn.textContent = "推送中";
 
@@ -1512,7 +1511,7 @@ async function pushRepairStatsToWecom() {
         "content-type": "application/json",
         authorization: `Bearer ${accessToken}`
       },
-      body: JSON.stringify({ stats })
+      body: JSON.stringify({})
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || result.ok === false) {

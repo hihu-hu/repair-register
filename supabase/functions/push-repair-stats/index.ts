@@ -20,9 +20,76 @@ type RepairStats = {
   unrepairedTrackingNumbers?: string[];
 };
 
+type RepairRecordRow = {
+  created_time?: string;
+  device_number?: string;
+  final_status?: string;
+  updated_at?: string;
+};
+
+type CustomerSubmissionRow = {
+  id?: string;
+  created_time?: string;
+  device_number?: string;
+  tracking_number?: string;
+  updated_at?: string;
+};
+
 function numberText(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? String(number) : "0";
+}
+
+function parseRecordTime(value: unknown) {
+  const timestamp = Date.parse(String(value || ""));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function compareOldestFirst(a: { created_time?: string; updated_at?: string }, b: { created_time?: string; updated_at?: string }) {
+  const timeDiff = parseRecordTime(a.created_time) - parseRecordTime(b.created_time);
+  if (timeDiff !== 0) return timeDiff;
+  return String(a.updated_at || "").localeCompare(String(b.updated_at || ""));
+}
+
+function getUnrepairedSubmissions(records: RepairRecordRow[], submissions: CustomerSubmissionRow[]) {
+  const submissionsByDevice = new Map<string, CustomerSubmissionRow[]>();
+  submissions.forEach((submission) => {
+    const deviceNumber = String(submission.device_number || "").trim().toLowerCase();
+    if (!deviceNumber) return;
+    if (!submissionsByDevice.has(deviceNumber)) submissionsByDevice.set(deviceNumber, []);
+    submissionsByDevice.get(deviceNumber)?.push(submission);
+  });
+
+  submissionsByDevice.forEach((items) => items.sort(compareOldestFirst));
+
+  const recordCountsByDevice = new Map<string, number>();
+  const reviewedSubmissionIds = new Set<string>();
+  records
+    .filter((record) => String(record.device_number || "").trim())
+    .sort(compareOldestFirst)
+    .forEach((record) => {
+      const deviceNumber = String(record.device_number || "").trim().toLowerCase();
+      const recordCount = recordCountsByDevice.get(deviceNumber) || 0;
+      const matchedSubmission = submissionsByDevice.get(deviceNumber)?.[recordCount];
+      recordCountsByDevice.set(deviceNumber, recordCount + 1);
+      if (matchedSubmission?.id) reviewedSubmissionIds.add(matchedSubmission.id);
+    });
+
+  return submissions.filter((submission) => !reviewedSubmissionIds.has(String(submission.id || "")));
+}
+
+function buildStats(records: RepairRecordRow[], submissions: CustomerSubmissionRow[]): RepairStats {
+  const unrepairedSubmissions = getUnrepairedSubmissions(records, submissions);
+  return {
+    total: records.length,
+    repairing: records.filter((record) => record.final_status === "维修中").length,
+    sendToday: records.filter((record) => record.final_status === "今天需要寄").length,
+    pendingShipment: records.filter((record) => record.final_status === "待寄出").length,
+    returningFactory: records.filter((record) => record.final_status === "返厂中").length,
+    testing: records.filter((record) => record.final_status === "测试中").length,
+    unrepaired: unrepairedSubmissions.length,
+    unrepairedTrackingNumbers: unrepairedSubmissions.map((item) => item.tracking_number || "未填写快递单号")
+  };
 }
 
 function trackingListText(values: unknown) {
@@ -82,8 +149,20 @@ Deno.serve(async (request) => {
       return Response.json({ ok: false, error: "请先管理员登录" }, { status: 401, headers: corsHeaders });
     }
 
-    const body = await request.json();
-    const content = buildMarkdown(body.stats || {});
+    await request.json().catch(() => ({}));
+    const [recordsResult, submissionsResult] = await Promise.all([
+      supabase
+        .from("repair_records")
+        .select("created_time,device_number,final_status,updated_at"),
+      supabase
+        .from("customer_repair_submissions")
+        .select("id,created_time,device_number,tracking_number,updated_at")
+    ]);
+    if (recordsResult.error) throw recordsResult.error;
+    if (submissionsResult.error) throw submissionsResult.error;
+
+    const stats = buildStats(recordsResult.data || [], submissionsResult.data || []);
+    const content = buildMarkdown(stats);
     const wecomResponse = await fetch(webhookUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
