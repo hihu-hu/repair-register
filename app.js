@@ -710,22 +710,6 @@ async function loadCloudRecords() {
     return;
   }
 
-  if (adminMode && data.length === 0 && !forceReadonlyMode) {
-    const localRecords = loadRecords();
-    if (localRecords.length > 0 && confirm("检测到本机有旧记录，是否同步到云端？")) {
-      try {
-        await saveCloudRecords(localRecords);
-        records = sortRecordsNewestFirst(localRecords);
-        render();
-        showToast("本机记录已同步到云端");
-        return;
-      } catch (saveError) {
-        console.error(saveError);
-        showToast("本机记录同步失败");
-      }
-    }
-  }
-
   records = sortRecordsNewestFirst(data.map(fromDatabaseRecord));
   render();
   updateCustomerEditButton();
