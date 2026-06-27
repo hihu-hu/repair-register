@@ -1573,7 +1573,10 @@ function renderAnalytics() {
     limit: optionSets.faultOwnership.length,
     detailType: "ownership-models"
   });
-  renderAnalysisBars(els.analysisAreaBars, areaItems, stats.total, { limit: optionSets.area.length });
+  renderAnalysisBars(els.analysisAreaBars, areaItems, stats.total, {
+    limit: optionSets.area.length,
+    detailType: "area-models"
+  });
 }
 
 function getCategoryModelDistribution(category) {
@@ -1617,6 +1620,14 @@ function getOwnershipCategoryDistribution(ownership) {
   return {
     total: matchedRecords.length,
     items: countBy(matchedRecords, (record) => normalizeFaultCategories(record.faultCategory))
+  };
+}
+
+function getAreaRegionDistribution(area) {
+  const matchedRecords = getAnalysisRecords().filter((record) => (record.area || "未填写") === area);
+  return {
+    total: matchedRecords.length,
+    items: countBy(matchedRecords, (record) => record.region || "未填写")
   };
 }
 
@@ -1712,6 +1723,9 @@ function getAnalysisParentRecords(parentDetail, parentLabel) {
   if (parentDetail === "ownership-models") {
     return getOwnershipRecords(parentLabel);
   }
+  if (parentDetail === "area-models") {
+    return getAnalysisRecords().filter((record) => (record.area || "未填写") === parentLabel);
+  }
   return [];
 }
 
@@ -1722,10 +1736,29 @@ function getAnalysisChildRecords(row) {
   const rowLabel = row.dataset.analysisRowLabel || "";
   const parentRecords = getAnalysisParentRecords(parentDetail, parentLabel);
 
+  if (parentDetail === "area-models") {
+    return parentRecords.filter((record) => (record.region || "未填写") === rowLabel);
+  }
   if (parentDetail === "model-categories" || parentMode === "categories") {
     return parentRecords.filter((record) => normalizeFaultCategories(record.faultCategory).includes(rowLabel));
   }
   return parentRecords.filter((record) => (record.model || "未填写") === rowLabel);
+}
+
+function placeAnalysisSidePopover(popover, anchor, { preferLeft = false } = {}) {
+  const rect = anchor.getBoundingClientRect();
+  const popoverRect = popover.getBoundingClientRect();
+  const margin = 10;
+  const leftSide = rect.left - popoverRect.width - margin;
+  const rightSide = rect.right + margin;
+  let left = preferLeft ? leftSide : rightSide;
+
+  if (left < margin) left = rightSide;
+  if (left + popoverRect.width > window.innerWidth - margin) left = leftSide;
+
+  const top = Math.min(rect.top, window.innerHeight - popoverRect.height - margin);
+  popover.style.left = `${Math.max(margin, left)}px`;
+  popover.style.top = `${Math.max(margin, top)}px`;
 }
 
 function showAnalysisChildPopover(anchor, title, items, total, { emptyText = "暂无数据", rowDetail = null } = {}) {
@@ -1754,18 +1787,7 @@ function showAnalysisChildPopover(anchor, title, items, total, { emptyText = "�
   `;
   els.analysisChildPopover.hidden = false;
   hideAnalysisGrandchildPopover();
-
-  const rect = anchor.getBoundingClientRect();
-  const popoverRect = els.analysisChildPopover.getBoundingClientRect();
-  const margin = 10;
-  let left = rect.right + margin;
-  if (left + popoverRect.width > window.innerWidth - margin) {
-    left = rect.left - popoverRect.width - margin;
-  }
-  const top = Math.min(rect.top, window.innerHeight - popoverRect.height - margin);
-
-  els.analysisChildPopover.style.left = `${Math.max(margin, left)}px`;
-  els.analysisChildPopover.style.top = `${Math.max(margin, top)}px`;
+  placeAnalysisSidePopover(els.analysisChildPopover, anchor, { preferLeft: true });
 }
 
 function getAnalysisGrandchildRecords(row) {
@@ -1786,10 +1808,15 @@ function getAnalysisGrandchildRecords(row) {
       .filter((record) => (record.model || "未填写") === childLabel)
       .filter((record) => normalizeFaultCategories(record.faultCategory).includes(rowLabel));
   }
+  if (parentDetail === "area-models") {
+    return parentRecords
+      .filter((record) => (record.region || "未填写") === childLabel)
+      .filter((record) => (record.model || "未填写") === rowLabel);
+  }
   return [];
 }
 
-function showAnalysisGrandchildPopover(anchor, title, items, total) {
+function showAnalysisGrandchildPopover(anchor, title, items, total, { emptyText = "暂无地区数据" } = {}) {
   const rows = items.length > 0
     ? items
         .slice(0, ANALYSIS_TOP_LIMIT)
@@ -1802,7 +1829,7 @@ function showAnalysisGrandchildPopover(anchor, title, items, total) {
           `
         )
         .join("")
-    : `<div class="analysis-popover-empty">暂无地区数据</div>`;
+    : `<div class="analysis-popover-empty">${escapeHtml(emptyText)}</div>`;
 
   els.analysisGrandchildPopover.innerHTML = `
     <div class="analysis-popover-head">
@@ -1811,18 +1838,7 @@ function showAnalysisGrandchildPopover(anchor, title, items, total) {
     ${rows}
   `;
   els.analysisGrandchildPopover.hidden = false;
-
-  const rect = anchor.getBoundingClientRect();
-  const popoverRect = els.analysisGrandchildPopover.getBoundingClientRect();
-  const margin = 10;
-  let left = rect.right + margin;
-  if (left + popoverRect.width > window.innerWidth - margin) {
-    left = rect.left - popoverRect.width - margin;
-  }
-  const top = Math.min(rect.top, window.innerHeight - popoverRect.height - margin);
-
-  els.analysisGrandchildPopover.style.left = `${Math.max(margin, left)}px`;
-  els.analysisGrandchildPopover.style.top = `${Math.max(margin, top)}px`;
+  placeAnalysisSidePopover(els.analysisGrandchildPopover, anchor, { preferLeft: true });
 }
 
 function openAnalysisGrandchildDetail(row) {
@@ -1831,6 +1847,14 @@ function openAnalysisGrandchildDetail(row) {
 
   selectAnalysisRow(row, els.analysisChildPopover);
   const matchedRecords = getAnalysisGrandchildRecords(row);
+  if ((row.dataset.analysisParentDetail || "") === "area-models") {
+    const categoryItems = countBy(matchedRecords, (record) => normalizeFaultCategories(record.faultCategory));
+    showAnalysisGrandchildPopover(row, `${rowLabel} - 故障类型分布`, categoryItems, matchedRecords.length, {
+      emptyText: "暂无故障类型数据"
+    });
+    return;
+  }
+
   const regionItems = countBy(matchedRecords, (record) => record.region || "未填写");
   showAnalysisGrandchildPopover(row, `${rowLabel} - 地区分布`, regionItems, matchedRecords.length);
 }
@@ -1867,6 +1891,20 @@ function openAnalysisChildDetail(row) {
     const categoryItems = countBy(matchedRecords, (record) => normalizeFaultCategories(record.faultCategory));
     showAnalysisChildPopover(row, `${rowLabel} - 故障分布`, categoryItems, matchedRecords.length, {
       emptyText: "暂无故障数据",
+      rowDetail: {
+        parentDetail,
+        parentLabel: row.dataset.analysisParentLabel || "",
+        parentMode,
+        childLabel: rowLabel
+      }
+    });
+    return;
+  }
+
+  if (parentDetail === "area-models") {
+    const modelItems = countBy(matchedRecords, (record) => record.model || "未填写");
+    showAnalysisChildPopover(row, `${rowLabel} - 型号分布`, modelItems, matchedRecords.length, {
+      emptyText: "暂无型号数据",
       rowDetail: {
         parentDetail,
         parentLabel: row.dataset.analysisParentLabel || "",
@@ -1964,6 +2002,18 @@ function openAnalysisDetail(row) {
 
   if (detailType === "ownership-models") {
     showOwnershipDetail(row);
+  }
+
+  if (detailType === "area-models") {
+    const distribution = getAreaRegionDistribution(label);
+    analysisPopoverState = null;
+    showAnalysisPopover(row, `${label} - 区域分布`, distribution.items, distribution.total, {
+      emptyText: "暂无区域数据",
+      rowDetail: {
+        parentDetail: detailType,
+        parentLabel: label
+      }
+    });
   }
 }
 
@@ -3308,7 +3358,13 @@ function bindEvents() {
   els.metricCards.forEach((card) => {
     card.addEventListener("click", () => applyMetricShortcut(card));
   });
-  [els.analysisCategoryBars, els.analysisRegionBars, els.analysisModelBars, els.analysisOwnershipBars].forEach((container) => {
+  [
+    els.analysisCategoryBars,
+    els.analysisRegionBars,
+    els.analysisModelBars,
+    els.analysisOwnershipBars,
+    els.analysisAreaBars
+  ].forEach((container) => {
     container.addEventListener("click", (event) => {
       const row = event.target.closest("[data-analysis-detail]");
       if (row) openAnalysisDetail(row);
