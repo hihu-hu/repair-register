@@ -2257,13 +2257,13 @@ function buildAddressWithContact(submission) {
 }
 
 function extractPowerAdapterAnswer(submission) {
-  const match = String(submission?.customerIssue || "").match(/电源适配器是否寄回[:：]\s*(是|否)/);
-  return match?.[1] || "";
+  const match = String(submission?.customerIssue || "").match(/电源适配器是否寄回[:：]\s*([^\n\r]+)/);
+  return match?.[1]?.trim() || "";
 }
 
 function cleanCustomerIssueForRecord(submission) {
   return String(submission?.customerIssue || "")
-    .replace(/^\s*电源适配器是否寄回[:：]\s*(是|否)\s*\n?/m, "")
+    .replace(/^\s*电源适配器是否寄回[:：]\s*[^\n\r]*\s*\n?/m, "")
     .replace(/^\s*故障描述[:：]\s*/m, "")
     .trim();
 }
