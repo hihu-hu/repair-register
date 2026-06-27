@@ -250,6 +250,7 @@ function closeOpenDialogs() {
 }
 
 function normalizeCustomerSubmission(item = {}) {
+  const customerIssue = String(item.customerIssue || item.customer_issue || "").trim();
   return {
     id: String(item.id || createCustomerSubmissionId()),
     createdTime: normalizeDateTime(item.createdTime || item.created_at || new Date()),
@@ -259,7 +260,10 @@ function normalizeCustomerSubmission(item = {}) {
     contactName: String(item.contactName || item.contact_name || "").trim(),
     phone: String(item.phone || "").trim(),
     trackingNumber: String(item.trackingNumber || item.tracking_number || "").trim(),
-    customerIssue: String(item.customerIssue || item.customer_issue || "").trim(),
+    customerIssue,
+    powerAdapterReturned: normalizePowerAdapterAnswer(
+      item.powerAdapterReturned || item.power_adapter_returned || extractPowerAdapterAnswerFromText(customerIssue)
+    ),
     customerAddress: String(item.customerAddress || item.customer_address || "").trim(),
     updatedAt: String(item.updatedAt || item.updated_at || new Date().toISOString())
   };
@@ -292,6 +296,14 @@ function normalizeRecord(record = {}) {
 function normalizeOption(value, options, fallback) {
   const text = String(value || "").trim();
   return options.includes(text) ? text : fallback;
+}
+
+function normalizePowerAdapterAnswer(value) {
+  const text = String(value || "").trim();
+  if (["是", "否"].includes(text)) return text;
+  if (["有", "已寄回", "寄回"].includes(text)) return "是";
+  if (["没有", "没寄", "未寄", "未寄回"].includes(text)) return "否";
+  return text;
 }
 
 function inferModelFromDeviceNumber(deviceNumber) {
@@ -670,6 +682,7 @@ function fromDatabaseSubmission(item) {
     phone: item.phone,
     trackingNumber: item.tracking_number,
     customerIssue: item.customer_issue,
+    powerAdapterReturned: item.power_adapter_returned,
     customerAddress: item.customer_address,
     updatedAt: item.updated_at
   });
@@ -2186,6 +2199,7 @@ function renderSubmissions() {
           </td>
           <td>${compact(extractPowerAdapterAnswer(item))}</td>
           <td>${compact(item.companyName)}</td>
+          <td class="text-cell">${compact(cleanCustomerIssueForRecord(item))}</td>
           <td class="contact-detail-cell">
             <span class="contact-line">
               <span>${compact(item.contactName)}</span>
@@ -2193,7 +2207,6 @@ function renderSubmissions() {
             </span>
             <span class="cell-sub">${compact(item.customerAddress)}</span>
           </td>
-          <td class="text-cell">${compact(cleanCustomerIssueForRecord(item))}</td>
           ${
             adminMode && !readonlyMode
               ? `<td class="actions-col">
@@ -2256,9 +2269,13 @@ function buildAddressWithContact(submission) {
   return parts.join(" ");
 }
 
+function extractPowerAdapterAnswerFromText(text) {
+  const match = String(text || "").match(/电源适配器是否寄回[:：]\s*([^\n\r]+)/);
+  return normalizePowerAdapterAnswer(match?.[1] || "");
+}
+
 function extractPowerAdapterAnswer(submission) {
-  const match = String(submission?.customerIssue || "").match(/电源适配器是否寄回[:：]\s*([^\n\r]+)/);
-  return match?.[1]?.trim() || "";
+  return normalizePowerAdapterAnswer(submission?.powerAdapterReturned || extractPowerAdapterAnswerFromText(submission?.customerIssue));
 }
 
 function cleanCustomerIssueForRecord(submission) {
@@ -2416,6 +2433,16 @@ function openSubmissionEditDialog(id) {
   els.submissionDialog.showModal();
 }
 
+function findSubmissionForRecord(record) {
+  if (!record?.deviceNumber) return null;
+  const matchedEntries = [...getSubmissionRepairMatches().entries()];
+  const matchedEntry = matchedEntries.find(([, matchedRecord]) => matchedRecord.id === record.id);
+  if (matchedEntry) {
+    return customerSubmissions.find((item) => item.id === matchedEntry[0]) || null;
+  }
+  return findSubmissionByDeviceNumber(record.deviceNumber);
+}
+
 function fillForm(record) {
   els.recordId.value = record.id;
   els.dialogTitle.textContent = "编辑记录";
@@ -2435,7 +2462,8 @@ function fillForm(record) {
   });
   lockAutoField(els.recordForm.elements.companyName);
   lockAutoField(els.recordForm.elements.customerIssue);
-  els.recordForm.elements.customerPowerAdapter.value = "";
+  const matchedSubmission = findSubmissionForRecord(record);
+  els.recordForm.elements.customerPowerAdapter.value = extractPowerAdapterAnswer(matchedSubmission);
   hideMatchBox();
 }
 
@@ -2527,6 +2555,7 @@ function getCustomerSubmissionFromForm() {
     phone,
     trackingNumber: String(formData.get("trackingNumber") || ""),
     customerIssue: `电源适配器是否寄回：${powerAdapterReturned}\n故障描述：${customerIssue}`,
+    powerAdapterReturned,
     customerAddress: getCustomerAddressFromForm(),
     updatedAt: new Date().toISOString()
   });
