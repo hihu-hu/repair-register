@@ -8,6 +8,7 @@ const ADMIN_USERNAME = "CCCC";
 const ADMIN_EMAIL = "1041852311@qq.com";
 const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
+const WECOM_PUSH_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/push-repair-stats`;
 const MULTI_VALUE_SEPARATOR = "、";
 const CUSTOMER_SUBMIT_FAST_FEEDBACK_MS = 1200;
 const LOCKED_CUSTOMER_EDIT_STATUSES = ["已寄出", "邮寄并结束"];
@@ -85,6 +86,7 @@ const els = {
   submissionsBody: document.querySelector("#submissionsBody"),
   submissionCount: document.querySelector("#submissionCount"),
   submissionsEmptyState: document.querySelector("#submissionsEmptyState"),
+  metricCards: document.querySelectorAll("[data-metric-target]"),
   testingCount: document.querySelector("#testingCount"),
   readyCount: document.querySelector("#readyCount"),
   pendingShipmentCount: document.querySelector("#pendingShipmentCount"),
@@ -93,6 +95,7 @@ const els = {
   unrepairedSubmissionCount: document.querySelector("#unrepairedSubmissionCount"),
   filteredCount: document.querySelector("#filteredCount"),
   filterSummaryCount: document.querySelector("#filterSummaryCount"),
+  repairRecordsSection: document.querySelector("#repairRecordsSection"),
   recordsBody: document.querySelector("#recordsBody"),
   emptyState: document.querySelector("#emptyState"),
   searchInput: document.querySelector("#searchInput"),
@@ -108,6 +111,7 @@ const els = {
   dateTo: document.querySelector("#dateTo"),
   resetFiltersBtn: document.querySelector("#resetFiltersBtn"),
   exportCsvBtn: document.querySelector("#exportCsvBtn"),
+  pushWecomBtn: document.querySelector("#pushWecomBtn"),
   importExcelBtn: document.querySelector("#importExcelBtn"),
   importExcelInput: document.querySelector("#importExcelInput"),
   authToggleBtn: document.querySelector("#authToggleBtn"),
@@ -148,6 +152,7 @@ let records = sharedData ? sharedData.records : loadRecords();
 let filteredRecords = [];
 let customerSubmissions = sharedData ? sharedData.submissions : loadCustomerSubmissions();
 let currentView = "repair";
+let submissionStatusFilter = "";
 let areaData = null;
 let appliedSubmissionSnapshot = null;
 let appliedSubmissionId = "";
@@ -1220,6 +1225,7 @@ function setView(view) {
     showCustomerForm();
   }
   if (isCustomerPortal) showCustomerPortal();
+  updateMetricCards();
 }
 
 function applyViewFromHash() {
@@ -1299,16 +1305,52 @@ function applyFilters() {
 }
 
 function updateStats() {
-  const reviewedSubmissionIds = getReviewedSubmissionIds();
-  els.totalCount.textContent = records.length;
-  els.testingCount.textContent = records.filter((record) => record.finalStatus === "维修中").length;
-  els.readyCount.textContent = records.filter((record) => record.finalStatus === "今天需要寄").length;
-  els.pendingShipmentCount.textContent = records.filter((record) => record.finalStatus === "待寄出").length;
-  els.finishedCount.textContent = records.filter((record) => record.finalStatus === "返厂中").length;
-  els.testStatusCount.textContent = records.filter((record) => record.finalStatus === "测试中").length;
-  els.unrepairedSubmissionCount.textContent = customerSubmissions.filter((item) => !reviewedSubmissionIds.has(item.id)).length;
+  const stats = getRepairStats();
+  els.totalCount.textContent = stats.total;
+  els.testingCount.textContent = stats.repairing;
+  els.readyCount.textContent = stats.sendToday;
+  els.pendingShipmentCount.textContent = stats.pendingShipment;
+  els.finishedCount.textContent = stats.returningFactory;
+  els.testStatusCount.textContent = stats.testing;
+  els.unrepairedSubmissionCount.textContent = stats.unrepaired;
   els.filteredCount.textContent = `${filteredRecords.length} 条`;
   els.filterSummaryCount.textContent = filteredRecords.length;
+}
+
+function getRepairStats() {
+  const reviewedSubmissionIds = getReviewedSubmissionIds();
+  const unrepairedSubmissions = getUnrepairedSubmissions(reviewedSubmissionIds);
+  return {
+    total: records.length,
+    repairing: records.filter((record) => record.finalStatus === "维修中").length,
+    sendToday: records.filter((record) => record.finalStatus === "今天需要寄").length,
+    pendingShipment: records.filter((record) => record.finalStatus === "待寄出").length,
+    returningFactory: records.filter((record) => record.finalStatus === "返厂中").length,
+    testing: records.filter((record) => record.finalStatus === "测试中").length,
+    unrepaired: unrepairedSubmissions.length,
+    unrepairedTrackingNumbers: unrepairedSubmissions.map((item) => item.trackingNumber || "未填写快递单号")
+  };
+}
+
+function getUnrepairedSubmissions(reviewedSubmissionIds = getReviewedSubmissionIds()) {
+  return customerSubmissions.filter((item) => !reviewedSubmissionIds.has(item.id));
+}
+
+function updateMetricCards() {
+  els.metricCards.forEach((card) => {
+    const target = card.dataset.metricTarget;
+    const isRepairActive =
+      currentView === "repair" &&
+      target === "repair" &&
+      (els.statusFilter.value || "") === (card.dataset.metricStatus || "");
+    const isSubmissionActive =
+      currentView === "submissions" &&
+      target === "submissions" &&
+      submissionStatusFilter === (card.dataset.submissionStatus || "");
+    const isActive = isRepairActive || isSubmissionActive;
+    card.classList.toggle("is-active", isActive);
+    card.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
 }
 
 function statusClass(status) {
@@ -1442,13 +1484,67 @@ function render() {
   updateStats();
   renderTable();
   renderSubmissions();
+  updateMetricCards();
   if (currentView === "customer") updateCustomerQrCode();
+}
+
+async function pushRepairStatsToWecom() {
+  if (!cloudMode || !supabaseClient) {
+    showToast("请先使用云端模式");
+    return;
+  }
+
+  if (!adminMode) {
+    showToast("请先管理员登录");
+    return;
+  }
+
+  const stats = getRepairStats();
+  els.pushWecomBtn.disabled = true;
+  els.pushWecomBtn.textContent = "推送中";
+
+  try {
+    const { data } = await supabaseClient.auth.getSession();
+    const accessToken = data.session?.access_token || "";
+    const response = await fetch(WECOM_PUSH_FUNCTION_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({ stats })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.ok === false) {
+      throw new Error(result.error || "企业微信推送失败");
+    }
+    showToast("已推送到企业微信");
+  } catch (error) {
+    console.error(error);
+    showToast("企微推送失败，请检查配置");
+  } finally {
+    els.pushWecomBtn.disabled = false;
+    els.pushWecomBtn.textContent = "推送企微";
+  }
 }
 
 function renderSubmissions() {
   const reviewedSubmissionIds = getReviewedSubmissionIds();
-  els.submissionCount.textContent = `${customerSubmissions.length} 条`;
-  els.submissionsBody.innerHTML = customerSubmissions
+  const visibleSubmissions =
+    submissionStatusFilter === "unreviewed"
+      ? customerSubmissions.filter((item) => !reviewedSubmissionIds.has(item.id))
+      : customerSubmissions;
+  const emptyTitle = els.submissionsEmptyState.querySelector("strong");
+  const emptyText = els.submissionsEmptyState.querySelector("span");
+  els.submissionCount.textContent = `${visibleSubmissions.length} 条`;
+  if (submissionStatusFilter === "unreviewed") {
+    emptyTitle.textContent = "暂无未维修客户提交";
+    emptyText.textContent = "当前客户提交都已经生成维修记录。";
+  } else {
+    emptyTitle.textContent = "暂无客户提交";
+    emptyText.textContent = "把“扫码登记”里的二维码发给客户，客户填完就会出现在这里。";
+  }
+  els.submissionsBody.innerHTML = visibleSubmissions
     .map((item) => {
       const isReviewed = reviewedSubmissionIds.has(item.id);
       const statusText = isReviewed ? "已检修" : "未检修";
@@ -1488,7 +1584,7 @@ function renderSubmissions() {
       `;
     })
     .join("");
-  els.submissionsEmptyState.hidden = customerSubmissions.length > 0;
+  els.submissionsEmptyState.hidden = visibleSubmissions.length > 0;
 }
 
 function resetForm() {
@@ -1983,9 +2079,9 @@ async function deleteRecord(id) {
   showToast("已删除");
 }
 
-function resetFilters() {
+function clearRepairFilters(status = "") {
   els.searchInput.value = "";
-  els.statusFilter.value = "";
+  els.statusFilter.value = status;
   els.ownershipFilter.value = "";
   clearMultiSelect(els.categoryFilter);
   updateCategoryFilterPicker();
@@ -1995,7 +2091,40 @@ function resetFilters() {
   els.areaFilter.value = "";
   els.dateFrom.value = "";
   els.dateTo.value = "";
+}
+
+function resetFilters() {
+  clearRepairFilters();
   render();
+}
+
+function scrollToSection(section) {
+  if (!section) return;
+  requestAnimationFrame(() => {
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
+function applyMetricShortcut(card) {
+  const target = card.dataset.metricTarget;
+
+  if (target === "submissions") {
+    location.hash = "submissions";
+    setView("submissions");
+    submissionStatusFilter = card.dataset.submissionStatus || "";
+    render();
+    scrollToSection(els.submissionsPage);
+    showToast("已跳到未维修数据");
+    return;
+  }
+
+  submissionStatusFilter = "";
+  location.hash = "";
+  setView("repair");
+  clearRepairFilters(card.dataset.metricStatus || "");
+  render();
+  scrollToSection(els.repairRecordsSection);
+  showToast(card.dataset.metricStatus ? `已跳到${card.dataset.metricStatus}数据` : "已跳到全部维修记录");
 }
 
 function toCsvValue(value) {
@@ -2546,6 +2675,7 @@ function bindEvents() {
     setView("repair");
   });
   els.submissionsViewBtn.addEventListener("click", () => {
+    submissionStatusFilter = "";
     location.hash = "submissions";
     setView("submissions");
   });
@@ -2574,6 +2704,10 @@ function bindEvents() {
   els.importExcelInput.addEventListener("change", () => importExcelFile(els.importExcelInput.files[0]));
   els.resetFiltersBtn.addEventListener("click", resetFilters);
   els.exportCsvBtn.addEventListener("click", exportCsv);
+  els.pushWecomBtn.addEventListener("click", pushRepairStatsToWecom);
+  els.metricCards.forEach((card) => {
+    card.addEventListener("click", () => applyMetricShortcut(card));
+  });
   els.closeDialogBtn.addEventListener("click", () => els.recordDialog.close());
   els.cancelDialogBtn.addEventListener("click", () => els.recordDialog.close());
   els.categoryFilterToggle.addEventListener("click", toggleCategoryFilterPicker);

@@ -202,7 +202,25 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
+  color: inherit;
+  text-align: left;
   box-shadow: 0 1px 0 rgba(24, 32, 38, 0.03);
+  appearance: none;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.metric[data-metric-target]:hover,
+.metric[data-metric-target]:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 8px 22px rgba(15, 123, 108, 0.14);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.metric.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2px rgba(15, 123, 108, 0.12);
 }
 
 .metric span {
@@ -1229,6 +1247,7 @@ dialog::backdrop {
 body.readonly .header-actions #newRecordBtn,
 body.readonly .header-actions #importExcelBtn,
 body.readonly .toolbar-actions #exportCsvBtn,
+body.readonly .toolbar-actions #pushWecomBtn,
 body.readonly .actions-col,
 body.readonly .row-actions {
   display: none;

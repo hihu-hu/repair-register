@@ -9,7 +9,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260626-address-black">
+    <link rel="stylesheet" href="styles.css?v=20260627-metric-shortcuts">
   </head>
   <body>
     <header class="app-header">
@@ -31,34 +31,34 @@
 
     <main>
       <section class="stats-grid repair-view" aria-label="维修统计">
-        <article class="metric">
+        <button class="metric" type="button" data-metric-target="repair" data-metric-status="" aria-pressed="false">
           <span>总记录</span>
           <strong id="totalCount">0</strong>
-        </article>
-        <article class="metric">
+        </button>
+        <button class="metric" type="button" data-metric-target="repair" data-metric-status="维修中" aria-pressed="false">
           <span>维修中</span>
           <strong id="testingCount">0</strong>
-        </article>
-        <article class="metric">
+        </button>
+        <button class="metric" type="button" data-metric-target="repair" data-metric-status="今天需要寄" aria-pressed="false">
           <span>今天需要寄</span>
           <strong id="readyCount">0</strong>
-        </article>
-        <article class="metric">
+        </button>
+        <button class="metric" type="button" data-metric-target="repair" data-metric-status="待寄出" aria-pressed="false">
           <span>待寄出</span>
           <strong id="pendingShipmentCount">0</strong>
-        </article>
-        <article class="metric">
+        </button>
+        <button class="metric" type="button" data-metric-target="repair" data-metric-status="返厂中" aria-pressed="false">
           <span>返厂中</span>
           <strong id="finishedCount">0</strong>
-        </article>
-        <article class="metric">
+        </button>
+        <button class="metric" type="button" data-metric-target="repair" data-metric-status="测试中" aria-pressed="false">
           <span>测试中</span>
           <strong id="testStatusCount">0</strong>
-        </article>
-        <article class="metric">
+        </button>
+        <button class="metric" type="button" data-metric-target="submissions" data-submission-status="unreviewed" aria-pressed="false">
           <span>未维修</span>
           <strong id="unrepairedSubmissionCount">0</strong>
-        </article>
+        </button>
       </section>
 
       <section class="toolbar repair-view" aria-label="筛选和导出">
@@ -123,10 +123,11 @@
         <div class="toolbar-actions">
           <button class="secondary" id="resetFiltersBtn" type="button">重置</button>
           <button class="secondary" id="exportCsvBtn" type="button">导出 CSV</button>
+          <button class="secondary" id="pushWecomBtn" type="button">推送企微</button>
         </div>
       </section>
 
-      <section class="table-shell repair-view" aria-label="维修记录列表">
+      <section class="table-shell repair-view" id="repairRecordsSection" aria-label="维修记录列表">
         <div class="table-title">
           <h2>维修记录</h2>
           <span id="filteredCount">0 条</span>
@@ -517,6 +518,6 @@
     <div class="address-popover" id="addressPopover" role="dialog" aria-label="完整客户地址" hidden></div>
 
     <script src="area-data.js"></script>
-    <script src="app.js?v=20260626-qr-size"></script>
+    <script src="app.js?v=20260627-metric-shortcuts"></script>
   </body>
 </html>
