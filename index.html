@@ -9,7 +9,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260627-metric-shortcuts">
+    <link rel="stylesheet" href="styles.css?v=20260627-analytics2">
   </head>
   <body>
     <header class="app-header">
@@ -23,6 +23,7 @@
         <button class="secondary" id="importExcelBtn" type="button">导入 Excel</button>
         <button class="secondary nav-btn" id="repairViewBtn" type="button">维修记录</button>
         <button class="secondary nav-btn" id="submissionsViewBtn" type="button">客户提交</button>
+        <button class="secondary nav-btn" id="analyticsViewBtn" type="button" hidden>数据分析</button>
         <button class="secondary nav-btn" id="customerViewBtn" type="button">扫码登记</button>
         <button class="secondary" id="authToggleBtn" type="button" hidden>管理员登录</button>
         <input id="importExcelInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
@@ -158,6 +159,88 @@
         <div class="empty-state" id="emptyState" hidden>
           <strong>暂无匹配记录</strong>
           <span>调整筛选条件或新增一条维修记录。</span>
+        </div>
+      </section>
+
+      <section class="analytics-page app-view" id="analyticsPage" hidden aria-label="维修数据分析">
+        <div class="analytics-head">
+          <div>
+            <p class="eyebrow">管理员可见</p>
+            <h2>维修数据分析</h2>
+          </div>
+          <div class="analytics-filters" aria-label="数据分析时间筛选">
+            <label>
+              <span>开始日期</span>
+              <input id="analysisDateFrom" type="date" />
+            </label>
+            <label>
+              <span>结束日期</span>
+              <input id="analysisDateTo" type="date" />
+            </label>
+            <button class="secondary" id="resetAnalysisDateBtn" type="button">重置</button>
+          </div>
+          <span id="analyticsUpdatedAt">等待数据</span>
+        </div>
+
+        <div class="analysis-summary-grid">
+          <article class="analysis-card">
+            <span>硬件损坏占比</span>
+            <strong id="analysisHardwareRate">0%</strong>
+          </article>
+          <article class="analysis-card">
+            <span>本月新增</span>
+            <strong id="analysisThisMonth">0</strong>
+          </article>
+        </div>
+
+        <div class="analysis-grid">
+          <article class="analysis-panel">
+            <div class="analysis-panel-title">
+              <h3>故障分类排行</h3>
+              <span>最多 8 项</span>
+            </div>
+            <div class="analysis-bars" id="analysisCategoryBars"></div>
+          </article>
+
+          <article class="analysis-panel">
+            <div class="analysis-panel-title">
+              <h3>地区排行</h3>
+              <span>最多 8 项</span>
+            </div>
+            <div class="analysis-bars" id="analysisRegionBars"></div>
+          </article>
+
+          <article class="analysis-panel">
+            <div class="analysis-panel-title">
+              <h3>型号排行</h3>
+              <span>最多 8 项</span>
+            </div>
+            <div class="analysis-bars" id="analysisModelBars"></div>
+          </article>
+
+          <article class="analysis-panel">
+            <div class="analysis-panel-title">
+              <h3>故障归属</h3>
+              <span id="analysisOwnershipTotal">0 条</span>
+            </div>
+            <div class="analysis-bars" id="analysisOwnershipBars"></div>
+          </article>
+
+          <article class="analysis-panel">
+            <div class="analysis-panel-title">
+              <h3>直营 / 代理商</h3>
+              <span id="analysisAreaTotal">0 条</span>
+            </div>
+            <div class="analysis-bars" id="analysisAreaBars"></div>
+          </article>
+
+          <article class="analysis-panel">
+            <div class="analysis-panel-title">
+              <h3>最近 7 天新增</h3>
+              <span>按创建时间</span>
+            </div>
+            <div class="analysis-bars compact" id="analysisTrendBars"></div>
+          </article>
         </div>
       </section>
 
@@ -515,8 +598,11 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
     <div class="address-popover" id="addressPopover" role="dialog" aria-label="完整客户地址" hidden></div>
+    <div class="analysis-popover" id="analysisPopover" role="dialog" aria-label="分析明细" hidden></div>
+    <div class="analysis-popover analysis-child-popover" id="analysisChildPopover" role="dialog" aria-label="分析子明细" hidden></div>
+    <div class="analysis-popover analysis-grandchild-popover" id="analysisGrandchildPopover" role="dialog" aria-label="分析下级明细" hidden></div>
 
     <script src="area-data.js"></script>
-    <script src="app.js?v=20260627-metric-shortcuts"></script>
+    <script src="app.js?v=20260627-analytics2"></script>
   </body>
 </html>

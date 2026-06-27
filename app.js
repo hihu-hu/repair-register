@@ -38,6 +38,8 @@ const modelPrefixRules = [
 ];
 
 const directCities = ["杭州", "广州", "郑州", "苏州", "武汉", "株洲", "成都"];
+const ANALYSIS_TOP_LIMIT = 8;
+const ANALYSIS_TREND_DAYS = 7;
 
 const exportFields = [
   ["createdTime", "创建时间"],
@@ -62,8 +64,24 @@ const els = {
   totalCount: document.querySelector("#totalCount"),
   repairViewBtn: document.querySelector("#repairViewBtn"),
   submissionsViewBtn: document.querySelector("#submissionsViewBtn"),
+  analyticsViewBtn: document.querySelector("#analyticsViewBtn"),
   customerViewBtn: document.querySelector("#customerViewBtn"),
   repairViews: document.querySelectorAll(".repair-view"),
+  analyticsPage: document.querySelector("#analyticsPage"),
+  analyticsUpdatedAt: document.querySelector("#analyticsUpdatedAt"),
+  analysisDateFrom: document.querySelector("#analysisDateFrom"),
+  analysisDateTo: document.querySelector("#analysisDateTo"),
+  resetAnalysisDateBtn: document.querySelector("#resetAnalysisDateBtn"),
+  analysisHardwareRate: document.querySelector("#analysisHardwareRate"),
+  analysisThisMonth: document.querySelector("#analysisThisMonth"),
+  analysisCategoryBars: document.querySelector("#analysisCategoryBars"),
+  analysisRegionBars: document.querySelector("#analysisRegionBars"),
+  analysisModelBars: document.querySelector("#analysisModelBars"),
+  analysisTrendBars: document.querySelector("#analysisTrendBars"),
+  analysisOwnershipTotal: document.querySelector("#analysisOwnershipTotal"),
+  analysisOwnershipBars: document.querySelector("#analysisOwnershipBars"),
+  analysisAreaTotal: document.querySelector("#analysisAreaTotal"),
+  analysisAreaBars: document.querySelector("#analysisAreaBars"),
   customerPage: document.querySelector("#customerPage"),
   customerIntro: document.querySelector(".customer-intro"),
   customerRecent: document.querySelector("#customerRecent"),
@@ -138,7 +156,10 @@ const els = {
   doneShareDialogBtn: document.querySelector("#doneShareDialogBtn"),
   modeNote: document.querySelector("#modeNote"),
   toast: document.querySelector("#toast"),
-  addressPopover: document.querySelector("#addressPopover")
+  addressPopover: document.querySelector("#addressPopover"),
+  analysisPopover: document.querySelector("#analysisPopover"),
+  analysisChildPopover: document.querySelector("#analysisChildPopover"),
+  analysisGrandchildPopover: document.querySelector("#analysisGrandchildPopover")
 };
 
 let toastTimer = null;
@@ -162,6 +183,7 @@ let isCustomerSubmitting = false;
 let editingCustomerSubmissionId = "";
 let lastCustomerSubmitFingerprint = "";
 let lastCustomerSubmitTime = 0;
+let analysisPopoverState = null;
 
 function loadRecords() {
   try {
@@ -566,6 +588,11 @@ function refreshAccessMode() {
   setReadonlyMode(forceReadonlyMode || !adminMode);
   els.authToggleBtn.hidden = forceReadonlyMode;
   els.authToggleBtn.textContent = adminMode ? "退出登录" : "管理员登录";
+  els.analyticsViewBtn.hidden = !canViewAnalytics();
+  if (currentView === "analytics" && !canViewAnalytics()) {
+    location.hash = "";
+    setView("repair");
+  }
   renderSubmissions();
 }
 
@@ -1198,20 +1225,32 @@ function showCustomerPortal() {
   `;
 }
 
+function canViewAnalytics() {
+  return cloudMode && adminMode && !forceReadonlyMode;
+}
+
 function setView(view) {
+  if (view === "analytics" && !canViewAnalytics()) {
+    showToast("请先管理员登录");
+    view = "repair";
+  }
+
   document.documentElement.classList.remove("boot-customer");
   currentView = view;
   const isCustomerPortal = view === "customer";
   const isCustomerAdmin = view === "customerAdmin";
+  const isAnalytics = view === "analytics";
   document.body.classList.toggle("customer-portal", isCustomerPortal);
   els.repairViews.forEach((section) => {
     section.hidden = view !== "repair";
   });
+  els.analyticsPage.hidden = !isAnalytics;
   els.customerPage.hidden = !isCustomerPortal && !isCustomerAdmin;
   els.submissionsPage.hidden = view !== "submissions";
   els.customerIntro.hidden = !isCustomerAdmin;
 
   els.repairViewBtn.classList.toggle("is-active", view === "repair");
+  els.analyticsViewBtn.classList.toggle("is-active", isAnalytics);
   els.customerViewBtn.classList.toggle("is-active", isCustomerAdmin);
   els.submissionsViewBtn.classList.toggle("is-active", view === "submissions");
 
@@ -1220,6 +1259,7 @@ function setView(view) {
   els.newRecordBtn.hidden = adminActionsHidden || readonlyMode;
 
   if (view === "submissions") renderSubmissions();
+  if (isAnalytics) renderAnalytics();
   if (isCustomerAdmin) {
     updateCustomerQrCode();
     showCustomerForm();
@@ -1248,6 +1288,19 @@ function applyViewFromHash() {
   if (hash === "submissions") {
     setView("submissions");
     return true;
+  }
+  if (hash === "analytics") {
+    if (canViewAnalytics()) {
+      setView("analytics");
+      return true;
+    }
+    if (cloudMode) {
+      location.hash = "";
+      setView("repair");
+      showToast("请先管理员登录");
+      return true;
+    }
+    return false;
   }
   return false;
 }
@@ -1384,6 +1437,536 @@ function compact(value, fallback = "-") {
   return value ? escapeHtml(value) : `<span class="muted">${fallback}</span>`;
 }
 
+function clampPercent(value) {
+  return Math.max(0, Math.min(100, value));
+}
+
+function formatPercent(count, total) {
+  if (!total) return "0%";
+  return `${Math.round((count / total) * 100)}%`;
+}
+
+function countBy(items, getter) {
+  const counts = new Map();
+  items.forEach((item) => {
+    const values = getter(item);
+    const list = Array.isArray(values) ? values : [values];
+    list.forEach((value) => {
+      const key = String(value || "未填写").trim() || "未填写";
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+  });
+  return [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "zh-CN"));
+}
+
+function renderAnalysisBars(container, items, total, { limit = ANALYSIS_TOP_LIMIT, detailType = "" } = {}) {
+  const visibleItems = items.slice(0, limit);
+  if (visibleItems.length === 0) {
+    container.innerHTML = `<div class="analysis-empty">暂无数据</div>`;
+    return;
+  }
+
+  const maxCount = Math.max(...visibleItems.map((item) => item.count), 1);
+  container.innerHTML = visibleItems
+    .map((item) => {
+      const width = clampPercent((item.count / maxCount) * 100);
+      const minWidth = item.count > 0 ? "4px" : "0";
+      const valueText = item.valueText || `${item.count} 条 · ${formatPercent(item.count, total)}`;
+      const detailAttrs = detailType
+        ? ` data-analysis-detail="${escapeHtml(detailType)}" data-analysis-label="${escapeHtml(item.label)}" tabindex="0" role="button"`
+        : "";
+      return `
+        <div class="analysis-bar-row"${detailAttrs}>
+          <div class="analysis-bar-head">
+            <span title="${escapeHtml(item.label)}">${escapeHtml(item.label)}</span>
+            <strong>${escapeHtml(valueText)}</strong>
+          </div>
+          <div class="analysis-bar-track">
+            <span class="analysis-bar-fill" style="width: ${width}%; min-width: ${minWidth}"></span>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function getRecentTrend(items = records, days = ANALYSIS_TREND_DAYS) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const trend = [];
+
+  for (let index = 0; index < days; index += 1) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - index);
+    const key = toInputDate(date);
+    trend.push({ label: key.slice(5), key, count: 0 });
+  }
+
+  const trendByKey = new Map(trend.map((item) => [item.key, item]));
+  items.forEach((record) => {
+    const key = recordDateKey(record.createdTime);
+    if (trendByKey.has(key)) trendByKey.get(key).count += 1;
+  });
+
+  return trend.map((item) => ({
+    ...item,
+    valueText: `${item.count} 条`
+  }));
+}
+
+function getThisMonthCount() {
+  const monthKey = toInputDate(new Date()).slice(0, 7);
+  return getAnalysisRecords().filter((record) => recordDateKey(record.createdTime).startsWith(monthKey)).length;
+}
+
+function getAnalysisRecords() {
+  const from = els.analysisDateFrom?.value || "";
+  const to = els.analysisDateTo?.value || "";
+  return records.filter((record) => {
+    const key = recordDateKey(record.createdTime);
+    return (!from || key >= from) && (!to || key <= to);
+  });
+}
+
+function getThisYearRange() {
+  const year = new Date().getFullYear();
+  return {
+    from: `${year}-01-01`,
+    to: `${year}-12-31`
+  };
+}
+
+function setAnalysisDateToThisYear() {
+  const range = getThisYearRange();
+  els.analysisDateFrom.value = range.from;
+  els.analysisDateTo.value = range.to;
+}
+
+function renderAnalytics() {
+  if (!canViewAnalytics()) return;
+
+  const analysisRecords = getAnalysisRecords();
+  const stats = { total: analysisRecords.length };
+  const hardwareCount = analysisRecords.filter((record) => record.faultOwnership === "硬件损坏").length;
+  const categoryItems = countBy(analysisRecords, (record) => normalizeFaultCategories(record.faultCategory));
+  const regionItems = countBy(analysisRecords, (record) => record.region || "未填写");
+  const modelItems = countBy(analysisRecords, (record) => record.model || "未填写");
+  const ownershipItems = countBy(analysisRecords, (record) => record.faultOwnership || "未填写");
+  const areaItems = countBy(analysisRecords, (record) => record.area || "未填写");
+  const trendItems = getRecentTrend(analysisRecords);
+
+  els.analyticsUpdatedAt.textContent = `更新时间：${formatDateTime(toInputDateTime(new Date()))}`;
+  els.analysisHardwareRate.textContent = formatPercent(hardwareCount, stats.total);
+  els.analysisThisMonth.textContent = getThisMonthCount();
+  els.analysisOwnershipTotal.textContent = `${stats.total} 条`;
+  els.analysisAreaTotal.textContent = `${stats.total} 条`;
+
+  renderAnalysisBars(els.analysisCategoryBars, categoryItems, stats.total, { detailType: "category-models" });
+  renderAnalysisBars(els.analysisRegionBars, regionItems, stats.total, { detailType: "region-models" });
+  renderAnalysisBars(els.analysisModelBars, modelItems, stats.total, { detailType: "model-categories" });
+  renderAnalysisBars(els.analysisTrendBars, trendItems, Math.max(...trendItems.map((item) => item.count), 0), {
+    limit: ANALYSIS_TREND_DAYS
+  });
+  renderAnalysisBars(els.analysisOwnershipBars, ownershipItems, stats.total, {
+    limit: optionSets.faultOwnership.length,
+    detailType: "ownership-models"
+  });
+  renderAnalysisBars(els.analysisAreaBars, areaItems, stats.total, { limit: optionSets.area.length });
+}
+
+function getCategoryModelDistribution(category) {
+  const matchedRecords = getAnalysisRecords().filter((record) => normalizeFaultCategories(record.faultCategory).includes(category));
+  return {
+    total: matchedRecords.length,
+    items: countBy(matchedRecords, (record) => record.model || "未填写")
+  };
+}
+
+function getRegionModelDistribution(region) {
+  const matchedRecords = getAnalysisRecords().filter((record) => (record.region || "未填写") === region);
+  return {
+    total: matchedRecords.length,
+    items: countBy(matchedRecords, (record) => record.model || "未填写")
+  };
+}
+
+function getModelCategoryDistribution(model) {
+  const matchedRecords = getAnalysisRecords().filter((record) => (record.model || "未填写") === model);
+  return {
+    total: matchedRecords.length,
+    items: countBy(matchedRecords, (record) => normalizeFaultCategories(record.faultCategory))
+  };
+}
+
+function getOwnershipRecords(ownership) {
+  return getAnalysisRecords().filter((record) => (record.faultOwnership || "未填写") === ownership);
+}
+
+function getOwnershipModelDistribution(ownership) {
+  const matchedRecords = getOwnershipRecords(ownership);
+  return {
+    total: matchedRecords.length,
+    items: countBy(matchedRecords, (record) => record.model || "未填写")
+  };
+}
+
+function getOwnershipCategoryDistribution(ownership) {
+  const matchedRecords = getOwnershipRecords(ownership);
+  return {
+    total: matchedRecords.length,
+    items: countBy(matchedRecords, (record) => normalizeFaultCategories(record.faultCategory))
+  };
+}
+
+function showAnalysisPopover(anchor, title, items, total, { emptyText = "暂无数据", toggle = null, rowDetail = null } = {}) {
+  const rows = items.length > 0
+    ? items
+        .slice(0, ANALYSIS_TOP_LIMIT)
+        .map((item) => {
+          const childAttrs = rowDetail
+            ? ` data-analysis-child-detail="regions" data-analysis-parent-detail="${escapeHtml(rowDetail.parentDetail)}" data-analysis-parent-label="${escapeHtml(rowDetail.parentLabel)}" data-analysis-parent-mode="${escapeHtml(rowDetail.parentMode || "")}" data-analysis-row-label="${escapeHtml(item.label)}" tabindex="0" role="button"`
+            : "";
+          return `
+            <div class="analysis-popover-row"${childAttrs}>
+              <span>${escapeHtml(item.label)}</span>
+              <strong>${item.count} 条 · ${formatPercent(item.count, total)}</strong>
+            </div>
+          `;
+        })
+        .join("")
+    : `<div class="analysis-popover-empty">${escapeHtml(emptyText)}</div>`;
+  const toggleButton = toggle
+    ? `<button class="analysis-popover-toggle" type="button" data-action="toggle-analysis-popover" title="${escapeHtml(toggle.title)}" aria-label="${escapeHtml(toggle.title)}">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 7h14" />
+          <path d="M14 3l4 4-4 4" />
+          <path d="M20 17H6" />
+          <path d="M10 13l-4 4 4 4" />
+        </svg>
+      </button>`
+    : "";
+
+  els.analysisPopover.innerHTML = `
+    <div class="analysis-popover-head">
+      <div class="analysis-popover-title">${escapeHtml(title)}</div>
+      ${toggleButton}
+    </div>
+    ${rows}
+  `;
+  els.analysisPopover.hidden = false;
+  hideAnalysisChildPopover();
+
+  const rect = anchor.getBoundingClientRect();
+  const popoverRect = els.analysisPopover.getBoundingClientRect();
+  const margin = 12;
+  const left = Math.min(rect.left, window.innerWidth - popoverRect.width - margin);
+  const top = rect.bottom + margin > window.innerHeight - popoverRect.height
+    ? rect.top - popoverRect.height - margin
+    : rect.bottom + margin;
+
+  els.analysisPopover.style.left = `${Math.max(margin, left)}px`;
+  els.analysisPopover.style.top = `${Math.max(margin, top)}px`;
+}
+
+function hideAnalysisPopover() {
+  els.analysisPopover.hidden = true;
+  hideAnalysisChildPopover();
+  clearAnalysisSelection(els.analyticsPage);
+  analysisPopoverState = null;
+}
+
+function hideAnalysisChildPopover() {
+  els.analysisChildPopover.hidden = true;
+  hideAnalysisGrandchildPopover();
+  clearAnalysisSelection(els.analysisPopover);
+}
+
+function hideAnalysisGrandchildPopover() {
+  els.analysisGrandchildPopover.hidden = true;
+  clearAnalysisSelection(els.analysisChildPopover);
+}
+
+function clearAnalysisSelection(scope) {
+  scope.querySelectorAll(".is-analysis-selected").forEach((item) => {
+    item.classList.remove("is-analysis-selected");
+  });
+}
+
+function selectAnalysisRow(row, scope) {
+  clearAnalysisSelection(scope);
+  row.classList.add("is-analysis-selected");
+}
+
+function getAnalysisParentRecords(parentDetail, parentLabel) {
+  if (parentDetail === "category-models") {
+    return getAnalysisRecords().filter((record) => normalizeFaultCategories(record.faultCategory).includes(parentLabel));
+  }
+  if (parentDetail === "region-models") {
+    return getAnalysisRecords().filter((record) => (record.region || "未填写") === parentLabel);
+  }
+  if (parentDetail === "model-categories") {
+    return getAnalysisRecords().filter((record) => (record.model || "未填写") === parentLabel);
+  }
+  if (parentDetail === "ownership-models") {
+    return getOwnershipRecords(parentLabel);
+  }
+  return [];
+}
+
+function getAnalysisChildRecords(row) {
+  const parentDetail = row.dataset.analysisParentDetail || "";
+  const parentLabel = row.dataset.analysisParentLabel || "";
+  const parentMode = row.dataset.analysisParentMode || "";
+  const rowLabel = row.dataset.analysisRowLabel || "";
+  const parentRecords = getAnalysisParentRecords(parentDetail, parentLabel);
+
+  if (parentDetail === "model-categories" || parentMode === "categories") {
+    return parentRecords.filter((record) => normalizeFaultCategories(record.faultCategory).includes(rowLabel));
+  }
+  return parentRecords.filter((record) => (record.model || "未填写") === rowLabel);
+}
+
+function showAnalysisChildPopover(anchor, title, items, total, { emptyText = "暂无数据", rowDetail = null } = {}) {
+  const rows = items.length > 0
+    ? items
+        .slice(0, ANALYSIS_TOP_LIMIT)
+        .map((item) => {
+          const grandchildAttrs = rowDetail
+            ? ` data-analysis-grandchild-detail="regions" data-analysis-parent-detail="${escapeHtml(rowDetail.parentDetail)}" data-analysis-parent-label="${escapeHtml(rowDetail.parentLabel)}" data-analysis-parent-mode="${escapeHtml(rowDetail.parentMode || "")}" data-analysis-child-label="${escapeHtml(rowDetail.childLabel)}" data-analysis-row-label="${escapeHtml(item.label)}" tabindex="0" role="button"`
+            : "";
+          return `
+            <div class="analysis-popover-row"${grandchildAttrs}>
+              <span>${escapeHtml(item.label)}</span>
+              <strong>${item.count} 条 · ${formatPercent(item.count, total)}</strong>
+            </div>
+          `;
+        })
+        .join("")
+    : `<div class="analysis-popover-empty">${escapeHtml(emptyText)}</div>`;
+
+  els.analysisChildPopover.innerHTML = `
+    <div class="analysis-popover-head">
+      <div class="analysis-popover-title">${escapeHtml(title)}</div>
+    </div>
+    ${rows}
+  `;
+  els.analysisChildPopover.hidden = false;
+  hideAnalysisGrandchildPopover();
+
+  const rect = anchor.getBoundingClientRect();
+  const popoverRect = els.analysisChildPopover.getBoundingClientRect();
+  const margin = 10;
+  let left = rect.right + margin;
+  if (left + popoverRect.width > window.innerWidth - margin) {
+    left = rect.left - popoverRect.width - margin;
+  }
+  const top = Math.min(rect.top, window.innerHeight - popoverRect.height - margin);
+
+  els.analysisChildPopover.style.left = `${Math.max(margin, left)}px`;
+  els.analysisChildPopover.style.top = `${Math.max(margin, top)}px`;
+}
+
+function getAnalysisGrandchildRecords(row) {
+  const parentDetail = row.dataset.analysisParentDetail || "";
+  const parentLabel = row.dataset.analysisParentLabel || "";
+  const parentMode = row.dataset.analysisParentMode || "";
+  const childLabel = row.dataset.analysisChildLabel || "";
+  const rowLabel = row.dataset.analysisRowLabel || "";
+  const parentRecords = getAnalysisParentRecords(parentDetail, parentLabel);
+
+  if (parentDetail === "ownership-models" && parentMode === "categories") {
+    return parentRecords
+      .filter((record) => normalizeFaultCategories(record.faultCategory).includes(childLabel))
+      .filter((record) => (record.model || "未填写") === rowLabel);
+  }
+  if (parentDetail === "ownership-models" && parentMode === "models") {
+    return parentRecords
+      .filter((record) => (record.model || "未填写") === childLabel)
+      .filter((record) => normalizeFaultCategories(record.faultCategory).includes(rowLabel));
+  }
+  return [];
+}
+
+function showAnalysisGrandchildPopover(anchor, title, items, total) {
+  const rows = items.length > 0
+    ? items
+        .slice(0, ANALYSIS_TOP_LIMIT)
+        .map(
+          (item) => `
+            <div class="analysis-popover-row">
+              <span>${escapeHtml(item.label)}</span>
+              <strong>${item.count} 条 · ${formatPercent(item.count, total)}</strong>
+            </div>
+          `
+        )
+        .join("")
+    : `<div class="analysis-popover-empty">暂无地区数据</div>`;
+
+  els.analysisGrandchildPopover.innerHTML = `
+    <div class="analysis-popover-head">
+      <div class="analysis-popover-title">${escapeHtml(title)}</div>
+    </div>
+    ${rows}
+  `;
+  els.analysisGrandchildPopover.hidden = false;
+
+  const rect = anchor.getBoundingClientRect();
+  const popoverRect = els.analysisGrandchildPopover.getBoundingClientRect();
+  const margin = 10;
+  let left = rect.right + margin;
+  if (left + popoverRect.width > window.innerWidth - margin) {
+    left = rect.left - popoverRect.width - margin;
+  }
+  const top = Math.min(rect.top, window.innerHeight - popoverRect.height - margin);
+
+  els.analysisGrandchildPopover.style.left = `${Math.max(margin, left)}px`;
+  els.analysisGrandchildPopover.style.top = `${Math.max(margin, top)}px`;
+}
+
+function openAnalysisGrandchildDetail(row) {
+  const rowLabel = row.dataset.analysisRowLabel || "";
+  if (!rowLabel) return;
+
+  selectAnalysisRow(row, els.analysisChildPopover);
+  const matchedRecords = getAnalysisGrandchildRecords(row);
+  const regionItems = countBy(matchedRecords, (record) => record.region || "未填写");
+  showAnalysisGrandchildPopover(row, `${rowLabel} - 地区分布`, regionItems, matchedRecords.length);
+}
+
+function openAnalysisChildDetail(row) {
+  const parentDetail = row.dataset.analysisParentDetail || "";
+  const parentMode = row.dataset.analysisParentMode || "";
+  const rowLabel = row.dataset.analysisRowLabel || "";
+  if (!rowLabel) return;
+
+  selectAnalysisRow(row, els.analysisPopover);
+  const matchedRecords = getAnalysisChildRecords(row);
+  if (parentDetail === "region-models") {
+    const categoryItems = countBy(matchedRecords, (record) => normalizeFaultCategories(record.faultCategory));
+    showAnalysisChildPopover(row, `${rowLabel} - 故障分类`, categoryItems, matchedRecords.length);
+    return;
+  }
+
+  if (parentDetail === "ownership-models" && parentMode === "categories") {
+    const modelItems = countBy(matchedRecords, (record) => record.model || "未填写");
+    showAnalysisChildPopover(row, `${rowLabel} - 型号分布`, modelItems, matchedRecords.length, {
+      emptyText: "暂无型号数据",
+      rowDetail: {
+        parentDetail,
+        parentLabel: row.dataset.analysisParentLabel || "",
+        parentMode,
+        childLabel: rowLabel
+      }
+    });
+    return;
+  }
+
+  if (parentDetail === "ownership-models") {
+    const categoryItems = countBy(matchedRecords, (record) => normalizeFaultCategories(record.faultCategory));
+    showAnalysisChildPopover(row, `${rowLabel} - 故障分布`, categoryItems, matchedRecords.length, {
+      emptyText: "暂无故障数据",
+      rowDetail: {
+        parentDetail,
+        parentLabel: row.dataset.analysisParentLabel || "",
+        parentMode,
+        childLabel: rowLabel
+      }
+    });
+    return;
+  }
+
+  const regionItems = countBy(matchedRecords, (record) => record.region || "未填写");
+  showAnalysisChildPopover(row, `${rowLabel} - 地区分布`, regionItems, matchedRecords.length);
+}
+
+function showOwnershipDetail(row, mode = "models") {
+  const label = row.dataset.analysisLabel || "";
+  if (!label) return;
+
+  const showingModels = mode !== "categories";
+  const distribution = showingModels
+    ? getOwnershipModelDistribution(label)
+    : getOwnershipCategoryDistribution(label);
+  analysisPopoverState = {
+    anchor: row,
+    detailType: "ownership-models",
+    label,
+    mode: showingModels ? "models" : "categories"
+  };
+  showAnalysisPopover(
+    row,
+    `${label} - ${showingModels ? "型号分布" : "故障分类"}`,
+    distribution.items,
+    distribution.total,
+    {
+      emptyText: showingModels ? "暂无型号数据" : "暂无故障分类数据",
+      rowDetail: {
+        parentDetail: "ownership-models",
+        parentLabel: label,
+        parentMode: showingModels ? "models" : "categories"
+      },
+      toggle: {
+        title: showingModels ? "切换成故障分布" : "切换成型号分布"
+      }
+    }
+  );
+}
+
+function toggleAnalysisPopoverMode() {
+  if (!analysisPopoverState || analysisPopoverState.detailType !== "ownership-models") return;
+  const nextMode = analysisPopoverState.mode === "models" ? "categories" : "models";
+  showOwnershipDetail(analysisPopoverState.anchor, nextMode);
+}
+
+function openAnalysisDetail(row) {
+  const detailType = row.dataset.analysisDetail;
+  const label = row.dataset.analysisLabel || "";
+  if (!label) return;
+
+  selectAnalysisRow(row, els.analyticsPage);
+  if (detailType === "category-models") {
+    const distribution = getCategoryModelDistribution(label);
+    analysisPopoverState = null;
+    showAnalysisPopover(row, `${label} - 型号分布`, distribution.items, distribution.total, {
+      emptyText: "暂无型号数据",
+      rowDetail: {
+        parentDetail: detailType,
+        parentLabel: label
+      }
+    });
+  }
+
+  if (detailType === "region-models") {
+    const distribution = getRegionModelDistribution(label);
+    analysisPopoverState = null;
+    showAnalysisPopover(row, `${label} - 打印机分布`, distribution.items, distribution.total, {
+      emptyText: "暂无型号数据",
+      rowDetail: {
+        parentDetail: detailType,
+        parentLabel: label
+      }
+    });
+  }
+
+  if (detailType === "model-categories") {
+    const distribution = getModelCategoryDistribution(label);
+    analysisPopoverState = null;
+    showAnalysisPopover(row, `${label} - 故障分类`, distribution.items, distribution.total, {
+      emptyText: "暂无故障分类数据",
+      rowDetail: {
+        parentDetail: detailType,
+        parentLabel: label
+      }
+    });
+  }
+
+  if (detailType === "ownership-models") {
+    showOwnershipDetail(row);
+  }
+}
+
 function isPointInsideRect(x, y, rect) {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
@@ -1486,6 +2069,7 @@ function render() {
   updateStats();
   renderTable();
   renderSubmissions();
+  if (currentView === "analytics") renderAnalytics();
   updateMetricCards();
   if (currentView === "customer") updateCustomerQrCode();
 }
@@ -2680,6 +3264,21 @@ function bindEvents() {
     location.hash = "submissions";
     setView("submissions");
   });
+  els.analyticsViewBtn.addEventListener("click", () => {
+    location.hash = "analytics";
+    setView("analytics");
+  });
+  [els.analysisDateFrom, els.analysisDateTo].forEach((input) => {
+    input.addEventListener("change", () => {
+      hideAnalysisPopover();
+      renderAnalytics();
+    });
+  });
+  els.resetAnalysisDateBtn.addEventListener("click", () => {
+    setAnalysisDateToThisYear();
+    hideAnalysisPopover();
+    renderAnalytics();
+  });
   els.customerViewBtn.addEventListener("click", () => {
     location.hash = "customer-admin";
     setView("customerAdmin");
@@ -2708,6 +3307,52 @@ function bindEvents() {
   els.pushWecomBtn.addEventListener("click", pushRepairStatsToWecom);
   els.metricCards.forEach((card) => {
     card.addEventListener("click", () => applyMetricShortcut(card));
+  });
+  [els.analysisCategoryBars, els.analysisRegionBars, els.analysisModelBars, els.analysisOwnershipBars].forEach((container) => {
+    container.addEventListener("click", (event) => {
+      const row = event.target.closest("[data-analysis-detail]");
+      if (row) openAnalysisDetail(row);
+    });
+    container.addEventListener("keydown", (event) => {
+      if (!["Enter", " "].includes(event.key)) return;
+      const row = event.target.closest("[data-analysis-detail]");
+      if (!row) return;
+      event.preventDefault();
+      openAnalysisDetail(row);
+    });
+  });
+  els.analysisPopover.addEventListener("click", (event) => {
+    const button = event.target.closest('[data-action="toggle-analysis-popover"]');
+    if (button) {
+      event.stopPropagation();
+      toggleAnalysisPopoverMode();
+      return;
+    }
+
+    const row = event.target.closest("[data-analysis-child-detail]");
+    if (!row) return;
+    event.stopPropagation();
+    openAnalysisChildDetail(row);
+  });
+  els.analysisPopover.addEventListener("keydown", (event) => {
+    if (!["Enter", " "].includes(event.key)) return;
+    const row = event.target.closest("[data-analysis-child-detail]");
+    if (!row) return;
+    event.preventDefault();
+    openAnalysisChildDetail(row);
+  });
+  els.analysisChildPopover.addEventListener("click", (event) => {
+    const row = event.target.closest("[data-analysis-grandchild-detail]");
+    if (!row) return;
+    event.stopPropagation();
+    openAnalysisGrandchildDetail(row);
+  });
+  els.analysisChildPopover.addEventListener("keydown", (event) => {
+    if (!["Enter", " "].includes(event.key)) return;
+    const row = event.target.closest("[data-analysis-grandchild-detail]");
+    if (!row) return;
+    event.preventDefault();
+    openAnalysisGrandchildDetail(row);
   });
   els.closeDialogBtn.addEventListener("click", () => els.recordDialog.close());
   els.cancelDialogBtn.addEventListener("click", () => els.recordDialog.close());
@@ -2871,16 +3516,33 @@ function bindEvents() {
     if (!clickedAddress && !clickedPopover) hideAddressPopover();
   });
 
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") hideAddressPopover();
+  document.addEventListener("click", (event) => {
+    const clickedAnalysisRow = event.target.closest("[data-analysis-detail]");
+    const clickedAnalysisPopover = event.target.closest("#analysisPopover");
+    const clickedAnalysisChildPopover = event.target.closest("#analysisChildPopover");
+    const clickedAnalysisGrandchildPopover = event.target.closest("#analysisGrandchildPopover");
+    if (!clickedAnalysisRow && !clickedAnalysisPopover && !clickedAnalysisChildPopover && !clickedAnalysisGrandchildPopover) {
+      hideAnalysisPopover();
+    }
   });
 
-  window.addEventListener("scroll", hideAddressPopover, true);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      hideAddressPopover();
+      hideAnalysisPopover();
+    }
+  });
+
+  window.addEventListener("scroll", () => {
+    hideAddressPopover();
+    hideAnalysisPopover();
+  }, true);
   window.addEventListener("hashchange", applyHashRoute);
 }
 
 fillStaticOptions();
 bindEvents();
+setAnalysisDateToThisYear();
 applyHashRoute();
 loadAreaData();
 initializeCloud();
