@@ -1248,6 +1248,12 @@ dialog::backdrop {
   margin-bottom: 6px;
 }
 
+.form-grid label:has(:required) > span::after {
+  margin-left: 4px;
+  color: var(--danger);
+  content: "*";
+}
+
 .wide {
   grid-column: 1 / -1;
 }
