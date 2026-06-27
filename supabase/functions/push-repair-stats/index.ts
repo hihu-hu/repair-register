@@ -134,6 +134,7 @@ Deno.serve(async (request) => {
   const webhookUrl = Deno.env.get("WECOM_WEBHOOK_URL");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const cronSecret = Deno.env.get("WECOM_PUSH_CRON_SECRET");
   if (!webhookUrl) {
     return Response.json({ ok: false, error: "还没有配置企业微信机器人地址" }, { status: 500, headers: corsHeaders });
   }
@@ -143,9 +144,18 @@ Deno.serve(async (request) => {
 
   try {
     const accessToken = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
+    const requestCronSecret = request.headers.get("x-cron-secret") || "";
+    const isCronRequest = Boolean(cronSecret && requestCronSecret && requestCronSecret === cronSecret);
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
-    if (userError || userData.user?.email !== ADMIN_EMAIL) {
+
+    if (!isCronRequest) {
+      const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+      if (userError || userData.user?.email !== ADMIN_EMAIL) {
+        return Response.json({ ok: false, error: "请先管理员登录" }, { status: 401, headers: corsHeaders });
+      }
+    }
+
+    if (!isCronRequest && !accessToken) {
       return Response.json({ ok: false, error: "请先管理员登录" }, { status: 401, headers: corsHeaders });
     }
 
