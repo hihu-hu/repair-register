@@ -87,6 +87,7 @@ const els = {
   submissionsEmptyState: document.querySelector("#submissionsEmptyState"),
   testingCount: document.querySelector("#testingCount"),
   readyCount: document.querySelector("#readyCount"),
+  pendingShipmentCount: document.querySelector("#pendingShipmentCount"),
   finishedCount: document.querySelector("#finishedCount"),
   testStatusCount: document.querySelector("#testStatusCount"),
   unrepairedSubmissionCount: document.querySelector("#unrepairedSubmissionCount"),
@@ -1302,6 +1303,7 @@ function updateStats() {
   els.totalCount.textContent = records.length;
   els.testingCount.textContent = records.filter((record) => record.finalStatus === "维修中").length;
   els.readyCount.textContent = records.filter((record) => record.finalStatus === "今天需要寄").length;
+  els.pendingShipmentCount.textContent = records.filter((record) => record.finalStatus === "待寄出").length;
   els.finishedCount.textContent = records.filter((record) => record.finalStatus === "返厂中").length;
   els.testStatusCount.textContent = records.filter((record) => record.finalStatus === "测试中").length;
   els.unrepairedSubmissionCount.textContent = customerSubmissions.filter((item) => !reviewedSubmissionIds.has(item.id)).length;
