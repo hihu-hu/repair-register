@@ -1816,7 +1816,13 @@ function getAnalysisGrandchildRecords(row) {
   return [];
 }
 
-function showAnalysisGrandchildPopover(anchor, title, items, total, { emptyText = "暂无地区数据" } = {}) {
+function showAnalysisGrandchildPopover(
+  anchor,
+  title,
+  items,
+  total,
+  { emptyText = "暂无地区数据", preferLeft = true } = {}
+) {
   const rows = items.length > 0
     ? items
         .slice(0, ANALYSIS_TOP_LIMIT)
@@ -1838,7 +1844,7 @@ function showAnalysisGrandchildPopover(anchor, title, items, total, { emptyText 
     ${rows}
   `;
   els.analysisGrandchildPopover.hidden = false;
-  placeAnalysisSidePopover(els.analysisGrandchildPopover, anchor, { preferLeft: true });
+  placeAnalysisSidePopover(els.analysisGrandchildPopover, anchor, { preferLeft });
 }
 
 function openAnalysisGrandchildDetail(row) {
@@ -1850,7 +1856,8 @@ function openAnalysisGrandchildDetail(row) {
   if ((row.dataset.analysisParentDetail || "") === "area-models") {
     const categoryItems = countBy(matchedRecords, (record) => normalizeFaultCategories(record.faultCategory));
     showAnalysisGrandchildPopover(row, `${rowLabel} - 故障类型分布`, categoryItems, matchedRecords.length, {
-      emptyText: "暂无故障类型数据"
+      emptyText: "暂无故障类型数据",
+      preferLeft: false
     });
     return;
   }
