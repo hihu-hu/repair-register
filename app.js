@@ -1446,7 +1446,7 @@ function renderTable() {
         <tr data-id="${escapeHtml(record.id)}">
           <td>${compact(formatDateTime(record.createdTime))}</td>
           <td><span class="cell-main">${compact(record.trackingNumber)}</span></td>
-          <td>
+          <td colspan="2">
             <span class="cell-main">${compact(record.region)}</span>
             <span class="cell-sub"><span class="tag ${areaClass(record.area)}">${compact(record.area)}</span></span>
           </td>
