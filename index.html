@@ -10,7 +10,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260627-analytics2">
+    <link rel="stylesheet" href="styles.css?v=20260630-accessory-parts2">
   </head>
   <body>
     <header class="app-header">
@@ -45,8 +45,8 @@
           <span>今天需要寄</span>
           <strong id="readyCount">0</strong>
         </button>
-        <button class="metric" type="button" data-metric-target="repair" data-metric-status="待寄出" aria-pressed="false">
-          <span>待寄出</span>
+        <button class="metric" type="button" data-metric-target="repair" data-metric-status="已修未付费" aria-pressed="false">
+          <span>已修未付费</span>
           <strong id="pendingShipmentCount">0</strong>
         </button>
         <button class="metric" type="button" data-metric-target="repair" data-metric-status="返厂中" aria-pressed="false">
@@ -454,6 +454,16 @@
             <span>寄回单号</span>
             <input name="returnTrackingNumber">
           </label>
+          <label>
+            <span id="accessoryPartsLabel">本单所用配件</span>
+            <select name="accessoryParts" multiple hidden></select>
+            <div class="checkbox-select" id="accessoryPartsPicker">
+              <button class="checkbox-select-button" id="accessoryPartsToggle" type="button" aria-expanded="false">
+                请选择
+              </button>
+              <div class="checkbox-select-menu" id="accessoryPartsMenu" hidden></div>
+            </div>
+          </label>
           <div class="match-box" id="matchBox" hidden></div>
           <label class="wide">
             <span>打印机故障原因（客述）</span>
@@ -604,6 +614,6 @@
     <div class="analysis-popover analysis-grandchild-popover" id="analysisGrandchildPopover" role="dialog" aria-label="分析下级明细" hidden></div>
 
     <script src="area-data.js"></script>
-    <script src="app.js?v=20260627-submission-columns1"></script>
+    <script src="app.js?v=20260630-accessory-parts2"></script>
   </body>
 </html>

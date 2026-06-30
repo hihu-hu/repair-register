@@ -16,14 +16,19 @@ const LOCKED_CUSTOMER_EDIT_STATUSES = ["已寄出", "邮寄并结束"];
 const optionSets = {
   hasPower: ["有", "没有"],
   area: ["直营", "代理商"],
-  finalStatus: ["维修中", "邮寄并结束", "已寄出", "返厂中", "今天需要寄", "待寄出", "测试中"],
+  finalStatus: ["维修中", "邮寄并结束", "已寄出", "返厂中", "今天需要寄", "已修未付费", "测试中"],
   faultOwnership: ["硬件损坏", "非硬件", "外接因素"],
   faultCategory: ["传感器", "主板", "打印头", "模块", "屏幕", "塑料件", "未复现", "其他"],
+  accessoryParts: ["传感器", "打印头", "主板", "wifi模块", "wifi模块5g", "屏幕", "电源适配器", "卡勾", "电源接口", "塑料件/小件", "快递费", "无费用"],
   model: ["GMX", "GMI", "GMT", "GMH", "GMX-5G", "GMT-5G", "DK110A", "DK110B", "DK110S", "DK80", "新北洋110", "芯烨80"]
 };
 
 const faultCategoryAliases = {
   无损坏: "未复现"
+};
+
+const finalStatusAliases = {
+  待寄出: "已修未付费"
 };
 
 const modelPrefixRules = [
@@ -60,6 +65,7 @@ const exportFields = [
   ["returnTrackingNumber", "寄回单号"],
   ["faultOwnership", "故障归属"],
   ["faultCategory", "故障分类"],
+  ["accessoryParts", "本单所用配件"],
   ["customerAddress", "客户地址"],
   ["model", "型号"]
 ];
@@ -148,6 +154,9 @@ const els = {
   dialogTitle: document.querySelector("#dialogTitle"),
   faultCategoryToggle: document.querySelector("#faultCategoryToggle"),
   faultCategoryMenu: document.querySelector("#faultCategoryMenu"),
+  accessoryPartsLabel: document.querySelector("#accessoryPartsLabel"),
+  accessoryPartsToggle: document.querySelector("#accessoryPartsToggle"),
+  accessoryPartsMenu: document.querySelector("#accessoryPartsMenu"),
   closeDialogBtn: document.querySelector("#closeDialogBtn"),
   cancelDialogBtn: document.querySelector("#cancelDialogBtn"),
   deleteRecordBtn: document.querySelector("#deleteRecordBtn"),
@@ -287,10 +296,11 @@ function normalizeRecord(record = {}) {
     customerIssue: String(record.customerIssue || record.issue || ""),
     repairProcess: String(record.repairProcess || record.process || ""),
     returnTime: normalizeDate(record.returnTime || record.returnedDate || ""),
-    finalStatus: normalizeOption(record.finalStatus || record.status, optionSets.finalStatus, "测试中"),
+    finalStatus: normalizeOption(finalStatusAliases[record.finalStatus || record.status] || record.finalStatus || record.status, optionSets.finalStatus, "测试中"),
     returnTrackingNumber: String(record.returnTrackingNumber || record.outboundTracking || ""),
     faultOwnership: normalizeOption(record.faultOwnership, optionSets.faultOwnership, "硬件损坏"),
     faultCategory: normalizeFaultCategories(record.faultCategory).join(MULTI_VALUE_SEPARATOR),
+    accessoryParts: normalizeAccessoryParts(record.accessoryParts || record.accessory_parts).join(MULTI_VALUE_SEPARATOR),
     customerAddress: String(record.customerAddress || record.address || ""),
     model: normalizeOption(record.model, optionSets.model, "GMX"),
     updatedAt: String(record.updatedAt || new Date().toISOString())
@@ -317,14 +327,23 @@ function inferModelFromDeviceNumber(deviceNumber) {
 }
 
 function normalizeFaultCategories(value) {
+  return normalizeMultiOptions(value, optionSets.faultCategory, faultCategoryAliases, ["其他"]);
+}
+
+function normalizeAccessoryParts(value) {
+  return normalizeMultiOptions(value, optionSets.accessoryParts, {}, []);
+}
+
+function normalizeMultiOptions(value, options, aliases = {}, fallback = []) {
   const rawItems = Array.isArray(value)
     ? value
     : String(value || "").split(/[、,，;；/|]/);
   const selected = rawItems
     .map((item) => String(item || "").trim())
-    .map((item) => faultCategoryAliases[item] || item)
-    .filter((item) => optionSets.faultCategory.includes(item));
-  return [...new Set(selected)].length > 0 ? [...new Set(selected)] : ["其他"];
+    .map((item) => aliases[item] || item)
+    .filter((item) => options.includes(item));
+  const unique = [...new Set(selected)];
+  return unique.length > 0 ? unique : fallback;
 }
 
 function getMultiSelectValues(select) {
@@ -333,8 +352,8 @@ function getMultiSelectValues(select) {
     .filter(Boolean);
 }
 
-function setMultiSelectValues(select, values) {
-  const selected = new Set(normalizeFaultCategories(values));
+function setMultiSelectValues(select, values, options = []) {
+  const selected = new Set(normalizeMultiOptions(values, options, {}, []));
   Array.from(select.options).forEach((option) => {
     option.selected = selected.has(option.value);
   });
@@ -389,12 +408,40 @@ function updateFaultCategoryPicker() {
   syncCheckboxMenu(els.faultCategoryMenu, selected);
 }
 
+function updateAccessoryPartsPicker() {
+  const select = els.recordForm.elements.accessoryParts;
+  const selected = getMultiSelectValues(select);
+  els.accessoryPartsToggle.textContent = selected.length > 0 ? selected.join(MULTI_VALUE_SEPARATOR) : "请选择";
+  els.accessoryPartsToggle.classList.toggle("is-placeholder", selected.length === 0);
+  els.accessoryPartsToggle.classList.toggle("is-invalid", selected.length === 0 && els.accessoryPartsToggle.classList.contains("is-invalid"));
+  syncCheckboxMenu(els.accessoryPartsMenu, selected);
+}
+
+function isAccessoryPartsRequired() {
+  return ["今天需要寄", "已修未付费", "邮寄并结束", "已寄出"].includes(els.recordForm.elements.finalStatus.value);
+}
+
+function updateAccessoryPartsRequirement() {
+  const required = isAccessoryPartsRequired();
+  els.accessoryPartsLabel.classList.toggle("is-required", required);
+  if (!required) els.accessoryPartsToggle.classList.remove("is-invalid");
+  updateAccessoryPartsPicker();
+}
+
 function showFaultCategoryRequired() {
   showToast("请选择故障分类");
   els.faultCategoryToggle.classList.add("is-invalid");
   els.faultCategoryToggle.scrollIntoView({ block: "center", behavior: "smooth" });
   els.faultCategoryToggle.focus();
   if (els.faultCategoryMenu.hidden) toggleFaultCategoryPicker();
+}
+
+function showAccessoryPartsRequired() {
+  showToast("请选择本单所用配件");
+  els.accessoryPartsToggle.classList.add("is-invalid");
+  els.accessoryPartsToggle.scrollIntoView({ block: "center", behavior: "smooth" });
+  els.accessoryPartsToggle.focus();
+  if (els.accessoryPartsMenu.hidden) toggleAccessoryPartsPicker();
 }
 
 function closeCategoryFilterPicker() {
@@ -407,11 +454,17 @@ function closeFaultCategoryPicker() {
   els.faultCategoryToggle.setAttribute("aria-expanded", "false");
 }
 
+function closeAccessoryPartsPicker() {
+  els.accessoryPartsMenu.hidden = true;
+  els.accessoryPartsToggle.setAttribute("aria-expanded", "false");
+}
+
 function toggleCategoryFilterPicker() {
   const willOpen = els.categoryFilterMenu.hidden;
   els.categoryFilterMenu.hidden = !willOpen;
   els.categoryFilterToggle.setAttribute("aria-expanded", String(willOpen));
   closeFaultCategoryPicker();
+  closeAccessoryPartsPicker();
 }
 
 function toggleFaultCategoryPicker() {
@@ -419,6 +472,15 @@ function toggleFaultCategoryPicker() {
   els.faultCategoryMenu.hidden = !willOpen;
   els.faultCategoryToggle.setAttribute("aria-expanded", String(willOpen));
   closeCategoryFilterPicker();
+  closeAccessoryPartsPicker();
+}
+
+function toggleAccessoryPartsPicker() {
+  const willOpen = els.accessoryPartsMenu.hidden;
+  els.accessoryPartsMenu.hidden = !willOpen;
+  els.accessoryPartsToggle.setAttribute("aria-expanded", String(willOpen));
+  closeCategoryFilterPicker();
+  closeFaultCategoryPicker();
 }
 
 function classifyArea(region) {
@@ -631,6 +693,7 @@ function toDatabaseRecord(record) {
     return_tracking_number: record.returnTrackingNumber || "",
     fault_ownership: record.faultOwnership || "",
     fault_category: record.faultCategory || "",
+    accessory_parts: record.accessoryParts || "",
     customer_address: record.customerAddress || "",
     model: record.model || "",
     updated_at: record.updatedAt || new Date().toISOString()
@@ -654,6 +717,7 @@ function fromDatabaseRecord(record) {
     returnTrackingNumber: record.return_tracking_number,
     faultOwnership: record.fault_ownership,
     faultCategory: record.fault_category,
+    accessoryParts: record.accessory_parts,
     customerAddress: record.customer_address,
     model: record.model,
     updatedAt: record.updated_at
@@ -821,6 +885,13 @@ function fillFaultCategoryPicker() {
   updateFaultCategoryPicker();
 }
 
+function fillAccessoryPartsPicker() {
+  const select = els.recordForm.elements.accessoryParts;
+  fillMultiSelect(select, optionSets.accessoryParts);
+  buildCheckboxMenu(els.accessoryPartsMenu, optionSets.accessoryParts);
+  updateAccessoryPartsPicker();
+}
+
 function fillStaticOptions() {
   fillSelect(els.statusFilter, optionSets.finalStatus, true);
   fillSelect(els.ownershipFilter, optionSets.faultOwnership, true);
@@ -832,6 +903,7 @@ function fillStaticOptions() {
   fillSelect(els.recordForm.elements.finalStatus, optionSets.finalStatus);
   fillRequiredSelect(els.recordForm.elements.faultOwnership, optionSets.faultOwnership);
   fillFaultCategoryPicker();
+  fillAccessoryPartsPicker();
   fillAddressSelects();
 }
 
@@ -1380,7 +1452,7 @@ function getRepairStats() {
     total: records.length,
     repairing: records.filter((record) => record.finalStatus === "维修中").length,
     sendToday: records.filter((record) => record.finalStatus === "今天需要寄").length,
-    pendingShipment: records.filter((record) => record.finalStatus === "待寄出").length,
+    pendingShipment: records.filter((record) => record.finalStatus === "已修未付费").length,
     returningFactory: records.filter((record) => record.finalStatus === "返厂中").length,
     testing: records.filter((record) => record.finalStatus === "测试中").length,
     unrepaired: unrepairedSubmissions.length,
@@ -1412,7 +1484,7 @@ function updateMetricCards() {
 function statusClass(status) {
   if (status === "测试中") return "testing";
   if (status === "返厂中") return "factory";
-  if (["待寄出", "今天需要寄"].includes(status)) return "ready";
+  if (["已修未付费", "今天需要寄"].includes(status)) return "ready";
   if (["已寄出", "邮寄并结束"].includes(status)) return "done";
   return "";
 }
@@ -2242,13 +2314,18 @@ function resetForm() {
   els.recordForm.elements.finalStatus.value = "维修中";
   els.recordForm.elements.faultOwnership.value = "";
   clearMultiSelect(els.recordForm.elements.faultCategory);
+  clearMultiSelect(els.recordForm.elements.accessoryParts);
   updateFaultCategoryPicker();
+  updateAccessoryPartsPicker();
   els.faultCategoryToggle.classList.remove("is-invalid");
+  els.accessoryPartsToggle.classList.remove("is-invalid");
   closeFaultCategoryPicker();
+  closeAccessoryPartsPicker();
   els.recordForm.elements.model.value = "";
   lockAutoField(els.recordForm.elements.companyName);
   lockAutoField(els.recordForm.elements.customerIssue);
   els.recordForm.elements.customerPowerAdapter.value = "";
+  updateAccessoryPartsRequirement();
   hideMatchBox();
 }
 
@@ -2456,10 +2533,17 @@ function fillForm(record) {
   exportFields.forEach(([key]) => {
     if (els.recordForm.elements[key]) {
       if (key === "faultCategory") {
-        setMultiSelectValues(els.recordForm.elements.faultCategory, record[key]);
+        setMultiSelectValues(els.recordForm.elements.faultCategory, record[key], optionSets.faultCategory);
         updateFaultCategoryPicker();
         els.faultCategoryToggle.classList.remove("is-invalid");
         closeFaultCategoryPicker();
+        return;
+      }
+      if (key === "accessoryParts") {
+        setMultiSelectValues(els.recordForm.elements.accessoryParts, record[key], optionSets.accessoryParts);
+        updateAccessoryPartsPicker();
+        els.accessoryPartsToggle.classList.remove("is-invalid");
+        closeAccessoryPartsPicker();
         return;
       }
       els.recordForm.elements[key].value = record[key] || "";
@@ -2469,6 +2553,7 @@ function fillForm(record) {
   lockAutoField(els.recordForm.elements.customerIssue);
   const matchedSubmission = findSubmissionForRecord(record);
   els.recordForm.elements.customerPowerAdapter.value = extractPowerAdapterAnswer(matchedSubmission);
+  updateAccessoryPartsRequirement();
   hideMatchBox();
 }
 
@@ -2485,13 +2570,17 @@ function getFormRecord() {
   const id = els.recordId.value || createId();
   const record = { id };
   exportFields.forEach(([key]) => {
-    record[key] = key === "faultCategory"
+    record[key] = ["faultCategory", "accessoryParts"].includes(key)
       ? formData.getAll(key).map((value) => String(value).trim()).filter(Boolean)
       : String(formData.get(key) || "").trim();
   });
   record.model = inferModelFromDeviceNumber(record.deviceNumber) || record.model;
   if (record.faultCategory.length === 0) {
     showFaultCategoryRequired();
+    return null;
+  }
+  if (["今天需要寄", "已修未付费", "邮寄并结束", "已寄出"].includes(record.finalStatus) && record.accessoryParts.length === 0) {
+    showAccessoryPartsRequired();
     return null;
   }
   record.updatedAt = new Date().toISOString();
@@ -3079,6 +3168,7 @@ function resolveImportField(header) {
     returnTrackingNumber: ["寄回单号", "寄回快递单号"],
     faultOwnership: ["故障归属"],
     faultCategory: ["故障分类"],
+    accessoryParts: ["本单所用配件", "所用配件", "配件"],
     customerAddress: ["客户地址", "维修地址", "地址"],
     model: ["型号"]
   };
@@ -3456,14 +3546,25 @@ function bindEvents() {
     if (option) option.selected = checkbox.checked;
     updateFaultCategoryPicker();
   });
+  els.accessoryPartsToggle.addEventListener("click", toggleAccessoryPartsPicker);
+  els.accessoryPartsMenu.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("input[type='checkbox']");
+    if (!checkbox) return;
+    const option = Array.from(els.recordForm.elements.accessoryParts.options)
+      .find((item) => item.value === checkbox.value);
+    if (option) option.selected = checkbox.checked;
+    updateAccessoryPartsPicker();
+  });
   document.addEventListener("click", (event) => {
     if (!event.target.closest("#categoryFilterPicker")) closeCategoryFilterPicker();
     if (!event.target.closest("#faultCategoryPicker")) closeFaultCategoryPicker();
+    if (!event.target.closest("#accessoryPartsPicker")) closeAccessoryPartsPicker();
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeCategoryFilterPicker();
       closeFaultCategoryPicker();
+      closeAccessoryPartsPicker();
     }
   });
   els.copyShareUrlBtn.addEventListener("click", copyShareUrlToClipboard);
@@ -3484,11 +3585,18 @@ function bindEvents() {
   });
 
   els.saveRecordBtn.addEventListener("click", (event) => {
-    if (getMultiSelectValues(els.recordForm.elements.faultCategory).length > 0) return;
-    event.preventDefault();
-    showFaultCategoryRequired();
+    if (getMultiSelectValues(els.recordForm.elements.faultCategory).length === 0) {
+      event.preventDefault();
+      showFaultCategoryRequired();
+      return;
+    }
+    if (isAccessoryPartsRequired() && getMultiSelectValues(els.recordForm.elements.accessoryParts).length === 0) {
+      event.preventDefault();
+      showAccessoryPartsRequired();
+    }
   });
 
+  els.recordForm.elements.finalStatus.addEventListener("change", updateAccessoryPartsRequirement);
   els.recordForm.elements.deviceNumber.addEventListener("input", checkDeviceNumberMatch);
   els.recordForm.elements.deviceNumber.addEventListener("change", checkDeviceNumberMatch);
   els.recordForm.elements.companyName.addEventListener("dblclick", () => {

@@ -1258,7 +1258,8 @@ dialog::backdrop {
   margin-bottom: 6px;
 }
 
-.form-grid label:has(:required) > span::after {
+.form-grid label:has(:required) > span::after,
+.form-grid label span.is-required::after {
   margin-left: 4px;
   color: var(--danger);
   content: "*";

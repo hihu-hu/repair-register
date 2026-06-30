@@ -14,6 +14,7 @@ create table if not exists public.repair_records (
   return_tracking_number text not null default '',
   fault_ownership text not null default '',
   fault_category text not null default '',
+  accessory_parts text not null default '',
   customer_address text not null default '',
   model text not null default '',
   updated_at timestamptz not null default now()
@@ -21,6 +22,9 @@ create table if not exists public.repair_records (
 
 create index if not exists repair_records_created_time_idx
   on public.repair_records (created_time desc);
+
+alter table public.repair_records
+  add column if not exists accessory_parts text not null default '';
 
 alter table public.repair_records enable row level security;
 
