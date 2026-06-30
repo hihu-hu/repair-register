@@ -18,8 +18,12 @@ const optionSets = {
   area: ["直营", "代理商"],
   finalStatus: ["维修中", "邮寄并结束", "已寄出", "返厂中", "今天需要寄", "待寄出", "测试中"],
   faultOwnership: ["硬件损坏", "非硬件", "外接因素"],
-  faultCategory: ["传感器", "主板", "打印头", "模块", "屏幕", "塑料件", "其他"],
+  faultCategory: ["传感器", "主板", "打印头", "模块", "屏幕", "塑料件", "未复现", "其他"],
   model: ["GMX", "GMI", "GMT", "GMH", "GMX-5G", "GMT-5G", "DK110A", "DK110B", "DK110S", "DK80", "新北洋110", "芯烨80"]
+};
+
+const faultCategoryAliases = {
+  无损坏: "未复现"
 };
 
 const modelPrefixRules = [
@@ -318,6 +322,7 @@ function normalizeFaultCategories(value) {
     : String(value || "").split(/[、,，;；/|]/);
   const selected = rawItems
     .map((item) => String(item || "").trim())
+    .map((item) => faultCategoryAliases[item] || item)
     .filter((item) => optionSets.faultCategory.includes(item));
   return [...new Set(selected)].length > 0 ? [...new Set(selected)] : ["其他"];
 }
