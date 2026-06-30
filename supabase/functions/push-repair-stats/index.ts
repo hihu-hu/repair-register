@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const ADMIN_EMAIL = "1041852311@qq.com";
+const ADMIN_EMAILS = ["1041852311@qq.com", "1041852311+cccc@qq.com"];
 const REPAIR_PAGE_URL = "https://hihu-hu.github.io/repair-register/";
 
 const corsHeaders = {
@@ -150,7 +150,9 @@ Deno.serve(async (request) => {
 
     if (!isCronRequest) {
       const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
-      if (userError || userData.user?.email !== ADMIN_EMAIL) {
+      const userEmail = String(userData.user?.email || "").toLowerCase();
+      const isAdmin = ADMIN_EMAILS.some((email) => email.toLowerCase() === userEmail);
+      if (userError || !isAdmin) {
         return Response.json({ ok: false, error: "请先管理员登录" }, { status: 401, headers: corsHeaders });
       }
     }

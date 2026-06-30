@@ -56,4 +56,4 @@ create policy "only admin can delete customer submissions"
   on public.customer_repair_submissions
   for delete
   to authenticated
-  using ((auth.jwt() ->> 'email') = '1041852311@qq.com');
+  using ((auth.jwt() ->> 'email') in ('1041852311@qq.com', '1041852311+cccc@qq.com'));

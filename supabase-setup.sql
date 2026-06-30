@@ -47,20 +47,20 @@ create policy "only admin can insert repair records"
   on public.repair_records
   for insert
   to authenticated
-  with check ((auth.jwt() ->> 'email') = '1041852311@qq.com');
+  with check ((auth.jwt() ->> 'email') in ('1041852311@qq.com', '1041852311+cccc@qq.com'));
 
 create policy "only admin can update repair records"
   on public.repair_records
   for update
   to authenticated
-  using ((auth.jwt() ->> 'email') = '1041852311@qq.com')
-  with check ((auth.jwt() ->> 'email') = '1041852311@qq.com');
+  using ((auth.jwt() ->> 'email') in ('1041852311@qq.com', '1041852311+cccc@qq.com'))
+  with check ((auth.jwt() ->> 'email') in ('1041852311@qq.com', '1041852311+cccc@qq.com'));
 
 create policy "only admin can delete repair records"
   on public.repair_records
   for delete
   to authenticated
-  using ((auth.jwt() ->> 'email') = '1041852311@qq.com');
+  using ((auth.jwt() ->> 'email') in ('1041852311@qq.com', '1041852311+cccc@qq.com'));
 
 create table if not exists public.customer_repair_submissions (
   id text primary key,
@@ -120,4 +120,4 @@ create policy "only admin can delete customer submissions"
   on public.customer_repair_submissions
   for delete
   to authenticated
-  using ((auth.jwt() ->> 'email') = '1041852311@qq.com');
+  using ((auth.jwt() ->> 'email') in ('1041852311@qq.com', '1041852311+cccc@qq.com'));

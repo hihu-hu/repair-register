@@ -4,8 +4,22 @@ const LAST_CUSTOMER_SUBMISSION_KEY = "printer_last_customer_submission_v1";
 const PUBLIC_SHARE_BASE_URL = "https://hihu-hu.github.io/repair-register/";
 const CUSTOMER_REGISTER_URL = `${PUBLIC_SHARE_BASE_URL}customer.html`;
 const LOCAL_CUSTOMER_REGISTER_URL = "http://192.168.1.211:5173/customer.html";
-const ADMIN_USERNAME = "CCCC";
-const ADMIN_EMAIL = "1041852311@qq.com";
+const ADMIN_ACCOUNTS = [
+  {
+    username: "QQQQ",
+    email: "1041852311@qq.com",
+    level: "super",
+    label: "超级管理员"
+  },
+  {
+    username: "CCCC",
+    email: "1041852311+cccc@qq.com",
+    level: "admin",
+    label: "普通管理员"
+  },
+  // 新增普通管理员时，按下面格式再加一行：
+  // { username: "新账号", email: "新邮箱", level: "admin", label: "普通管理员" }
+];
 const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
 const WECOM_PUSH_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/push-repair-stats`;
@@ -183,6 +197,7 @@ let toastTimer = null;
 let readonlyMode = false;
 let cloudMode = false;
 let adminMode = false;
+let currentAdmin = null;
 let forceReadonlyMode = false;
 let supabaseClient = null;
 const sharedData = readSharedData();
@@ -628,6 +643,21 @@ function hasSupabaseConfig() {
   return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase?.createClient);
 }
 
+function findAdminByUsername(username) {
+  const value = String(username || "").trim().toLowerCase();
+  return ADMIN_ACCOUNTS.find((account) => account.username.toLowerCase() === value) || null;
+}
+
+function findAdminByEmail(email) {
+  const value = String(email || "").trim().toLowerCase();
+  return ADMIN_ACCOUNTS.find((account) => account.email.toLowerCase() === value) || null;
+}
+
+function setCurrentAdminByEmail(email) {
+  currentAdmin = findAdminByEmail(email);
+  adminMode = Boolean(currentAdmin);
+}
+
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     const existing = Array.from(document.scripts).find((script) => script.src === src);
@@ -672,6 +702,7 @@ function refreshAccessMode() {
   setReadonlyMode(forceReadonlyMode || !adminMode);
   els.authToggleBtn.hidden = forceReadonlyMode;
   els.authToggleBtn.textContent = adminMode ? "退出登录" : "管理员登录";
+  els.authToggleBtn.title = currentAdmin ? currentAdmin.label : "";
   els.analyticsViewBtn.hidden = !canViewAnalytics();
   if (currentView === "analytics" && !canViewAnalytics()) {
     location.hash = "";
@@ -769,14 +800,14 @@ async function initializeCloud() {
 
   const { data } = await supabaseClient.auth.getSession();
   const email = data.session?.user?.email || "";
-  adminMode = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  setCurrentAdminByEmail(email);
   refreshAccessMode();
   await loadCloudRecords();
   await loadCloudSubmissions();
 
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     const sessionEmail = session?.user?.email || "";
-    adminMode = sessionEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    setCurrentAdminByEmail(sessionEmail);
     refreshAccessMode();
     loadCloudRecords();
     loadCloudSubmissions();
@@ -3353,12 +3384,13 @@ async function signInAdmin() {
   const formData = new FormData(els.authForm);
   const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "");
-  if (username !== ADMIN_USERNAME) {
+  const adminAccount = findAdminByUsername(username);
+  if (!adminAccount) {
     showToast("登录失败，请检查账号和密码");
     return;
   }
 
-  const { error } = await supabaseClient.auth.signInWithPassword({ email: ADMIN_EMAIL, password });
+  const { error } = await supabaseClient.auth.signInWithPassword({ email: adminAccount.email, password });
   if (error) {
     console.error(error);
     showToast("登录失败，请检查账号和密码");
@@ -3367,14 +3399,15 @@ async function signInAdmin() {
 
   els.authDialog.close();
   els.authForm.reset();
-  els.authForm.elements.username.value = ADMIN_USERNAME;
-  showToast("管理员已登录");
+  els.authForm.elements.username.value = adminAccount.username;
+  showToast(`${adminAccount.label}已登录`);
 }
 
 async function signOutAdmin() {
   if (!cloudMode || !supabaseClient) return;
   await supabaseClient.auth.signOut();
   adminMode = false;
+  currentAdmin = null;
   refreshAccessMode();
   showToast("已退出管理员");
 }
