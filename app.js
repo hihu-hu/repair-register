@@ -2088,7 +2088,7 @@ function renderTable() {
       (record) => `
         <tr data-id="${escapeHtml(record.id)}">
           <td>${compact(formatDateTime(record.createdTime))}</td>
-          <td><span class="cell-main">${compact(record.trackingNumber)}</span></td>
+          <td><span class="plain-cell">${compact(record.trackingNumber)}</span></td>
           <td>
             <span class="cell-main">${compact(record.region)}</span>
             <span class="cell-sub"><span class="tag ${areaClass(record.area)}">${compact(record.area)}</span></span>
@@ -2098,7 +2098,7 @@ function renderTable() {
             <span class="cell-sub">${compact(record.model)}</span>
           </td>
           <td><span class="tag ${powerClass(record.hasPower)}">${compact(record.hasPower)}</span></td>
-          <td><span class="cell-main">${compact(record.companyName)}</span></td>
+          <td><span class="plain-cell">${compact(record.companyName)}</span></td>
           <td class="text-cell">${compact(record.customerIssue)}</td>
           <td class="text-cell">${compact(record.repairProcess)}</td>
           <td>

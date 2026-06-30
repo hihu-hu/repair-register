@@ -1004,6 +1004,11 @@ body:not(.readonly) tbody tr {
   font-weight: 800;
 }
 
+.plain-cell {
+  display: block;
+  font-weight: 400;
+}
+
 .cell-sub {
   display: block;
   margin-top: 3px;
