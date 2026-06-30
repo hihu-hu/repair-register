@@ -978,6 +978,11 @@ th {
   white-space: nowrap;
 }
 
+th.customer-issue-heading {
+  background: #fdecec;
+  color: #b53636;
+}
+
 td {
   font-size: 14px;
 }
