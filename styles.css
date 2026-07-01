@@ -1244,7 +1244,7 @@ dialog {
 }
 
 #recordDialog {
-  width: min(1320px, calc(100% - 28px));
+  width: min(1010px, calc(100% - 28px));
 }
 
 dialog::backdrop {
