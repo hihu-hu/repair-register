@@ -3399,7 +3399,6 @@ async function signInAdmin() {
 
   els.authDialog.close();
   els.authForm.reset();
-  els.authForm.elements.username.value = adminAccount.username;
   showToast(`${adminAccount.label}已登录`);
 }
 
