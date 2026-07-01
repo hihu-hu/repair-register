@@ -577,6 +577,10 @@ select[multiple] {
   font-size: 17px;
 }
 
+#recordForm #accessoryPartsToggle {
+  font-size: 16px;
+}
+
 .checkbox-clear-button {
   flex: 0 0 auto;
   height: 40px;
