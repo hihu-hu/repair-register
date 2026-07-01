@@ -655,6 +655,17 @@ function normalizeAccessoryParts(value) {
   return unique;
 }
 
+function getAccessoryPartsForModel(model = "") {
+  const modelPrices = accessoryPartPricesByModel[model] || null;
+  if (!modelPrices) return optionSets.accessoryParts;
+  const pricedParts = Object.keys(modelPrices)
+    .filter((part) => optionSets.accessoryParts.includes(part));
+  return [
+    ...pricedParts,
+    ...["快递费", "无费用"].filter((part) => optionSets.accessoryParts.includes(part))
+  ];
+}
+
 function normalizeMultiOptions(value, options, aliases = {}, fallback = []) {
   const rawItems = Array.isArray(value)
     ? value
@@ -770,6 +781,11 @@ function updateFaultCategoryPicker() {
 
 function updateAccessoryPartsPicker() {
   const select = els.recordForm.elements.accessoryParts;
+  const allowedParts = getAccessoryPartsForModel(els.recordForm.elements.model.value);
+  const currentSelection = getMultiSelectValues(select).filter((part) => allowedParts.includes(part));
+  fillMultiSelect(select, allowedParts);
+  setMultiSelectValues(select, currentSelection, allowedParts);
+  buildCheckboxMenu(els.accessoryPartsMenu, allowedParts);
   const selected = getMultiSelectValues(select);
   if (!selected.includes(CUSTOM_PRICE_ACCESSORY_PART)) clearCustomPartPriceValue();
   els.accessoryPartsToggle.textContent = selected.length > 0 ? selected.join(MULTI_VALUE_SEPARATOR) : "请选择";
@@ -2992,6 +3008,7 @@ function autoFillRecordModel() {
   const form = els.recordForm.elements;
   const model = inferModelFromDeviceNumber(form.deviceNumber.value);
   if (model) form.model.value = model;
+  updateAccessoryPartsPicker();
   updateRepairFeeDetails();
 }
 
@@ -3057,9 +3074,11 @@ function fillForm(record) {
   els.recordId.value = record.id;
   els.dialogTitle.textContent = "编辑记录";
   els.deleteRecordBtn.hidden = false;
+  els.recordForm.elements.model.value = record.model || "";
 
   exportFields.forEach(([key]) => {
     if (els.recordForm.elements[key]) {
+      if (key === "model") return;
       if (key === "faultCategory") {
         setMultiSelectValues(els.recordForm.elements.faultCategory, record[key], optionSets.faultCategory);
         updateFaultCategoryPicker();
