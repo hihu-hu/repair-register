@@ -26,6 +26,7 @@ const WECOM_PUSH_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/push-repair-stats`
 const MULTI_VALUE_SEPARATOR = "、";
 const CUSTOM_PRICE_ACCESSORY_PART = "塑料件/其他件";
 const ZERO_FEE_MARK = "{0元}";
+const WARRANTY_FEE_MARK = "{保修}";
 const CUSTOMER_SUBMIT_FAST_FEEDBACK_MS = 1200;
 const LOCKED_CUSTOMER_EDIT_STATUSES = ["已寄出", "邮寄并结束"];
 const UNSAVED_RECORD_MESSAGE = "这条维修记录有改动，关闭后不会保存。确定关闭吗？";
@@ -213,7 +214,7 @@ const exportFields = [
   ["customerAddress", "客户地址"],
   ["model", "型号"],
   ["customPartPrice", "自定义配件金额"],
-  ["zeroFeeParts", "0元配件"]
+  ["zeroFeeParts", "保修配件"]
 ];
 
 const els = {
@@ -690,6 +691,7 @@ function stripAccessoryPartPrice(value = "") {
   const text = String(value || "").trim();
   if (!text) return "";
   if (text === CUSTOM_PRICE_ACCESSORY_PART) return CUSTOM_PRICE_ACCESSORY_PART;
+  if (text.endsWith(WARRANTY_FEE_MARK)) return stripAccessoryPartPrice(text.slice(0, -WARRANTY_FEE_MARK.length));
   if (text.endsWith(ZERO_FEE_MARK)) return stripAccessoryPartPrice(text.slice(0, -ZERO_FEE_MARK.length));
   if (text.startsWith(CUSTOM_PRICE_ACCESSORY_PART)) {
     const rest = text.slice(CUSTOM_PRICE_ACCESSORY_PART.length).trim();
@@ -724,7 +726,7 @@ function extractZeroFeePartsFromAccessoryParts(value = "") {
       .map((item) => item.replaceAll("__CUSTOM_PRICE_ACCESSORY_PART__", CUSTOM_PRICE_ACCESSORY_PART));
   const selected = rawItems
     .map((item) => String(item || "").trim())
-    .filter((item) => item.endsWith(ZERO_FEE_MARK))
+    .filter((item) => item.endsWith(WARRANTY_FEE_MARK) || item.endsWith(ZERO_FEE_MARK))
     .map(stripAccessoryPartPrice)
     .map((item) => accessoryPartAliases[item] || item)
     .filter((item) => optionSets.accessoryParts.includes(item));
@@ -737,7 +739,7 @@ function serializeAccessoryPartsForStorage(accessoryParts, customPartPrice = "",
   return normalizeAccessoryParts(accessoryParts)
     .map((part) => {
       const customPart = part === CUSTOM_PRICE_ACCESSORY_PART && price ? `${part}{${price}}` : part;
-      return zeroFeeSet.has(part) ? `${customPart}${ZERO_FEE_MARK}` : customPart;
+      return zeroFeeSet.has(part) ? `${customPart}${WARRANTY_FEE_MARK}` : customPart;
     })
     .join(MULTI_VALUE_SEPARATOR);
 }
@@ -973,9 +975,9 @@ function updateRepairFeeDetails(selectedParts = getMultiSelectValues(els.recordF
       hasPendingPrice = true;
     }
     return `
-      <button class="repair-fee-row ${isZeroFee ? "is-zero-fee" : ""}" type="button" data-part="${escapeHtml(part)}" title="点击切换为0元">
+      <button class="repair-fee-row ${isZeroFee ? "is-zero-fee" : ""}" type="button" data-part="${escapeHtml(part)}" title="点击切换保修">
         <span>${escapeHtml(quote.label)}</span>
-        <strong>${quote.hasPrice ? formatRepairFee(displayPrice) : quote.pendingText || "待定"}</strong>
+        <strong>${quote.hasPrice ? `${isZeroFee ? "保修 " : ""}${formatRepairFee(displayPrice)}` : quote.pendingText || "待定"}</strong>
       </button>
     `;
   }).join("");
@@ -3793,7 +3795,7 @@ function resolveImportField(header) {
     faultCategory: ["故障分类"],
     accessoryParts: ["本单所用配件", "所用配件", "配件"],
     customPartPrice: ["自定义配件金额", "塑料件金额", "其他件金额"],
-    zeroFeeParts: ["0元配件", "免费配件", "不收费配件"],
+    zeroFeeParts: ["保修配件", "0元配件", "免费配件", "不收费配件"],
     customerAddress: ["客户地址", "维修地址", "地址"],
     model: ["型号"]
   };
