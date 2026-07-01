@@ -528,6 +528,7 @@ textarea {
   background: #fff;
   color: var(--ink);
   font-size: 16px;
+  font-weight: 400;
   outline: none;
 }
 
@@ -566,6 +567,7 @@ select[multiple] {
   background: #fff;
   color: var(--ink);
   overflow: hidden;
+  font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: left;
@@ -649,7 +651,7 @@ select[multiple] {
   border-radius: 6px;
   color: var(--ink);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 400;
   cursor: pointer;
 }
 
