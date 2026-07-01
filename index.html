@@ -10,7 +10,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260630-accessory-parts2">
+    <link rel="stylesheet" href="styles.css?v=20260701-dialog-lock">
   </head>
   <body>
     <header class="app-header">
@@ -146,7 +146,7 @@
                 <th>公司名</th>
                 <th class="customer-issue-heading">客户描述问题</th>
                 <th class="customer-issue-heading">维修过程</th>
-                <th>寄回时间 / 单号</th>
+                <th>寄回单号</th>
                 <th>最终状态</th>
                 <th>故障归属</th>
                 <th>故障分类</th>
@@ -395,6 +395,7 @@
         </div>
 
         <input id="recordId" type="hidden">
+        <input name="returnTime" type="hidden">
         <div class="form-grid">
           <label>
             <span>创建时间</span>
@@ -409,6 +410,10 @@
             <input name="region" required placeholder="例如：上海、浙江、华东">
           </label>
           <label>
+            <span>型号</span>
+            <input class="readonly-field" name="model" readonly placeholder="填写编号后自动匹配">
+          </label>
+          <label>
             <span>编号</span>
             <input name="deviceNumber" required>
           </label>
@@ -417,20 +422,16 @@
             <select name="hasPower" required></select>
           </label>
           <label>
-            <span>型号</span>
-            <input class="readonly-field" name="model" readonly placeholder="填写编号后自动匹配">
-          </label>
-          <label>
             <span>故障归属</span>
             <select name="faultOwnership" required></select>
           </label>
           <label>
-            <span>最终状态</span>
-            <select name="finalStatus" required></select>
-          </label>
-          <label>
             <span>公司名</span>
             <input class="readonly-field" name="companyName" readonly required placeholder="匹配客户提交后自动显示">
+          </label>
+          <label>
+            <span>最终状态</span>
+            <select name="finalStatus" required></select>
           </label>
           <label>
             <span>故障分类</span>
@@ -443,25 +444,31 @@
             </div>
           </label>
           <label>
-            <span>寄回时间</span>
-            <input name="returnTime" type="date">
+            <span>寄回单号</span>
+            <input name="returnTrackingNumber">
           </label>
           <label>
             <span>电源适配器是否寄回（客户填写）</span>
             <input class="readonly-field" name="customerPowerAdapter" readonly placeholder="匹配客户提交后自动显示">
           </label>
           <label>
-            <span>寄回单号</span>
-            <input name="returnTrackingNumber">
-          </label>
-          <label>
             <span id="accessoryPartsLabel">本单所用配件</span>
             <select name="accessoryParts" multiple hidden></select>
+            <input name="customPartPrice" type="hidden">
             <div class="checkbox-select" id="accessoryPartsPicker">
-              <button class="checkbox-select-button" id="accessoryPartsToggle" type="button" aria-expanded="false">
-                请选择
-              </button>
+              <div class="checkbox-select-actions">
+                <button class="checkbox-select-button" id="accessoryPartsToggle" type="button" aria-expanded="false">
+                  请选择
+                </button>
+                <button class="checkbox-clear-button" id="accessoryPartsClearBtn" type="button">清空</button>
+              </div>
               <div class="checkbox-select-menu" id="accessoryPartsMenu" hidden></div>
+            </div>
+          </label>
+          <label class="repair-fee-field">
+            <span>费用：</span>
+            <div class="repair-fee-box" id="repairFeeBox">
+              <div class="repair-fee-empty">选择配件后自动显示费用明细</div>
             </div>
           </label>
           <div class="match-box" id="matchBox" hidden></div>
@@ -479,12 +486,37 @@
           </label>
         </div>
 
-        <div class="dialog-actions">
+        <div class="dialog-actions record-dialog-actions">
           <button class="danger" id="deleteRecordBtn" type="button">删除</button>
           <div>
             <button class="secondary" id="cancelDialogBtn" type="button">取消</button>
             <button class="primary" id="saveRecordBtn" type="submit">保存</button>
           </div>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="customPartPriceDialog">
+      <form method="dialog" id="customPartPriceForm">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">费用</p>
+            <h2>塑料件/其他件价格</h2>
+          </div>
+          <button class="icon-btn" id="closeCustomPartPriceDialogBtn" type="button" aria-label="关闭">×</button>
+        </div>
+
+        <label class="custom-price-field">
+          <span>金额</span>
+          <div class="money-input">
+            <span>¥</span>
+            <input id="customPartPriceInput" name="customPartPriceInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="请输入金额" required>
+          </div>
+        </label>
+
+        <div class="dialog-actions custom-price-actions">
+          <button class="secondary" id="cancelCustomPartPriceBtn" type="button">取消</button>
+          <button class="primary" type="submit">确定</button>
         </div>
       </form>
     </dialog>
@@ -614,6 +646,6 @@
     <div class="analysis-popover analysis-grandchild-popover" id="analysisGrandchildPopover" role="dialog" aria-label="分析下级明细" hidden></div>
 
     <script src="area-data.js"></script>
-    <script src="app.js?v=20260630-accessory-parts2"></script>
+    <script src="app.js?v=20260701-dialog-lock"></script>
   </body>
 </html>

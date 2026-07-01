@@ -24,6 +24,7 @@ const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
 const WECOM_PUSH_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/push-repair-stats`;
 const MULTI_VALUE_SEPARATOR = "、";
+const CUSTOM_PRICE_ACCESSORY_PART = "塑料件/其他件";
 const CUSTOMER_SUBMIT_FAST_FEEDBACK_MS = 1200;
 const LOCKED_CUSTOMER_EDIT_STATUSES = ["已寄出", "邮寄并结束"];
 
@@ -47,6 +48,129 @@ const finalStatusAliases = {
 
 const accessoryPartAliases = {
   "塑料件/小件": "塑料件/其他件"
+};
+
+const accessoryPartPricesByModel = {
+  GMX: {
+    传感器: 60,
+    打印头: 190,
+    主板: 260,
+    wifi模块: 50,
+    wifi模块5g: 60,
+    屏幕: 60,
+    电源适配器: 80,
+    卡勾: 40,
+    电源接口: 60,
+    "塑料件/其他件": 1
+  },
+  GMI: {
+    打印头: 130,
+    主板: 110,
+    wifi模块: 50,
+    电源适配器: 60,
+    "塑料件/其他件": 1
+  },
+  GMT: {
+    传感器: 60,
+    打印头: 150,
+    主板: 180,
+    wifi模块: 50,
+    电源适配器: 60,
+    "塑料件/其他件": 1
+  },
+  GMH: {
+    打印头: 190,
+    主板: 260,
+    wifi模块: 50,
+    屏幕: 60,
+    电源适配器: 60,
+    电源接口: 60,
+    "塑料件/其他件": 1
+  },
+  "GMX-5G": {
+    传感器: 60,
+    打印头: 190,
+    主板: 260,
+    wifi模块5g: 60,
+    屏幕: 60,
+    电源适配器: 80,
+    卡勾: 40,
+    电源接口: 60,
+    "塑料件/其他件": 1
+  },
+  "GMT-5G": {
+    传感器: 60,
+    打印头: 150,
+    主板: 180,
+    wifi模块5g: 60,
+    电源适配器: 60,
+    "塑料件/其他件": 1
+  },
+  DK110A: {
+    打印头: 240,
+    主板: 450,
+    wifi模块: 50,
+    电源适配器: 155,
+    卡勾: 60,
+    "塑料件/其他件": 1
+  },
+  DK110B: {
+    打印头: 550,
+    主板: 650,
+    wifi模块: 50,
+    电源适配器: 155,
+    卡勾: 60,
+    "塑料件/其他件": 1
+  },
+  DK110S: {
+    打印头: 240,
+    主板: 450,
+    wifi模块: 50,
+    电源适配器: 155,
+    卡勾: 60,
+    "塑料件/其他件": 1
+  },
+  DK80: {
+    打印头: 240,
+    主板: 220,
+    wifi模块: 50,
+    电源适配器: 80,
+    电源接口: 60,
+    "塑料件/其他件": 1
+  }
+};
+
+const shippingFeesByProvince = {
+  浙江: 8,
+  江苏: 8,
+  上海: 8,
+  安徽: 8,
+  北京: 13,
+  福建: 13,
+  河南: 13,
+  湖南: 13,
+  湖北: 13,
+  江西: 13,
+  山东: 13,
+  河北: 16,
+  天津: 16,
+  广东: 16,
+  广西: 16,
+  山西: 16,
+  陕西: 16,
+  四川: 16,
+  重庆: 16,
+  贵州: 19,
+  海南: 19,
+  黑龙江: 19,
+  吉林: 19,
+  云南: 19,
+  辽宁: 19,
+  甘肃: 32,
+  宁夏: 32,
+  青海: 32,
+  内蒙古: 32,
+  新疆: 49
 };
 
 const modelPrefixRules = [
@@ -85,7 +209,8 @@ const exportFields = [
   ["faultCategory", "故障分类"],
   ["accessoryParts", "本单所用配件"],
   ["customerAddress", "客户地址"],
-  ["model", "型号"]
+  ["model", "型号"],
+  ["customPartPrice", "自定义配件金额"]
 ];
 
 const els = {
@@ -174,7 +299,14 @@ const els = {
   faultCategoryMenu: document.querySelector("#faultCategoryMenu"),
   accessoryPartsLabel: document.querySelector("#accessoryPartsLabel"),
   accessoryPartsToggle: document.querySelector("#accessoryPartsToggle"),
+  accessoryPartsClearBtn: document.querySelector("#accessoryPartsClearBtn"),
   accessoryPartsMenu: document.querySelector("#accessoryPartsMenu"),
+  repairFeeBox: document.querySelector("#repairFeeBox"),
+  customPartPriceDialog: document.querySelector("#customPartPriceDialog"),
+  customPartPriceForm: document.querySelector("#customPartPriceForm"),
+  customPartPriceInput: document.querySelector("#customPartPriceInput"),
+  closeCustomPartPriceDialogBtn: document.querySelector("#closeCustomPartPriceDialogBtn"),
+  cancelCustomPartPriceBtn: document.querySelector("#cancelCustomPartPriceBtn"),
   closeDialogBtn: document.querySelector("#closeDialogBtn"),
   cancelDialogBtn: document.querySelector("#cancelDialogBtn"),
   deleteRecordBtn: document.querySelector("#deleteRecordBtn"),
@@ -217,6 +349,8 @@ let editingCustomerSubmissionId = "";
 let lastCustomerSubmitFingerprint = "";
 let lastCustomerSubmitTime = 0;
 let analysisPopoverState = null;
+let dialogScrollLockY = 0;
+let dialogScrollLockObserver = null;
 
 function loadRecords() {
   try {
@@ -281,6 +415,49 @@ function closeOpenDialogs() {
   });
 }
 
+function hasOpenDialog() {
+  return Array.from(document.querySelectorAll("dialog")).some((dialog) => dialog.open);
+}
+
+function lockPageScrollForDialog() {
+  if (document.body.classList.contains("dialog-scroll-locked")) return;
+  dialogScrollLockY = window.scrollY || document.documentElement.scrollTop || 0;
+  document.documentElement.classList.add("dialog-scroll-locked");
+  document.body.classList.add("dialog-scroll-locked");
+  document.body.style.top = `-${dialogScrollLockY}px`;
+}
+
+function unlockPageScrollForDialog() {
+  if (hasOpenDialog() || !document.body.classList.contains("dialog-scroll-locked")) return;
+  const scrollY = dialogScrollLockY;
+  document.documentElement.classList.remove("dialog-scroll-locked");
+  document.body.classList.remove("dialog-scroll-locked");
+  document.body.style.top = "";
+  window.scrollTo(0, scrollY);
+}
+
+function syncDialogScrollLock() {
+  if (hasOpenDialog()) {
+    lockPageScrollForDialog();
+    return;
+  }
+  unlockPageScrollForDialog();
+}
+
+function bindDialogScrollLock() {
+  const dialogs = Array.from(document.querySelectorAll("dialog"));
+  dialogs.forEach((dialog) => {
+    dialog.addEventListener("close", () => requestAnimationFrame(syncDialogScrollLock));
+    dialog.addEventListener("cancel", () => requestAnimationFrame(syncDialogScrollLock));
+  });
+
+  if (typeof MutationObserver === "undefined") return;
+  dialogScrollLockObserver = new MutationObserver(syncDialogScrollLock);
+  dialogs.forEach((dialog) => {
+    dialogScrollLockObserver.observe(dialog, { attributes: true, attributeFilter: ["open"] });
+  });
+}
+
 function normalizeCustomerSubmission(item = {}) {
   const customerIssue = String(item.customerIssue || item.customer_issue || "").trim();
   return {
@@ -303,6 +480,8 @@ function normalizeCustomerSubmission(item = {}) {
 
 function normalizeRecord(record = {}) {
   const region = String(record.region || "");
+  const rawAccessoryParts = record.accessoryParts || record.accessory_parts;
+  const rawCustomPartPrice = record.customPartPrice ?? record.custom_part_price ?? extractCustomPartPriceFromAccessoryParts(rawAccessoryParts);
   return {
     id: String(record.id || createId()),
     createdTime: normalizeDateTime(record.createdTime || record.createdAt || record.repairDate),
@@ -319,9 +498,10 @@ function normalizeRecord(record = {}) {
     returnTrackingNumber: String(record.returnTrackingNumber || record.outboundTracking || ""),
     faultOwnership: normalizeOption(record.faultOwnership, optionSets.faultOwnership, "硬件损坏"),
     faultCategory: normalizeFaultCategories(record.faultCategory).join(MULTI_VALUE_SEPARATOR),
-    accessoryParts: normalizeAccessoryParts(record.accessoryParts || record.accessory_parts).join(MULTI_VALUE_SEPARATOR),
+    accessoryParts: normalizeAccessoryParts(rawAccessoryParts).join(MULTI_VALUE_SEPARATOR),
     customerAddress: String(record.customerAddress || record.address || ""),
     model: normalizeOption(record.model, optionSets.model, "GMX"),
+    customPartPrice: normalizeMoneyValue(rawCustomPartPrice),
     updatedAt: String(record.updatedAt || new Date().toISOString())
   };
 }
@@ -350,7 +530,18 @@ function normalizeFaultCategories(value) {
 }
 
 function normalizeAccessoryParts(value) {
-  return normalizeMultiOptions(value, optionSets.accessoryParts, accessoryPartAliases, []);
+  const rawItems = Array.isArray(value)
+    ? value
+    : String(value || "")
+      .replaceAll(CUSTOM_PRICE_ACCESSORY_PART, "__CUSTOM_PRICE_ACCESSORY_PART__")
+      .split(/[、,，;；/|]/)
+      .map((item) => item.replaceAll("__CUSTOM_PRICE_ACCESSORY_PART__", CUSTOM_PRICE_ACCESSORY_PART));
+  const selected = rawItems
+    .map(stripAccessoryPartPrice)
+    .map((item) => accessoryPartAliases[item] || item)
+    .filter((item) => optionSets.accessoryParts.includes(item));
+  const unique = [...new Set(selected)];
+  return unique;
 }
 
 function normalizeMultiOptions(value, options, aliases = {}, fallback = []) {
@@ -363,6 +554,45 @@ function normalizeMultiOptions(value, options, aliases = {}, fallback = []) {
     .filter((item) => options.includes(item));
   const unique = [...new Set(selected)];
   return unique.length > 0 ? unique : fallback;
+}
+
+function escapeRegExp(value = "") {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function stripAccessoryPartPrice(value = "") {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (text === CUSTOM_PRICE_ACCESSORY_PART) return CUSTOM_PRICE_ACCESSORY_PART;
+  if (text.startsWith(CUSTOM_PRICE_ACCESSORY_PART)) {
+    const rest = text.slice(CUSTOM_PRICE_ACCESSORY_PART.length).trim();
+    if (!rest || /^[{[(（【:：=¥￥\s\d.元)}\]）】]+$/.test(rest)) return CUSTOM_PRICE_ACCESSORY_PART;
+  }
+  return text;
+}
+
+function normalizeMoneyValue(value = "") {
+  const text = String(value ?? "")
+    .trim()
+    .replace(/[￥¥元,\s]/g, "");
+  if (!text) return "";
+  const amount = Number(text);
+  if (!Number.isFinite(amount) || amount < 0) return "";
+  return amount.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+}
+
+function extractCustomPartPriceFromAccessoryParts(value = "") {
+  const text = Array.isArray(value) ? value.join(MULTI_VALUE_SEPARATOR) : String(value || "");
+  const part = escapeRegExp(CUSTOM_PRICE_ACCESSORY_PART);
+  const match = text.match(new RegExp(`${part}\\s*[{[(（【:：=]?\\s*[¥￥]?\\s*(\\d+(?:\\.\\d+)?)`, "i"));
+  return match ? normalizeMoneyValue(match[1]) : "";
+}
+
+function serializeAccessoryPartsForStorage(accessoryParts, customPartPrice = "") {
+  const price = normalizeMoneyValue(customPartPrice);
+  return normalizeAccessoryParts(accessoryParts)
+    .map((part) => (part === CUSTOM_PRICE_ACCESSORY_PART && price ? `${part}{${price}}` : part))
+    .join(MULTI_VALUE_SEPARATOR);
 }
 
 function getMultiSelectValues(select) {
@@ -430,10 +660,160 @@ function updateFaultCategoryPicker() {
 function updateAccessoryPartsPicker() {
   const select = els.recordForm.elements.accessoryParts;
   const selected = getMultiSelectValues(select);
+  if (!selected.includes(CUSTOM_PRICE_ACCESSORY_PART)) clearCustomPartPriceValue();
   els.accessoryPartsToggle.textContent = selected.length > 0 ? selected.join(MULTI_VALUE_SEPARATOR) : "请选择";
   els.accessoryPartsToggle.classList.toggle("is-placeholder", selected.length === 0);
   els.accessoryPartsToggle.classList.toggle("is-invalid", selected.length === 0 && els.accessoryPartsToggle.classList.contains("is-invalid"));
+  els.accessoryPartsClearBtn.disabled = selected.length === 0;
   syncCheckboxMenu(els.accessoryPartsMenu, selected);
+  updateRepairFeeDetails(selected);
+}
+
+function clearAccessoryPartsPicker() {
+  clearMultiSelect(els.recordForm.elements.accessoryParts);
+  clearCustomPartPriceValue();
+  els.accessoryPartsToggle.classList.remove("is-invalid");
+  updateAccessoryPartsPicker();
+  closeAccessoryPartsPicker();
+}
+
+function clearCustomPartPriceValue() {
+  els.recordForm.elements.customPartPrice.value = "";
+}
+
+function getCustomPartPriceValue() {
+  return normalizeMoneyValue(els.recordForm.elements.customPartPrice.value);
+}
+
+function openCustomPartPriceDialog() {
+  els.customPartPriceInput.value = getCustomPartPriceValue();
+  if (!els.customPartPriceDialog.open) els.customPartPriceDialog.showModal();
+  setTimeout(() => {
+    els.customPartPriceInput.focus();
+    els.customPartPriceInput.select();
+  }, 0);
+}
+
+function closeCustomPartPriceDialog() {
+  if (els.customPartPriceDialog.open) els.customPartPriceDialog.close();
+}
+
+function saveCustomPartPriceFromDialog() {
+  const price = normalizeMoneyValue(els.customPartPriceInput.value);
+  if (!price && price !== "0") {
+    showToast("请输入塑料件/其他件金额");
+    els.customPartPriceInput.focus();
+    return false;
+  }
+  els.recordForm.elements.customPartPrice.value = price;
+  updateRepairFeeDetails();
+  closeCustomPartPriceDialog();
+  return true;
+}
+
+function showCustomPartPriceRequired() {
+  showToast("请输入塑料件/其他件金额");
+  closeAccessoryPartsPicker();
+  openCustomPartPriceDialog();
+}
+
+function formatRepairFee(value) {
+  const amount = Number(value);
+  return `¥${amount.toLocaleString("zh-CN", {
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2
+  })}`;
+}
+
+function compactAreaName(value = "") {
+  return String(value)
+    .replace(/\s/g, "")
+    .replace(/特别行政区|维吾尔自治区|壮族自治区|回族自治区|自治区|自治州|地区|盟|省|市|县|区/g, "");
+}
+
+function provinceKeyFromAreaName(value = "") {
+  const text = compactAreaName(value);
+  if (!text) return "";
+  const provinceKeys = Object.keys(shippingFeesByProvince).sort((a, b) => b.length - a.length);
+  const directMatch = provinceKeys.find((province) => text.includes(compactAreaName(province)));
+  if (directMatch) return directMatch;
+
+  const chinaAreaData = window.CHINA_AREA_DATA;
+  const provinces = chinaAreaData?.["86"] || {};
+  for (const [provinceCode, provinceName] of Object.entries(provinces)) {
+    const priceKey = provinceKeys.find((province) => compactAreaName(provinceName).includes(compactAreaName(province)));
+    if (!priceKey) continue;
+    const cities = chinaAreaData?.[provinceCode] || {};
+    const cityMatch = Object.values(cities).some((cityName) => {
+      const cityKey = compactAreaName(cityName);
+      return cityKey && text.includes(cityKey);
+    });
+    if (cityMatch) return priceKey;
+  }
+  return "";
+}
+
+function getShippingFeeQuote() {
+  const form = els.recordForm.elements;
+  const province = provinceKeyFromAreaName([form.region.value, form.customerAddress.value].join(" "));
+  if (!province) return { hasPrice: false, label: "快递费" };
+  return {
+    hasPrice: true,
+    label: `快递费(${province})`,
+    price: shippingFeesByProvince[province]
+  };
+}
+
+function getAccessoryPartQuote(part) {
+  if (part === "无费用") return { hasPrice: true, label: part, price: 0 };
+  if (part === "快递费") return getShippingFeeQuote();
+  if (part === CUSTOM_PRICE_ACCESSORY_PART) {
+    const price = getCustomPartPriceValue();
+    return price
+      ? { hasPrice: true, label: part, price }
+      : { hasPrice: false, label: part, pendingText: "待填写" };
+  }
+  const model = els.recordForm.elements.model.value;
+  const modelPrices = accessoryPartPricesByModel[model] || {};
+  if (Object.prototype.hasOwnProperty.call(modelPrices, part)) {
+    return { hasPrice: true, label: part, price: modelPrices[part] };
+  }
+  return { hasPrice: false, label: part };
+}
+
+function updateRepairFeeDetails(selectedParts = getMultiSelectValues(els.recordForm.elements.accessoryParts)) {
+  if (!els.repairFeeBox) return;
+  if (selectedParts.length === 0) {
+    els.repairFeeBox.innerHTML = `<div class="repair-fee-empty">选择配件后自动显示费用明细</div>`;
+    return;
+  }
+
+  let total = 0;
+  let hasPendingPrice = false;
+  const rows = selectedParts.map((part) => {
+    const quote = getAccessoryPartQuote(part);
+    if (quote.hasPrice) {
+      total += Number(quote.price) || 0;
+    } else {
+      hasPendingPrice = true;
+    }
+    return `
+      <div class="repair-fee-row">
+        <span>${escapeHtml(quote.label)}</span>
+        <strong>${quote.hasPrice ? formatRepairFee(quote.price) : quote.pendingText || "待定"}</strong>
+      </div>
+    `;
+  }).join("");
+  const totalText = hasPendingPrice ? "待定" : formatRepairFee(total);
+  els.repairFeeBox.innerHTML = `
+    <div class="repair-fee-lines">
+      ${rows}
+      <div class="repair-fee-total">
+        <span>合计</span>
+        <strong>${totalText}</strong>
+      </div>
+    </div>
+  `;
 }
 
 function isAccessoryPartsRequired() {
@@ -728,7 +1108,7 @@ function toDatabaseRecord(record) {
     return_tracking_number: record.returnTrackingNumber || "",
     fault_ownership: record.faultOwnership || "",
     fault_category: record.faultCategory || "",
-    accessory_parts: record.accessoryParts || "",
+    accessory_parts: serializeAccessoryPartsForStorage(record.accessoryParts, record.customPartPrice),
     customer_address: record.customerAddress || "",
     model: record.model || "",
     updated_at: record.updatedAt || new Date().toISOString()
@@ -736,6 +1116,7 @@ function toDatabaseRecord(record) {
 }
 
 function fromDatabaseRecord(record) {
+  const rawAccessoryParts = record.accessory_parts;
   return normalizeRecord({
     id: record.id,
     createdTime: record.created_time,
@@ -752,9 +1133,10 @@ function fromDatabaseRecord(record) {
     returnTrackingNumber: record.return_tracking_number,
     faultOwnership: record.fault_ownership,
     faultCategory: record.fault_category,
-    accessoryParts: record.accessory_parts,
+    accessoryParts: rawAccessoryParts,
     customerAddress: record.customer_address,
     model: record.model,
+    customPartPrice: record.custom_part_price ?? extractCustomPartPriceFromAccessoryParts(rawAccessoryParts),
     updatedAt: record.updated_at
   });
 }
@@ -2208,10 +2590,7 @@ function renderTable() {
           <td><span class="plain-cell">${compact(record.companyName)}</span></td>
           <td class="text-cell">${compact(record.customerIssue)}</td>
           <td class="text-cell">${compact(record.repairProcess)}</td>
-          <td>
-            <span class="cell-main">${compact(record.returnTime)}</span>
-            <span class="cell-sub">${compact(record.returnTrackingNumber)}</span>
-          </td>
+          <td><span class="plain-cell">${compact(record.returnTrackingNumber)}</span></td>
           <td><span class="tag ${statusClass(record.finalStatus)}">${compact(record.finalStatus)}</span></td>
           <td><span class="tag ${ownershipClass(record.faultOwnership)}">${compact(record.faultOwnership)}</span></td>
           <td><div class="tag-list">${renderFaultCategoryTags(record)}</div></td>
@@ -2350,6 +2729,7 @@ function resetForm() {
   els.recordForm.elements.faultOwnership.value = "";
   clearMultiSelect(els.recordForm.elements.faultCategory);
   clearMultiSelect(els.recordForm.elements.accessoryParts);
+  clearCustomPartPriceValue();
   updateFaultCategoryPicker();
   updateAccessoryPartsPicker();
   els.faultCategoryToggle.classList.remove("is-invalid");
@@ -2428,6 +2808,7 @@ function applySubmissionToRecordForm(submission, { keepDeviceNumber = true } = {
   form.companyName.value = submission.companyName || form.companyName.value;
   form.customerIssue.value = cleanCustomerIssueForRecord(submission) || form.customerIssue.value;
   form.customerAddress.value = buildAddressWithContact(submission) || form.customerAddress.value;
+  updateRepairFeeDetails();
   appliedSubmissionId = submission.id;
   showToast("已带入客户提交的信息");
 }
@@ -2500,6 +2881,7 @@ function autoFillRecordModel() {
   const form = els.recordForm.elements;
   const model = inferModelFromDeviceNumber(form.deviceNumber.value);
   if (model) form.model.value = model;
+  updateRepairFeeDetails();
 }
 
 function autoFillSubmissionModel(form) {
@@ -2584,6 +2966,7 @@ function fillForm(record) {
       els.recordForm.elements[key].value = record[key] || "";
     }
   });
+  updateAccessoryPartsPicker();
   lockAutoField(els.recordForm.elements.companyName);
   lockAutoField(els.recordForm.elements.customerIssue);
   const matchedSubmission = findSubmissionForRecord(record);
@@ -2610,8 +2993,17 @@ function getFormRecord() {
       : String(formData.get(key) || "").trim();
   });
   record.model = inferModelFromDeviceNumber(record.deviceNumber) || record.model;
+  if (!record.accessoryParts.includes(CUSTOM_PRICE_ACCESSORY_PART)) {
+    record.customPartPrice = "";
+  } else {
+    record.customPartPrice = normalizeMoneyValue(record.customPartPrice);
+  }
   if (record.faultCategory.length === 0) {
     showFaultCategoryRequired();
+    return null;
+  }
+  if (record.accessoryParts.includes(CUSTOM_PRICE_ACCESSORY_PART) && !record.customPartPrice) {
+    showCustomPartPriceRequired();
     return null;
   }
   if (["今天需要寄", "已修未付费", "邮寄并结束", "已寄出"].includes(record.finalStatus) && record.accessoryParts.length === 0) {
@@ -3204,6 +3596,7 @@ function resolveImportField(header) {
     faultOwnership: ["故障归属"],
     faultCategory: ["故障分类"],
     accessoryParts: ["本单所用配件", "所用配件", "配件"],
+    customPartPrice: ["自定义配件金额", "塑料件金额", "其他件金额"],
     customerAddress: ["客户地址", "维修地址", "地址"],
     model: ["型号"]
   };
@@ -3441,6 +3834,8 @@ function showToast(message) {
 }
 
 function bindEvents() {
+  bindDialogScrollLock();
+
   ["input", "change"].forEach((eventName) => {
     [
       els.searchInput,
@@ -3583,6 +3978,7 @@ function bindEvents() {
     updateFaultCategoryPicker();
   });
   els.accessoryPartsToggle.addEventListener("click", toggleAccessoryPartsPicker);
+  els.accessoryPartsClearBtn.addEventListener("click", clearAccessoryPartsPicker);
   els.accessoryPartsMenu.addEventListener("change", (event) => {
     const checkbox = event.target.closest("input[type='checkbox']");
     if (!checkbox) return;
@@ -3590,7 +3986,19 @@ function bindEvents() {
       .find((item) => item.value === checkbox.value);
     if (option) option.selected = checkbox.checked;
     updateAccessoryPartsPicker();
+    if (checkbox.checked && checkbox.value === CUSTOM_PRICE_ACCESSORY_PART) {
+      closeAccessoryPartsPicker();
+      openCustomPartPriceDialog();
+    }
   });
+  els.recordForm.elements.accessoryParts.addEventListener("change", updateAccessoryPartsPicker);
+  els.customPartPriceForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveCustomPartPriceFromDialog();
+  });
+  els.closeCustomPartPriceDialogBtn.addEventListener("click", closeCustomPartPriceDialog);
+  els.cancelCustomPartPriceBtn.addEventListener("click", closeCustomPartPriceDialog);
+  els.customPartPriceDialog.addEventListener("close", () => updateRepairFeeDetails());
   document.addEventListener("click", (event) => {
     if (!event.target.closest("#categoryFilterPicker")) closeCategoryFilterPicker();
     if (!event.target.closest("#faultCategoryPicker")) closeFaultCategoryPicker();
@@ -3635,6 +4043,10 @@ function bindEvents() {
   els.recordForm.elements.finalStatus.addEventListener("change", updateAccessoryPartsRequirement);
   els.recordForm.elements.deviceNumber.addEventListener("input", checkDeviceNumberMatch);
   els.recordForm.elements.deviceNumber.addEventListener("change", checkDeviceNumberMatch);
+  els.recordForm.elements.region.addEventListener("input", () => updateRepairFeeDetails());
+  els.recordForm.elements.region.addEventListener("change", () => updateRepairFeeDetails());
+  els.recordForm.elements.customerAddress.addEventListener("input", () => updateRepairFeeDetails());
+  els.recordForm.elements.customerAddress.addEventListener("change", () => updateRepairFeeDetails());
   els.recordForm.elements.companyName.addEventListener("dblclick", () => {
     unlockAutoField(els.recordForm.elements.companyName);
   });

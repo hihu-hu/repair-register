@@ -58,6 +58,18 @@ body {
   font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
 }
 
+html.dialog-scroll-locked,
+body.dialog-scroll-locked {
+  overflow: hidden;
+}
+
+body.dialog-scroll-locked {
+  position: fixed;
+  right: 0;
+  left: 0;
+  width: 100%;
+}
+
 button,
 input,
 select,
@@ -535,8 +547,16 @@ select[multiple] {
   position: relative;
 }
 
+.checkbox-select-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
 .checkbox-select-button {
   position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
   width: 100%;
   height: 40px;
   min-height: 40px;
@@ -549,6 +569,32 @@ select[multiple] {
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: left;
+}
+
+.checkbox-clear-button {
+  flex: 0 0 auto;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--gray-soft);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.checkbox-clear-button:hover:not(:disabled),
+.checkbox-clear-button:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.checkbox-clear-button:focus-visible {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  outline: none;
 }
 
 .checkbox-select-button::after {
@@ -650,7 +696,7 @@ textarea:focus {
 .readonly-field {
   background: var(--accent-soft);
   color: var(--accent-dark);
-  font-weight: 800;
+  font-weight: 400;
 }
 
 .date-field input {
@@ -1181,10 +1227,17 @@ body:not(.readonly) tbody tr {
 
 dialog {
   width: min(920px, calc(100% - 28px));
+  max-height: calc(100dvh - 28px);
+  overflow: auto;
+  overscroll-behavior: contain;
   border: 0;
   border-radius: 8px;
   padding: 0;
   box-shadow: 0 30px 80px rgba(24, 32, 38, 0.28);
+}
+
+#recordDialog {
+  width: min(1320px, calc(100% - 28px));
 }
 
 dialog::backdrop {
@@ -1200,7 +1253,15 @@ dialog::backdrop {
   width: min(420px, calc(100% - 32px));
 }
 
+#customPartPriceDialog {
+  width: min(420px, calc(100% - 32px));
+}
+
 #authForm {
+  padding: 20px;
+}
+
+#customPartPriceForm {
   padding: 20px;
 }
 
@@ -1246,6 +1307,10 @@ dialog::backdrop {
   gap: 14px;
 }
 
+#recordForm .form-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .form-grid.single-column {
   grid-template-columns: 1fr;
 }
@@ -1268,6 +1333,111 @@ dialog::backdrop {
 
 .wide {
   grid-column: 1 / -1;
+}
+
+.repair-fee-field {
+  grid-column: 3 / 5;
+}
+
+.repair-fee-box {
+  min-height: 40px;
+  padding: 7px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.repair-fee-lines {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.repair-fee-row,
+.repair-fee-total {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+}
+
+.repair-fee-row span,
+.repair-fee-total span,
+.repair-fee-empty {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.repair-fee-row strong,
+.repair-fee-total strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.repair-fee-total {
+  margin-left: auto;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.repair-fee-total span,
+.repair-fee-total strong {
+  color: var(--accent-dark);
+}
+
+.custom-price-field {
+  display: grid;
+  gap: 8px;
+}
+
+.custom-price-field > span {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.money-input {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.money-input:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.money-input span {
+  flex: 0 0 auto;
+  padding-left: 12px;
+  color: var(--accent-dark);
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.money-input input {
+  border: 0;
+  box-shadow: none;
+}
+
+.money-input input:focus {
+  box-shadow: none;
+}
+
+.custom-price-actions {
+  justify-content: flex-end;
 }
 
 .address-picker {
@@ -1428,6 +1598,10 @@ dialog::backdrop {
   margin-top: 18px;
   padding-top: 16px;
   border-top: 1px solid var(--line);
+}
+
+.record-dialog-actions > div {
+  margin-left: auto;
 }
 
 .toast {
@@ -1670,6 +1844,14 @@ body.readonly .row-actions {
   .form-grid,
   .customer-layout {
     grid-template-columns: 1fr;
+  }
+
+  #recordForm .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .repair-fee-field {
+    grid-column: auto;
   }
 
   .analytics-head {
