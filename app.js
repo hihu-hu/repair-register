@@ -3103,6 +3103,12 @@ function getFormRecord() {
       ? formData.getAll(key).map((value) => String(value).trim()).filter(Boolean)
       : String(formData.get(key) || "").trim();
   });
+  record.deviceNumber = record.deviceNumber.replace(/\D/g, "").slice(0, 10);
+  if (!/^\d{10}$/.test(record.deviceNumber)) {
+    showToast("编号必须填写 10 位数字");
+    els.recordForm.elements.deviceNumber.focus();
+    return null;
+  }
   record.model = inferModelFromDeviceNumber(record.deviceNumber) || record.model;
   if (!record.accessoryParts.includes(CUSTOM_PRICE_ACCESSORY_PART)) {
     record.customPartPrice = "";
@@ -4160,7 +4166,11 @@ function bindEvents() {
   });
 
   els.recordForm.elements.finalStatus.addEventListener("change", updateAccessoryPartsRequirement);
-  els.recordForm.elements.deviceNumber.addEventListener("input", checkDeviceNumberMatch);
+  els.recordForm.elements.deviceNumber.addEventListener("input", () => {
+    const input = els.recordForm.elements.deviceNumber;
+    input.value = input.value.replace(/\D/g, "").slice(0, 10);
+    checkDeviceNumberMatch();
+  });
   els.recordForm.elements.deviceNumber.addEventListener("change", checkDeviceNumberMatch);
   els.recordForm.elements.region.addEventListener("input", () => updateRepairFeeDetails());
   els.recordForm.elements.region.addEventListener("change", () => updateRepairFeeDetails());

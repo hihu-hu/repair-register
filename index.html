@@ -10,7 +10,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260701-swap-status-owner">
+    <link rel="stylesheet" href="styles.css?v=20260701-device-number-limit">
   </head>
   <body>
     <header class="app-header">
@@ -415,7 +415,7 @@
           </label>
           <label>
             <span>编号</span>
-            <input name="deviceNumber" required>
+            <input name="deviceNumber" required inputmode="numeric" maxlength="10" pattern="\d{10}" title="请填写 10 位数字">
           </label>
           <label>
             <span>有无电源（实际签收）</span>
@@ -646,6 +646,6 @@
     <div class="analysis-popover analysis-grandchild-popover" id="analysisGrandchildPopover" role="dialog" aria-label="分析下级明细" hidden></div>
 
     <script src="area-data.js"></script>
-    <script src="app.js?v=20260701-swap-status-owner"></script>
+    <script src="app.js?v=20260701-device-number-limit"></script>
   </body>
 </html>
