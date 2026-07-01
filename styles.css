@@ -573,6 +573,10 @@ select[multiple] {
   text-align: left;
 }
 
+#recordForm .checkbox-select-button {
+  font-size: 17px;
+}
+
 .checkbox-clear-button {
   flex: 0 0 auto;
   height: 40px;
