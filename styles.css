@@ -1314,10 +1314,6 @@ dialog::backdrop {
   gap: 14px;
 }
 
-#recordForm .form-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
 .form-grid.single-column {
   grid-template-columns: 1fr;
 }
@@ -1343,7 +1339,7 @@ dialog::backdrop {
 }
 
 .repair-fee-field {
-  grid-column: 3 / 5;
+  grid-column: 3 / 4;
 }
 
 .repair-fee-box {
