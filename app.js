@@ -27,6 +27,7 @@ const MULTI_VALUE_SEPARATOR = "、";
 const CUSTOM_PRICE_ACCESSORY_PART = "塑料件/其他件";
 const CUSTOMER_SUBMIT_FAST_FEEDBACK_MS = 1200;
 const LOCKED_CUSTOMER_EDIT_STATUSES = ["已寄出", "邮寄并结束"];
+const UNSAVED_RECORD_MESSAGE = "这条维修记录有改动，关闭后不会保存。确定关闭吗？";
 
 const optionSets = {
   hasPower: ["有", "没有"],
@@ -351,6 +352,7 @@ let lastCustomerSubmitTime = 0;
 let analysisPopoverState = null;
 let dialogScrollLockY = 0;
 let dialogScrollLockObserver = null;
+let recordDialogInitialSnapshot = "";
 
 function loadRecords() {
   try {
@@ -392,7 +394,7 @@ function applyHashRoute() {
   if (hashSharedData) {
     records = hashSharedData.records;
     customerSubmissions = hashSharedData.submissions;
-    closeOpenDialogs();
+    if (!closeOpenDialogs()) return;
     render();
     return;
   }
@@ -410,9 +412,11 @@ function applyHashRoute() {
 }
 
 function closeOpenDialogs() {
-  [els.recordDialog, els.shareDialog].forEach((dialog) => {
+  if (els.recordDialog.open && !closeRecordDialogWithGuard()) return false;
+  [els.shareDialog].forEach((dialog) => {
     if (dialog.open) dialog.close();
   });
+  return true;
 }
 
 function hasOpenDialog() {
@@ -494,6 +498,75 @@ function bindContainedMenuScroll(menu) {
     event.stopPropagation();
     menu.scrollTop += deltaY;
   }, { passive: false });
+}
+
+function getRecordFormSnapshot() {
+  const fields = [];
+  Array.from(els.recordForm.elements).forEach((field) => {
+    const name = field.name || (field === els.recordId ? "recordId" : "");
+    if (!name) return;
+    if (field.tagName === "SELECT" && field.multiple) {
+      fields.push([
+        name,
+        Array.from(field.options)
+          .filter((option) => option.selected)
+          .map((option) => option.value)
+      ]);
+      return;
+    }
+    if (["checkbox", "radio"].includes(field.type)) {
+      fields.push([name, field.value, field.checked]);
+      return;
+    }
+    fields.push([name, field.value || ""]);
+  });
+  return JSON.stringify(fields);
+}
+
+function markRecordDialogClean() {
+  recordDialogInitialSnapshot = getRecordFormSnapshot();
+}
+
+function clearRecordDialogSnapshot() {
+  recordDialogInitialSnapshot = "";
+}
+
+function isRecordDialogDirty() {
+  return Boolean(
+    els.recordDialog.open &&
+    recordDialogInitialSnapshot &&
+    getRecordFormSnapshot() !== recordDialogInitialSnapshot
+  );
+}
+
+function confirmDiscardRecordChanges() {
+  return !isRecordDialogDirty() || confirm(UNSAVED_RECORD_MESSAGE);
+}
+
+function closeRecordDialogWithGuard() {
+  if (!confirmDiscardRecordChanges()) return false;
+  clearRecordDialogSnapshot();
+  els.recordDialog.close();
+  return true;
+}
+
+function openRecordDialogAndTrackChanges() {
+  els.recordDialog.showModal();
+  markRecordDialogClean();
+}
+
+function handleRecordDialogCancel(event) {
+  if (!confirmDiscardRecordChanges()) {
+    event.preventDefault();
+    return;
+  }
+  clearRecordDialogSnapshot();
+}
+
+function handleRecordBeforeUnload(event) {
+  if (!isRecordDialogDirty()) return;
+  event.preventDefault();
+  event.returnValue = "";
 }
 
 function normalizeCustomerSubmission(item = {}) {
@@ -2785,7 +2858,7 @@ function resetForm() {
 function openNewDialog() {
   if (readonlyMode) return;
   resetForm();
-  els.recordDialog.showModal();
+  openRecordDialogAndTrackChanges();
 }
 
 function findSubmissionByDeviceNumber(deviceNumber) {
@@ -2945,7 +3018,7 @@ function openNewDialogFromSubmission(id) {
   if (!submission) return;
   resetForm();
   applySubmissionToRecordForm(submission, { keepDeviceNumber: false });
-  els.recordDialog.showModal();
+  openRecordDialogAndTrackChanges();
 }
 
 function openSubmissionEditDialog(id) {
@@ -3018,7 +3091,7 @@ function openEditDialog(id) {
   const record = records.find((item) => item.id === id);
   if (!record) return;
   fillForm(record);
-  els.recordDialog.showModal();
+  openRecordDialogAndTrackChanges();
 }
 
 function getFormRecord() {
@@ -3053,10 +3126,10 @@ function getFormRecord() {
 }
 
 async function upsertRecord(record) {
-  if (readonlyMode) return;
+  if (readonlyMode) return false;
   if (cloudMode && !adminMode) {
     showToast("请先管理员登录");
-    return;
+    return false;
   }
 
   try {
@@ -3064,7 +3137,7 @@ async function upsertRecord(record) {
   } catch (error) {
     console.error(error);
     showToast("云端保存失败");
-    return;
+    return false;
   }
 
   const index = records.findIndex((item) => item.id === record.id);
@@ -3077,6 +3150,7 @@ async function upsertRecord(record) {
   if (!cloudMode) saveRecords();
   render();
   showToast("已保存");
+  return true;
 }
 
 function getCustomerSubmissionFromForm() {
@@ -3269,29 +3343,30 @@ async function deleteSubmission(id) {
 }
 
 async function deleteRecord(id) {
-  if (readonlyMode) return;
+  if (readonlyMode) return false;
   if (cloudMode && !adminMode) {
     showToast("请先管理员登录");
-    return;
+    return false;
   }
 
   const record = records.find((item) => item.id === id);
-  if (!record) return;
+  if (!record) return false;
   const label = record.deviceNumber || record.trackingNumber || "这条记录";
-  if (!confirm(`确认删除 ${label}？`)) return;
+  if (!confirm(`确认删除 ${label}？`)) return false;
 
   try {
     if (cloudMode) await deleteCloudRecord(id);
   } catch (error) {
     console.error(error);
     showToast("云端删除失败");
-    return;
+    return false;
   }
 
   records = records.filter((item) => item.id !== id);
   if (!cloudMode) saveRecords();
   render();
   showToast("已删除");
+  return true;
 }
 
 function clearRepairFilters(status = "") {
@@ -3996,8 +4071,11 @@ function bindEvents() {
     event.preventDefault();
     openAnalysisGrandchildDetail(row);
   });
-  els.closeDialogBtn.addEventListener("click", () => els.recordDialog.close());
-  els.cancelDialogBtn.addEventListener("click", () => els.recordDialog.close());
+  els.closeDialogBtn.addEventListener("click", closeRecordDialogWithGuard);
+  els.cancelDialogBtn.addEventListener("click", closeRecordDialogWithGuard);
+  els.recordDialog.addEventListener("cancel", handleRecordDialogCancel);
+  els.recordDialog.addEventListener("close", clearRecordDialogSnapshot);
+  window.addEventListener("beforeunload", handleRecordBeforeUnload);
   els.categoryFilterToggle.addEventListener("click", toggleCategoryFilterPicker);
   els.categoryFilterMenu.addEventListener("change", (event) => {
     const checkbox = event.target.closest("input[type='checkbox']");
@@ -4063,7 +4141,9 @@ function bindEvents() {
     event.preventDefault();
     const record = getFormRecord();
     if (!record) return;
-    await upsertRecord(record);
+    const saved = await upsertRecord(record);
+    if (!saved) return;
+    clearRecordDialogSnapshot();
     els.recordDialog.close();
   });
 
@@ -4153,7 +4233,9 @@ function bindEvents() {
   });
 
   els.deleteRecordBtn.addEventListener("click", async () => {
-    await deleteRecord(els.recordId.value);
+    const deleted = await deleteRecord(els.recordId.value);
+    if (!deleted) return;
+    clearRecordDialogSnapshot();
     els.recordDialog.close();
   });
 
