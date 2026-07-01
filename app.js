@@ -458,6 +458,44 @@ function bindDialogScrollLock() {
   });
 }
 
+function wheelDeltaToPixels(event, target) {
+  if (event.deltaMode === 1) return event.deltaY * 16;
+  if (event.deltaMode === 2) return event.deltaY * target.clientHeight;
+  return event.deltaY;
+}
+
+function bindContainedMenuScroll(menu) {
+  if (!menu) return;
+
+  menu.addEventListener("wheel", (event) => {
+    if (menu.hidden) return;
+    const deltaY = wheelDeltaToPixels(event, menu);
+    if (!deltaY) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    menu.scrollTop += deltaY;
+  }, { passive: false });
+
+  let lastTouchY = 0;
+  menu.addEventListener("touchstart", (event) => {
+    if (menu.hidden || event.touches.length !== 1) return;
+    lastTouchY = event.touches[0].clientY;
+  }, { passive: true });
+
+  menu.addEventListener("touchmove", (event) => {
+    if (menu.hidden || event.touches.length !== 1) return;
+    const nextTouchY = event.touches[0].clientY;
+    const deltaY = lastTouchY - nextTouchY;
+    lastTouchY = nextTouchY;
+    if (!deltaY) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    menu.scrollTop += deltaY;
+  }, { passive: false });
+}
+
 function normalizeCustomerSubmission(item = {}) {
   const customerIssue = String(item.customerIssue || item.customer_issue || "").trim();
   return {
@@ -3835,6 +3873,7 @@ function showToast(message) {
 
 function bindEvents() {
   bindDialogScrollLock();
+  [els.categoryFilterMenu, els.faultCategoryMenu, els.accessoryPartsMenu].forEach(bindContainedMenuScroll);
 
   ["input", "change"].forEach((eventName) => {
     [
