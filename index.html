@@ -10,7 +10,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260701-normal-form-weight">
+    <link rel="stylesheet" href="styles.css?v=20260701-swap-status-owner">
   </head>
   <body>
     <header class="app-header">
@@ -422,16 +422,16 @@
             <select name="hasPower" required></select>
           </label>
           <label>
-            <span>故障归属</span>
-            <select name="faultOwnership" required></select>
+            <span>最终状态</span>
+            <select name="finalStatus" required></select>
           </label>
           <label>
             <span>公司名</span>
             <input class="readonly-field" name="companyName" readonly required placeholder="匹配客户提交后自动显示">
           </label>
           <label>
-            <span>最终状态</span>
-            <select name="finalStatus" required></select>
+            <span>故障归属</span>
+            <select name="faultOwnership" required></select>
           </label>
           <label>
             <span>故障分类</span>
@@ -646,6 +646,6 @@
     <div class="analysis-popover analysis-grandchild-popover" id="analysisGrandchildPopover" role="dialog" aria-label="分析下级明细" hidden></div>
 
     <script src="area-data.js"></script>
-    <script src="app.js?v=20260701-normal-form-weight"></script>
+    <script src="app.js?v=20260701-swap-status-owner"></script>
   </body>
 </html>
