@@ -977,7 +977,7 @@ function updateRepairFeeDetails(selectedParts = getMultiSelectValues(els.recordF
     return `
       <button class="repair-fee-row ${isZeroFee ? "is-zero-fee" : ""}" type="button" data-part="${escapeHtml(part)}" title="点击切换保修">
         <span>${escapeHtml(quote.label)}</span>
-        <strong>${quote.hasPrice ? `${isZeroFee ? "保修 " : ""}${formatRepairFee(displayPrice)}` : quote.pendingText || "待定"}</strong>
+        <strong>${quote.hasPrice ? formatRepairFee(displayPrice) : quote.pendingText || "待定"}</strong>
       </button>
     `;
   }).join("");
