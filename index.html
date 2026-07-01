@@ -10,7 +10,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260701-model-accessory-options">
+    <link rel="stylesheet" href="styles.css?v=20260701-zero-fee-toggle">
   </head>
   <body>
     <header class="app-header">
@@ -455,6 +455,7 @@
             <span id="accessoryPartsLabel">本单所用配件</span>
             <select name="accessoryParts" multiple hidden></select>
             <input name="customPartPrice" type="hidden">
+            <input name="zeroFeeParts" type="hidden">
             <div class="checkbox-select" id="accessoryPartsPicker">
               <div class="checkbox-select-actions">
                 <button class="checkbox-select-button" id="accessoryPartsToggle" type="button" aria-expanded="false">
@@ -646,6 +647,6 @@
     <div class="analysis-popover analysis-grandchild-popover" id="analysisGrandchildPopover" role="dialog" aria-label="分析下级明细" hidden></div>
 
     <script src="area-data.js"></script>
-    <script src="app.js?v=20260701-model-accessory-options"></script>
+    <script src="app.js?v=20260701-zero-fee-toggle"></script>
   </body>
 </html>

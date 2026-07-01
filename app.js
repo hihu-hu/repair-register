@@ -25,6 +25,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
 const WECOM_PUSH_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/push-repair-stats`;
 const MULTI_VALUE_SEPARATOR = "、";
 const CUSTOM_PRICE_ACCESSORY_PART = "塑料件/其他件";
+const ZERO_FEE_MARK = "{0元}";
 const CUSTOMER_SUBMIT_FAST_FEEDBACK_MS = 1200;
 const LOCKED_CUSTOMER_EDIT_STATUSES = ["已寄出", "邮寄并结束"];
 const UNSAVED_RECORD_MESSAGE = "这条维修记录有改动，关闭后不会保存。确定关闭吗？";
@@ -211,7 +212,8 @@ const exportFields = [
   ["accessoryParts", "本单所用配件"],
   ["customerAddress", "客户地址"],
   ["model", "型号"],
-  ["customPartPrice", "自定义配件金额"]
+  ["customPartPrice", "自定义配件金额"],
+  ["zeroFeeParts", "0元配件"]
 ];
 
 const els = {
@@ -593,6 +595,7 @@ function normalizeRecord(record = {}) {
   const region = String(record.region || "");
   const rawAccessoryParts = record.accessoryParts || record.accessory_parts;
   const rawCustomPartPrice = record.customPartPrice ?? record.custom_part_price ?? extractCustomPartPriceFromAccessoryParts(rawAccessoryParts);
+  const rawZeroFeeParts = record.zeroFeeParts ?? record.zero_fee_parts ?? extractZeroFeePartsFromAccessoryParts(rawAccessoryParts);
   return {
     id: String(record.id || createId()),
     createdTime: normalizeDateTime(record.createdTime || record.createdAt || record.repairDate),
@@ -613,6 +616,7 @@ function normalizeRecord(record = {}) {
     customerAddress: String(record.customerAddress || record.address || ""),
     model: normalizeOption(record.model, optionSets.model, "GMX"),
     customPartPrice: normalizeMoneyValue(rawCustomPartPrice),
+    zeroFeeParts: normalizeAccessoryParts(rawZeroFeeParts).join(MULTI_VALUE_SEPARATOR),
     updatedAt: String(record.updatedAt || new Date().toISOString())
   };
 }
@@ -686,6 +690,7 @@ function stripAccessoryPartPrice(value = "") {
   const text = String(value || "").trim();
   if (!text) return "";
   if (text === CUSTOM_PRICE_ACCESSORY_PART) return CUSTOM_PRICE_ACCESSORY_PART;
+  if (text.endsWith(ZERO_FEE_MARK)) return stripAccessoryPartPrice(text.slice(0, -ZERO_FEE_MARK.length));
   if (text.startsWith(CUSTOM_PRICE_ACCESSORY_PART)) {
     const rest = text.slice(CUSTOM_PRICE_ACCESSORY_PART.length).trim();
     if (!rest || /^[{[(（【:：=¥￥\s\d.元)}\]）】]+$/.test(rest)) return CUSTOM_PRICE_ACCESSORY_PART;
@@ -710,10 +715,30 @@ function extractCustomPartPriceFromAccessoryParts(value = "") {
   return match ? normalizeMoneyValue(match[1]) : "";
 }
 
-function serializeAccessoryPartsForStorage(accessoryParts, customPartPrice = "") {
+function extractZeroFeePartsFromAccessoryParts(value = "") {
+  const rawItems = Array.isArray(value)
+    ? value
+    : String(value || "")
+      .replaceAll(CUSTOM_PRICE_ACCESSORY_PART, "__CUSTOM_PRICE_ACCESSORY_PART__")
+      .split(/[、,，;；/|]/)
+      .map((item) => item.replaceAll("__CUSTOM_PRICE_ACCESSORY_PART__", CUSTOM_PRICE_ACCESSORY_PART));
+  const selected = rawItems
+    .map((item) => String(item || "").trim())
+    .filter((item) => item.endsWith(ZERO_FEE_MARK))
+    .map(stripAccessoryPartPrice)
+    .map((item) => accessoryPartAliases[item] || item)
+    .filter((item) => optionSets.accessoryParts.includes(item));
+  return [...new Set(selected)].join(MULTI_VALUE_SEPARATOR);
+}
+
+function serializeAccessoryPartsForStorage(accessoryParts, customPartPrice = "", zeroFeeParts = "") {
   const price = normalizeMoneyValue(customPartPrice);
+  const zeroFeeSet = new Set(normalizeAccessoryParts(zeroFeeParts));
   return normalizeAccessoryParts(accessoryParts)
-    .map((part) => (part === CUSTOM_PRICE_ACCESSORY_PART && price ? `${part}{${price}}` : part))
+    .map((part) => {
+      const customPart = part === CUSTOM_PRICE_ACCESSORY_PART && price ? `${part}{${price}}` : part;
+      return zeroFeeSet.has(part) ? `${customPart}${ZERO_FEE_MARK}` : customPart;
+    })
     .join(MULTI_VALUE_SEPARATOR);
 }
 
@@ -787,6 +812,10 @@ function updateAccessoryPartsPicker() {
   setMultiSelectValues(select, currentSelection, allowedParts);
   buildCheckboxMenu(els.accessoryPartsMenu, allowedParts);
   const selected = getMultiSelectValues(select);
+  const selectedSet = new Set(selected);
+  const zeroFeeParts = normalizeAccessoryParts(els.recordForm.elements.zeroFeeParts.value)
+    .filter((part) => selectedSet.has(part));
+  els.recordForm.elements.zeroFeeParts.value = zeroFeeParts.join(MULTI_VALUE_SEPARATOR);
   if (!selected.includes(CUSTOM_PRICE_ACCESSORY_PART)) clearCustomPartPriceValue();
   els.accessoryPartsToggle.textContent = selected.length > 0 ? selected.join(MULTI_VALUE_SEPARATOR) : "请选择";
   els.accessoryPartsToggle.classList.toggle("is-placeholder", selected.length === 0);
@@ -799,6 +828,7 @@ function updateAccessoryPartsPicker() {
 function clearAccessoryPartsPicker() {
   clearMultiSelect(els.recordForm.elements.accessoryParts);
   clearCustomPartPriceValue();
+  els.recordForm.elements.zeroFeeParts.value = "";
   els.accessoryPartsToggle.classList.remove("is-invalid");
   updateAccessoryPartsPicker();
   closeAccessoryPartsPicker();
@@ -842,6 +872,19 @@ function showCustomPartPriceRequired() {
   showToast("请输入塑料件/其他件金额");
   closeAccessoryPartsPicker();
   openCustomPartPriceDialog();
+}
+
+function toggleZeroFeePart(part) {
+  const selectedParts = getMultiSelectValues(els.recordForm.elements.accessoryParts);
+  if (!selectedParts.includes(part)) return;
+  const zeroFeeSet = new Set(normalizeAccessoryParts(els.recordForm.elements.zeroFeeParts.value));
+  if (zeroFeeSet.has(part)) {
+    zeroFeeSet.delete(part);
+  } else {
+    zeroFeeSet.add(part);
+  }
+  els.recordForm.elements.zeroFeeParts.value = [...zeroFeeSet].join(MULTI_VALUE_SEPARATOR);
+  updateRepairFeeDetails(selectedParts);
 }
 
 function formatRepairFee(value) {
@@ -895,6 +938,8 @@ function getAccessoryPartQuote(part) {
   if (part === "无费用") return { hasPrice: true, label: part, price: 0 };
   if (part === "快递费") return getShippingFeeQuote();
   if (part === CUSTOM_PRICE_ACCESSORY_PART) {
+    const zeroFeeSet = new Set(normalizeAccessoryParts(els.recordForm.elements.zeroFeeParts.value));
+    if (zeroFeeSet.has(part)) return { hasPrice: true, label: part, price: 0 };
     const price = getCustomPartPriceValue();
     return price
       ? { hasPrice: true, label: part, price }
@@ -915,20 +960,23 @@ function updateRepairFeeDetails(selectedParts = getMultiSelectValues(els.recordF
     return;
   }
 
+  const zeroFeeSet = new Set(normalizeAccessoryParts(els.recordForm.elements.zeroFeeParts.value));
   let total = 0;
   let hasPendingPrice = false;
   const rows = selectedParts.map((part) => {
     const quote = getAccessoryPartQuote(part);
+    const isZeroFee = zeroFeeSet.has(part);
+    const displayPrice = quote.hasPrice && isZeroFee ? 0 : quote.price;
     if (quote.hasPrice) {
-      total += Number(quote.price) || 0;
+      total += Number(displayPrice) || 0;
     } else {
       hasPendingPrice = true;
     }
     return `
-      <div class="repair-fee-row">
+      <button class="repair-fee-row ${isZeroFee ? "is-zero-fee" : ""}" type="button" data-part="${escapeHtml(part)}" title="点击切换为0元">
         <span>${escapeHtml(quote.label)}</span>
-        <strong>${quote.hasPrice ? formatRepairFee(quote.price) : quote.pendingText || "待定"}</strong>
-      </div>
+        <strong>${quote.hasPrice ? formatRepairFee(displayPrice) : quote.pendingText || "待定"}</strong>
+      </button>
     `;
   }).join("");
   const totalText = hasPendingPrice ? "待定" : formatRepairFee(total);
@@ -1235,7 +1283,7 @@ function toDatabaseRecord(record) {
     return_tracking_number: record.returnTrackingNumber || "",
     fault_ownership: record.faultOwnership || "",
     fault_category: record.faultCategory || "",
-    accessory_parts: serializeAccessoryPartsForStorage(record.accessoryParts, record.customPartPrice),
+    accessory_parts: serializeAccessoryPartsForStorage(record.accessoryParts, record.customPartPrice, record.zeroFeeParts),
     customer_address: record.customerAddress || "",
     model: record.model || "",
     updated_at: record.updatedAt || new Date().toISOString()
@@ -1264,6 +1312,7 @@ function fromDatabaseRecord(record) {
     customerAddress: record.customer_address,
     model: record.model,
     customPartPrice: record.custom_part_price ?? extractCustomPartPriceFromAccessoryParts(rawAccessoryParts),
+    zeroFeeParts: record.zero_fee_parts ?? extractZeroFeePartsFromAccessoryParts(rawAccessoryParts),
     updatedAt: record.updated_at
   });
 }
@@ -2857,6 +2906,7 @@ function resetForm() {
   clearMultiSelect(els.recordForm.elements.faultCategory);
   clearMultiSelect(els.recordForm.elements.accessoryParts);
   clearCustomPartPriceValue();
+  els.recordForm.elements.zeroFeeParts.value = "";
   updateFaultCategoryPicker();
   updateAccessoryPartsPicker();
   els.faultCategoryToggle.classList.remove("is-invalid");
@@ -3134,11 +3184,19 @@ function getFormRecord() {
   } else {
     record.customPartPrice = normalizeMoneyValue(record.customPartPrice);
   }
+  const selectedPartSet = new Set(record.accessoryParts);
+  record.zeroFeeParts = normalizeAccessoryParts(record.zeroFeeParts)
+    .filter((part) => selectedPartSet.has(part))
+    .join(MULTI_VALUE_SEPARATOR);
   if (record.faultCategory.length === 0) {
     showFaultCategoryRequired();
     return null;
   }
-  if (record.accessoryParts.includes(CUSTOM_PRICE_ACCESSORY_PART) && !record.customPartPrice) {
+  if (
+    record.accessoryParts.includes(CUSTOM_PRICE_ACCESSORY_PART) &&
+    !normalizeAccessoryParts(record.zeroFeeParts).includes(CUSTOM_PRICE_ACCESSORY_PART) &&
+    !record.customPartPrice
+  ) {
     showCustomPartPriceRequired();
     return null;
   }
@@ -3735,6 +3793,7 @@ function resolveImportField(header) {
     faultCategory: ["故障分类"],
     accessoryParts: ["本单所用配件", "所用配件", "配件"],
     customPartPrice: ["自定义配件金额", "塑料件金额", "其他件金额"],
+    zeroFeeParts: ["0元配件", "免费配件", "不收费配件"],
     customerAddress: ["客户地址", "维修地址", "地址"],
     model: ["型号"]
   };
@@ -4141,6 +4200,11 @@ function bindEvents() {
   els.closeCustomPartPriceDialogBtn.addEventListener("click", closeCustomPartPriceDialog);
   els.cancelCustomPartPriceBtn.addEventListener("click", closeCustomPartPriceDialog);
   els.customPartPriceDialog.addEventListener("close", () => updateRepairFeeDetails());
+  els.repairFeeBox.addEventListener("click", (event) => {
+    const button = event.target.closest(".repair-fee-row");
+    if (!button || !els.repairFeeBox.contains(button)) return;
+    toggleZeroFeePart(button.dataset.part || "");
+  });
   document.addEventListener("click", (event) => {
     if (!event.target.closest("#categoryFilterPicker")) closeCategoryFilterPicker();
     if (!event.target.closest("#faultCategoryPicker")) closeFaultCategoryPicker();
