@@ -710,6 +710,14 @@ textarea:focus {
   font-weight: 400;
 }
 
+#recordForm textarea[name="customerIssue"] {
+  color: var(--danger);
+}
+
+#recordForm textarea[name="customerIssue"]::placeholder {
+  color: var(--muted);
+}
+
 .date-field input {
   min-width: 0;
   padding: 0 8px;
