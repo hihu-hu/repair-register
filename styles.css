@@ -316,6 +316,25 @@ h2 {
   font-weight: 700;
 }
 
+.analytics-accessory-toggle {
+  width: auto;
+  height: 26px;
+  min-height: 26px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.analytics-accessory-toggle.is-active {
+  border-color: #d13f3f;
+  background: #d13f3f;
+  color: #fff;
+}
+
 .analysis-summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

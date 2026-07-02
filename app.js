@@ -227,6 +227,7 @@ const els = {
   repairViews: document.querySelectorAll(".repair-view"),
   analyticsPage: document.querySelector("#analyticsPage"),
   analyticsUpdatedAt: document.querySelector("#analyticsUpdatedAt"),
+  analysisAccessoryToggleBtn: document.querySelector("#analysisAccessoryToggleBtn"),
   analysisDateFrom: document.querySelector("#analysisDateFrom"),
   analysisDateTo: document.querySelector("#analysisDateTo"),
   resetAnalysisDateBtn: document.querySelector("#resetAnalysisDateBtn"),
@@ -235,6 +236,7 @@ const els = {
   analysisCategoryBars: document.querySelector("#analysisCategoryBars"),
   analysisRegionBars: document.querySelector("#analysisRegionBars"),
   analysisModelBars: document.querySelector("#analysisModelBars"),
+  analysisAccessoryPanel: document.querySelector("#analysisAccessoryPanel"),
   analysisAccessoryModelFilter: document.querySelector("#analysisAccessoryModelFilter"),
   analysisAccessoryBars: document.querySelector("#analysisAccessoryBars"),
   analysisTrendBars: document.querySelector("#analysisTrendBars"),
@@ -337,6 +339,7 @@ let readonlyMode = false;
 let cloudMode = false;
 let adminMode = false;
 let currentAdmin = null;
+let showAccessoryAnalytics = false;
 let forceReadonlyMode = false;
 let supabaseClient = null;
 const sharedData = readSharedData();
@@ -1267,6 +1270,7 @@ function refreshAccessMode() {
   els.authToggleBtn.textContent = adminMode ? "退出登录" : "管理员登录";
   els.authToggleBtn.title = currentAdmin ? currentAdmin.label : "";
   els.analyticsViewBtn.hidden = !canViewAnalytics();
+  refreshAccessoryAnalyticsVisibility();
   if (currentView === "analytics" && !canViewAnalytics()) {
     location.hash = "";
     setView("repair");
@@ -1907,6 +1911,19 @@ function canViewAnalytics() {
   return cloudMode && adminMode && !forceReadonlyMode;
 }
 
+function canViewAccessoryAnalytics() {
+  return canViewAnalytics() && currentAdmin?.level === "super";
+}
+
+function refreshAccessoryAnalyticsVisibility() {
+  const canView = canViewAccessoryAnalytics();
+  if (!canView) showAccessoryAnalytics = false;
+  els.analysisAccessoryToggleBtn.hidden = !canView;
+  els.analysisAccessoryToggleBtn.classList.toggle("is-active", canView && showAccessoryAnalytics);
+  els.analysisAccessoryToggleBtn.setAttribute("aria-pressed", canView && showAccessoryAnalytics ? "true" : "false");
+  els.analysisAccessoryPanel.hidden = !canView || !showAccessoryAnalytics;
+}
+
 function setView(view) {
   if (view === "analytics" && !canViewAnalytics()) {
     showToast("请先管理员登录");
@@ -1931,6 +1948,7 @@ function setView(view) {
   els.analyticsViewBtn.classList.toggle("is-active", isAnalytics);
   els.customerViewBtn.classList.toggle("is-active", isCustomerAdmin);
   els.submissionsViewBtn.classList.toggle("is-active", view === "submissions");
+  refreshAccessoryAnalyticsVisibility();
 
   const adminActionsHidden = view !== "repair";
   els.importExcelBtn.hidden = adminActionsHidden || readonlyMode;
@@ -2230,6 +2248,7 @@ function setAnalysisDateToThisYear() {
 
 function renderAnalytics() {
   if (!canViewAnalytics()) return;
+  refreshAccessoryAnalyticsVisibility();
 
   const analysisRecords = getAnalysisRecords();
   const stats = { total: analysisRecords.length };
@@ -2237,7 +2256,9 @@ function renderAnalytics() {
   const categoryItems = countBy(analysisRecords, (record) => normalizeFaultCategories(record.faultCategory));
   const regionItems = countBy(analysisRecords, (record) => record.region || "未填写");
   const modelItems = countBy(analysisRecords, (record) => record.model || "未填写");
-  const accessoryItems = getAccessoryUsageItems(analysisRecords, els.analysisAccessoryModelFilter.value);
+  const accessoryItems = showAccessoryAnalytics
+    ? getAccessoryUsageItems(analysisRecords, els.analysisAccessoryModelFilter.value)
+    : [];
   const accessoryTotal = accessoryItems.reduce((sum, item) => sum + item.count, 0);
   const ownershipItems = countBy(analysisRecords, (record) => record.faultOwnership || "未填写");
   const areaItems = countBy(analysisRecords, (record) => record.area || "未填写");
@@ -2252,7 +2273,9 @@ function renderAnalytics() {
   renderAnalysisBars(els.analysisCategoryBars, categoryItems, stats.total, { detailType: "category-models" });
   renderAnalysisBars(els.analysisRegionBars, regionItems, stats.total, { detailType: "region-models" });
   renderAnalysisBars(els.analysisModelBars, modelItems, stats.total, { detailType: "model-categories" });
-  renderAnalysisBars(els.analysisAccessoryBars, accessoryItems, accessoryTotal, { limit: optionSets.accessoryParts.length });
+  if (showAccessoryAnalytics) {
+    renderAnalysisBars(els.analysisAccessoryBars, accessoryItems, accessoryTotal, { limit: optionSets.accessoryParts.length });
+  }
   renderAnalysisBars(els.analysisTrendBars, trendItems, Math.max(...trendItems.map((item) => item.count), 0), {
     limit: ANALYSIS_TREND_DAYS
   });
@@ -4087,6 +4110,11 @@ function bindEvents() {
       hideAnalysisPopover();
       renderAnalytics();
     });
+  });
+  els.analysisAccessoryToggleBtn.addEventListener("click", () => {
+    if (!canViewAccessoryAnalytics()) return;
+    showAccessoryAnalytics = !showAccessoryAnalytics;
+    renderAnalytics();
   });
   els.analysisAccessoryModelFilter.addEventListener("change", renderAnalytics);
   els.resetAnalysisDateBtn.addEventListener("click", () => {

@@ -10,7 +10,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260702-accessory-model-switch">
+    <link rel="stylesheet" href="styles.css?v=20260702-super-accessory-toggle">
   </head>
   <body>
     <header class="app-header">
@@ -165,7 +165,7 @@
       <section class="analytics-page app-view" id="analyticsPage" hidden aria-label="维修数据分析">
         <div class="analytics-head">
           <div>
-            <p class="eyebrow">管理员可见</p>
+            <button class="analytics-accessory-toggle" id="analysisAccessoryToggleBtn" type="button" aria-pressed="false" hidden>配件统计</button>
             <h2>维修数据分析</h2>
           </div>
           <div class="analytics-filters" aria-label="数据分析时间筛选">
@@ -218,7 +218,7 @@
             <div class="analysis-bars" id="analysisModelBars"></div>
           </article>
 
-          <article class="analysis-panel">
+          <article class="analysis-panel" id="analysisAccessoryPanel" hidden>
             <div class="analysis-panel-title">
               <h3>配件使用排行</h3>
               <select class="analysis-panel-select" id="analysisAccessoryModelFilter" aria-label="配件使用型号筛选"></select>
@@ -654,6 +654,6 @@
     <div class="analysis-popover analysis-grandchild-popover" id="analysisGrandchildPopover" role="dialog" aria-label="分析下级明细" hidden></div>
 
     <script src="area-data.js"></script>
-    <script src="app.js?v=20260702-accessory-model-switch"></script>
+    <script src="app.js?v=20260702-super-accessory-toggle"></script>
   </body>
 </html>
