@@ -10,13 +10,19 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260702-accessory-fee-mode">
+    <link rel="stylesheet" href="styles.css?v=20260702-express-export-submission-tips">
   </head>
   <body>
     <header class="app-header">
-      <div>
+      <div class="header-title">
         <h1>打印机售后维修记录表</h1>
-        <p class="mode-note" id="modeNote" hidden>只读查看</p>
+        <div class="header-note-row">
+          <p class="mode-note" id="modeNote" hidden>只读查看</p>
+          <ol class="submissions-header-tips" aria-label="客户提交提示">
+            <li>维修时间一般是周二至周四</li>
+            <li>这个页面如果查不到就是没有登记，登记后可看有无检修</li>
+          </ol>
+        </div>
       </div>
       <div class="header-actions">
         <button class="primary" id="newRecordBtn" type="button">新增工单</button>
@@ -120,6 +126,9 @@
         <div class="filter-summary" aria-label="当前筛选统计">
           <span>总计：</span>
           <strong id="filterSummaryCount">0</strong>
+        </div>
+        <div class="express-export-slot">
+          <button class="primary" id="exportExpressBtn" type="button">导出快递</button>
         </div>
         <div class="toolbar-actions">
           <button class="secondary" id="resetFiltersBtn" type="button">重置</button>
@@ -300,7 +309,7 @@
             <div class="form-grid">
               <label>
                 <span>寄出快递单号</span>
-                <input name="trackingNumber" placeholder="输入您邮寄的快递单号和快递公司">
+                <input name="trackingNumber" required placeholder="输入您邮寄的快递单号和快递公司">
               </label>
               <label>
                 <span>打印机编号</span>
@@ -649,6 +658,25 @@
       </div>
     </dialog>
 
+    <dialog id="expressExportDialog">
+      <form class="express-export-dialog" id="expressExportForm" method="dialog">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">中通导入表格</p>
+            <h2>导出快递</h2>
+          </div>
+          <button class="icon-btn" id="closeExpressExportDialogBtn" type="button" aria-label="关闭">×</button>
+        </div>
+
+        <div class="express-export-summary" id="expressExportSummary"></div>
+
+        <div class="dialog-actions">
+          <button class="secondary" id="cancelExpressExportBtn" type="button">取消</button>
+          <button class="primary" id="confirmExpressExportBtn" type="submit">确认导出</button>
+        </div>
+      </form>
+    </dialog>
+
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
     <div class="address-popover" id="addressPopover" role="dialog" aria-label="完整客户地址" hidden></div>
     <div class="analysis-popover" id="analysisPopover" role="dialog" aria-label="分析明细" hidden></div>
@@ -656,6 +684,6 @@
     <div class="analysis-popover analysis-grandchild-popover" id="analysisGrandchildPopover" role="dialog" aria-label="分析下级明细" hidden></div>
 
     <script src="area-data.js"></script>
-    <script src="app.js?v=20260702-export-accessory-price"></script>
+    <script src="app.js?v=20260702-required-tracking-express-export-submission-tips"></script>
   </body>
 </html>

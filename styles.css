@@ -124,11 +124,40 @@ h2 {
   font-size: 18px;
 }
 
+.header-title {
+  min-width: 0;
+}
+
+.header-note-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 54px;
+  margin-top: 10px;
+}
+
+.submissions-header-tips {
+  display: none;
+  margin: 0 0 0 132px;
+  padding-left: 22px;
+  color: #111;
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 500;
+}
+
+.mode-note:not([hidden]) + .submissions-header-tips {
+  margin-left: 0;
+}
+
+body.submissions-view .submissions-header-tips {
+  display: block;
+}
+
 .mode-note {
   display: inline-flex;
   align-items: center;
   min-height: 26px;
-  margin: 10px 0 0;
+  margin: 0;
   padding: 0 10px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
@@ -551,6 +580,18 @@ h2 {
   align-self: end;
   font-size: 32px;
   line-height: 1;
+}
+
+.express-export-slot {
+  display: flex;
+  grid-column: 6;
+  grid-row: 1;
+  align-self: center;
+  justify-content: center;
+}
+
+.express-export-slot button {
+  min-width: 124px;
 }
 
 .field,
@@ -1382,6 +1423,13 @@ dialog::backdrop {
   padding: 20px;
 }
 
+.express-export-dialog {
+  display: grid;
+  gap: 16px;
+  width: min(560px, calc(100vw - 48px));
+  padding: 20px;
+}
+
 .share-link-field {
   display: grid;
   gap: 8px;
@@ -1394,6 +1442,69 @@ dialog::backdrop {
 
 .share-actions {
   justify-content: flex-end;
+}
+
+.express-export-summary {
+  display: grid;
+  gap: 10px;
+  color: #34434d;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.express-export-summary p {
+  margin: 0;
+}
+
+.express-export-stat {
+  display: grid;
+  min-height: 82px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--accent-soft);
+}
+
+.express-export-stat span {
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.express-export-stat strong {
+  align-self: end;
+  color: var(--ink);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.express-export-warning,
+.express-export-preview {
+  display: grid;
+  gap: 8px;
+  max-height: 240px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--gray-soft);
+}
+
+.express-export-warning {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.express-export-warning strong,
+.express-export-preview strong {
+  font-size: 13px;
+}
+
+.express-export-warning ul,
+.express-export-preview ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
 }
 
 .dialog-head {
@@ -1876,6 +1987,7 @@ dialog::backdrop {
 
 body.readonly .header-actions #newRecordBtn,
 body.readonly .header-actions #importExcelBtn,
+body.readonly .express-export-slot,
 body.readonly .toolbar-actions #exportCsvBtn,
 body.readonly .toolbar-actions #pushWecomBtn,
 body.readonly .actions-col,
@@ -1909,9 +2021,15 @@ body.readonly .row-actions {
 
   .date-filter-row,
   .filter-summary,
+  .express-export-slot,
   .search-field,
   .toolbar-actions {
     grid-column: 1 / -1;
+  }
+
+  .express-export-slot {
+    grid-row: auto;
+    justify-content: flex-start;
   }
 
   .toolbar-actions {
@@ -1939,6 +2057,14 @@ body.readonly .row-actions {
   .app-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .header-note-row {
+    gap: 12px;
+  }
+
+  .submissions-header-tips {
+    margin-left: 0;
   }
 
   .header-actions,
@@ -2035,6 +2161,7 @@ body.readonly .row-actions {
   .search-field,
   .date-filter-row,
   .filter-summary,
+  .express-export-slot,
   .toolbar-actions {
     grid-column: auto;
   }

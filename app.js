@@ -30,6 +30,36 @@ const WARRANTY_FEE_MARK = "{保修}";
 const CUSTOMER_SUBMIT_FAST_FEEDBACK_MS = 1200;
 const LOCKED_CUSTOMER_EDIT_STATUSES = ["已寄出", "邮寄并结束"];
 const UNSAVED_RECORD_MESSAGE = "这条维修记录有改动，关闭后不会保存。确定关闭吗？";
+const EXPRESS_EXPORT_SENDER = {
+  name: "服务中心-维修",
+  mobile: "",
+  phone: "4000858853",
+  address: "浙江省杭州市余杭区仓前街道乐富海邦园10幢601",
+  company: ""
+};
+const EXPRESS_EXPORT_HEADERS = [
+  "订单号",
+  "代收金额",
+  "发件人姓名",
+  "发件人手机",
+  "发件人电话",
+  "发件人地址",
+  "发件人单位",
+  "收件人姓名",
+  "收件人手机",
+  "收件人电话",
+  "收件人地址",
+  "收件人单位",
+  "品名",
+  "数量",
+  "买家备注",
+  "卖家备注"
+];
+const EXPRESS_REQUIRED_HEADER_INDEXES = new Set([2, 4, 5, 7, 8, 10]);
+const EXPRESS_MOBILE_RE = /1[3-9]\d{9}/;
+const COMMON_CHINESE_SURNAMES =
+  "赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹姚邵汪祁毛禹狄米贝明臧计伏成戴谈宋庞熊纪舒屈项祝董梁杜阮蓝闵席季麻强贾路娄危江童颜郭梅盛林刁钟徐邱骆高夏蔡田胡凌霍虞万支柯昝管卢莫经房裘缪干解应宗丁宣邓郁单杭洪包诸左石崔吉龚程嵇邢滑裴陆荣翁荀羊於惠甄曲家封芮羿储靳汲邴糜松井段富巫乌焦巴弓牧隗山谷车侯宓蓬全郗班仰秋仲伊宫宁仇栾暴甘斜厉戎祖武符刘景詹束龙叶幸司韶郜黎蓟薄印宿白怀蒲台从鄂索咸籍赖卓蔺屠蒙池乔阴胥能苍双闻莘党翟谭贡劳逄姬申扶堵冉宰郦雍郤璩桑桂濮牛寿通边扈燕冀郏浦尚农温别庄晏柴瞿阎充慕连茹习宦艾鱼容向古易慎戈廖庾终暨居衡步都耿满弘匡国文寇广禄阙东沃利蔚越夔隆师巩厍聂晁勾敖融冷訾辛阚那简饶空曾毋沙乜养鞠须丰巢关蒯相查后荆红游竺权逯盖益桓公";
+const COMPOUND_CHINESE_SURNAMES = ["欧阳", "太史", "端木", "上官", "司马", "东方", "独孤", "南宫", "万俟", "闻人", "夏侯", "诸葛", "尉迟", "公羊", "赫连", "澹台", "皇甫", "宗政", "濮阳", "公冶", "仲孙", "钟离", "长孙", "慕容", "司徒", "司空"];
 
 const optionSets = {
   hasPower: ["有", "没有"],
@@ -291,6 +321,7 @@ const els = {
   dateFrom: document.querySelector("#dateFrom"),
   dateTo: document.querySelector("#dateTo"),
   resetFiltersBtn: document.querySelector("#resetFiltersBtn"),
+  exportExpressBtn: document.querySelector("#exportExpressBtn"),
   exportCsvBtn: document.querySelector("#exportCsvBtn"),
   pushWecomBtn: document.querySelector("#pushWecomBtn"),
   importExcelBtn: document.querySelector("#importExcelBtn"),
@@ -327,6 +358,12 @@ const els = {
   copyShareUrlBtn: document.querySelector("#copyShareUrlBtn"),
   closeShareDialogBtn: document.querySelector("#closeShareDialogBtn"),
   doneShareDialogBtn: document.querySelector("#doneShareDialogBtn"),
+  expressExportDialog: document.querySelector("#expressExportDialog"),
+  expressExportForm: document.querySelector("#expressExportForm"),
+  expressExportSummary: document.querySelector("#expressExportSummary"),
+  closeExpressExportDialogBtn: document.querySelector("#closeExpressExportDialogBtn"),
+  cancelExpressExportBtn: document.querySelector("#cancelExpressExportBtn"),
+  confirmExpressExportBtn: document.querySelector("#confirmExpressExportBtn"),
   modeNote: document.querySelector("#modeNote"),
   toast: document.querySelector("#toast"),
   addressPopover: document.querySelector("#addressPopover"),
@@ -1980,6 +2017,7 @@ function setView(view) {
   const isCustomerPortal = view === "customer";
   const isCustomerAdmin = view === "customerAdmin";
   const isAnalytics = view === "analytics";
+  document.body.classList.toggle("submissions-view", view === "submissions");
   document.body.classList.toggle("customer-portal", isCustomerPortal);
   els.repairViews.forEach((section) => {
     section.hidden = view !== "repair";
@@ -3157,6 +3195,82 @@ function buildAddressWithContact(submission) {
   return parts.join(" ");
 }
 
+function cleanExpressText(value = "") {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/[，,；;]+/g, " ")
+    .trim();
+}
+
+function findSubmissionForExpressRecord(record = {}) {
+  return findSubmissionForRecord(record) || findSubmissionByDeviceNumber(record.deviceNumber);
+}
+
+function getExpressRecipientInfo(record = {}) {
+  const submission = findSubmissionForExpressRecord(record);
+  const parsedFromAddress = parseRecipientFromAddress(record.customerAddress);
+  const name = cleanExpressText(submission?.contactName) || parsedFromAddress.name;
+  const mobile = normalizeMobileNumber(submission?.phone) || parsedFromAddress.mobile;
+  const address = cleanExpressText(submission?.customerAddress) || parsedFromAddress.address;
+  return { name, mobile, address };
+}
+
+function normalizeMobileNumber(value = "") {
+  const match = String(value || "").match(EXPRESS_MOBILE_RE);
+  return match?.[0] || "";
+}
+
+function parseRecipientFromAddress(value = "") {
+  const original = cleanExpressText(value);
+  if (!original) return { name: "", mobile: "", address: "" };
+
+  const mobileMatch = original.match(EXPRESS_MOBILE_RE);
+  const mobile = mobileMatch?.[0] || "";
+  if (!mobileMatch) return { name: "", mobile: "", address: original };
+
+  const beforePhone = cleanExpressText(original.slice(0, mobileMatch.index));
+  const afterPhone = cleanExpressText(original.slice(mobileMatch.index + mobile.length));
+  const name = extractRecipientName(beforePhone, afterPhone);
+  let address = beforePhone;
+  if (name && address.endsWith(name)) {
+    address = cleanExpressText(address.slice(0, -name.length));
+  }
+  if (!address && afterPhone) address = afterPhone;
+
+  return { name, mobile, address };
+}
+
+function extractRecipientName(beforePhone = "", afterPhone = "") {
+  const afterName = extractChineseNameCandidate(afterPhone, { fromStart: true });
+  if (afterName) return afterName;
+
+  const separators = /[\s,，;；/|]+/;
+  const beforeParts = cleanExpressText(beforePhone).split(separators).filter(Boolean);
+  for (let index = beforeParts.length - 1; index >= 0; index -= 1) {
+    const name = extractChineseNameCandidate(beforeParts[index], { fromEnd: true });
+    if (name) return name;
+  }
+  return extractChineseNameCandidate(beforePhone, { fromEnd: true });
+}
+
+function extractChineseNameCandidate(value = "", { fromStart = false, fromEnd = false } = {}) {
+  const text = String(value || "").replace(/[^\u4e00-\u9fa5·]/g, "");
+  if (!text) return "";
+  const names = [];
+  for (const surname of COMPOUND_CHINESE_SURNAMES) {
+    const pattern = new RegExp(`${surname}[\u4e00-\u9fa5·]{1,4}`, "g");
+    names.push(...(text.match(pattern) || []));
+  }
+  const singleSurnamePattern = new RegExp(`[${COMMON_CHINESE_SURNAMES}][\\u4e00-\\u9fa5·]{1,3}`, "g");
+  names.push(...(text.match(singleSurnamePattern) || []));
+  const validNames = names
+    .map((name) => name.slice(0, 4))
+    .filter((name) => name.length >= 2 && name.length <= 4);
+  if (fromStart) return validNames.find((name) => text.startsWith(name)) || "";
+  if (fromEnd) return [...validNames].reverse().find((name) => text.endsWith(name)) || "";
+  return validNames[0] || "";
+}
+
 function extractPowerAdapterAnswerFromText(text) {
   const match = String(text || "").match(/电源适配器是否寄回[:：]\s*([^\n\r]+)/);
   return normalizePowerAdapterAnswer(match?.[1] || "");
@@ -3451,6 +3565,13 @@ async function upsertRecord(record) {
 }
 
 function getCustomerSubmissionFromForm() {
+  const trackingNumber = String(els.customerForm.elements.trackingNumber.value || "").trim();
+  if (!trackingNumber) {
+    showToast("请填写寄出快递单号");
+    els.customerForm.elements.trackingNumber.focus();
+    return null;
+  }
+
   const deviceNumber = String(els.customerForm.elements.deviceNumber.value || "").trim();
   if (!/^\d{10}$/.test(deviceNumber)) {
     showToast("打印机编号必须填写 10 位数字");
@@ -3483,7 +3604,7 @@ function getCustomerSubmissionFromForm() {
     companyName: String(formData.get("companyName") || ""),
     contactName: String(formData.get("contactName") || ""),
     phone,
-    trackingNumber: String(formData.get("trackingNumber") || ""),
+    trackingNumber,
     customerIssue: `电源适配器是否寄回：${powerAdapterReturned}\n故障描述：${customerIssue}`,
     powerAdapterReturned,
     customerAddress: getCustomerAddressFromForm(),
@@ -3740,6 +3861,348 @@ function getExportFieldValue(record = {}, key = "") {
   return record[key];
 }
 
+function openExpressExportDialog() {
+  if (readonlyMode) return;
+  if (filteredRecords.length === 0) {
+    showToast("当前筛选没有可导出的记录");
+    return;
+  }
+  const exportItems = getExpressExportItems(filteredRecords);
+  renderExpressExportSummary(exportItems);
+  els.confirmExpressExportBtn.disabled = exportItems.some((item) => item.issues.length > 0);
+  els.expressExportDialog.showModal();
+}
+
+function renderExpressExportSummary(items) {
+  const badItems = items.filter((item) => item.issues.length > 0);
+  const goodItems = items.length - badItems.length;
+  const previewItems = items.slice(0, 5);
+  const badList = badItems.slice(0, 8)
+    .map((item) => `<li>${escapeHtml(item.label)}：${escapeHtml(item.issues.join("、"))}</li>`)
+    .join("");
+  const previewList = previewItems
+    .map((item) => `<li>${escapeHtml(item.recipient.name || "未识别收件人")} ${escapeHtml(item.recipient.mobile || "未识别手机")} ${escapeHtml(item.recipient.address || "未识别地址")}</li>`)
+    .join("");
+
+  els.expressExportSummary.innerHTML = `
+    <div class="express-export-stat">
+      <span>当前筛选</span>
+      <strong>${items.length} 条</strong>
+    </div>
+    <p>会按当前页面筛选出来的维修记录导出中通导入表格，文件名为 ${escapeHtml(chineseDateFileName())}。</p>
+    <p>可导出 ${goodItems} 条${badItems.length ? `，还有 ${badItems.length} 条缺必填项` : "，必填项都已识别"}。</p>
+    ${
+      badItems.length
+        ? `<div class="express-export-warning">
+            <strong>这些记录需要先补好：</strong>
+            <ul>${badList}</ul>
+          </div>`
+        : `<div class="express-export-preview">
+            <strong>前几条预览：</strong>
+            <ul>${previewList}</ul>
+          </div>`
+    }
+  `;
+}
+
+function getExpressExportItems(items) {
+  return items.map((record, index) => {
+    const recipient = getExpressRecipientInfo(record);
+    const issues = getExpressExportIssues(recipient);
+    return {
+      record,
+      recipient,
+      issues,
+      label: getExpressExportRecordLabel(record, index)
+    };
+  });
+}
+
+function getExpressExportIssues(recipient) {
+  const issues = [];
+  if (!recipient.name) issues.push("缺收件人");
+  if (!recipient.mobile) issues.push("缺收件人手机");
+  if (!recipient.address) issues.push("缺收件人地址");
+  return issues;
+}
+
+function getExpressExportRecordLabel(record, index) {
+  const label = record.deviceNumber || record.trackingNumber || record.customerAddress || `第 ${index + 1} 条`;
+  return `${index + 1}. ${label}`;
+}
+
+function exportExpressFromDialog(event) {
+  event.preventDefault();
+  const exportItems = getExpressExportItems(filteredRecords);
+  const badItems = exportItems.filter((item) => item.issues.length > 0);
+  if (badItems.length > 0) {
+    renderExpressExportSummary(exportItems);
+    els.confirmExpressExportBtn.disabled = true;
+    showToast("还有必填项没补好");
+    return;
+  }
+
+  const rows = exportItems.map(({ record, recipient }) => buildExpressExportRow(record, recipient));
+  const workbook = createExpressWorkbook(rows);
+  downloadFile(
+    chineseDateFileName(),
+    workbook,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  els.expressExportDialog.close();
+  showToast(`已导出 ${rows.length} 条快递`);
+}
+
+function buildExpressExportRow(record, recipient) {
+  return [
+    "",
+    "",
+    EXPRESS_EXPORT_SENDER.name,
+    EXPRESS_EXPORT_SENDER.mobile,
+    EXPRESS_EXPORT_SENDER.phone,
+    EXPRESS_EXPORT_SENDER.address,
+    EXPRESS_EXPORT_SENDER.company,
+    recipient.name,
+    recipient.mobile,
+    "",
+    recipient.address,
+    record.companyName || "",
+    "维修件",
+    "1",
+    "",
+    `维修=${record.deviceNumber || ""}`
+  ];
+}
+
+function createExpressWorkbook(rows) {
+  const files = {
+    "[Content_Types].xml": createXlsxContentTypesXml(),
+    "_rels/.rels": createXlsxRootRelsXml(),
+    "xl/workbook.xml": createXlsxWorkbookXml(),
+    "xl/_rels/workbook.xml.rels": createXlsxWorkbookRelsXml(),
+    "xl/styles.xml": createXlsxStylesXml(),
+    "xl/worksheets/sheet1.xml": createExpressSheetXml(rows)
+  };
+  return createZipArchive(files);
+}
+
+function createExpressSheetXml(rows) {
+  const sheetRows = [
+    createXlsxRow(1, EXPRESS_EXPORT_HEADERS, (index) => (
+      EXPRESS_REQUIRED_HEADER_INDEXES.has(index) ? 1 : 2
+    )),
+    ...rows.map((row, index) => createXlsxRow(index + 2, row, () => 0))
+  ].join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <dimension ref="A1:P${Math.max(rows.length + 1, 1)}"/>
+  <sheetViews><sheetView workbookViewId="0"/></sheetViews>
+  <sheetFormatPr defaultRowHeight="18"/>
+  <cols>
+    <col min="1" max="2" width="12" customWidth="1"/>
+    <col min="3" max="3" width="18" customWidth="1"/>
+    <col min="4" max="5" width="16" customWidth="1"/>
+    <col min="6" max="6" width="42" customWidth="1"/>
+    <col min="7" max="7" width="18" customWidth="1"/>
+    <col min="8" max="10" width="16" customWidth="1"/>
+    <col min="11" max="11" width="58" customWidth="1"/>
+    <col min="12" max="16" width="16" customWidth="1"/>
+  </cols>
+  <sheetData>${sheetRows}</sheetData>
+</worksheet>`;
+}
+
+function createXlsxRow(rowIndex, values, styleGetter) {
+  const cells = values
+    .map((value, columnIndex) => createXlsxInlineCell(rowIndex, columnIndex, value, styleGetter(columnIndex)))
+    .join("");
+  return `<row r="${rowIndex}">${cells}</row>`;
+}
+
+function createXlsxInlineCell(rowIndex, columnIndex, value, styleId = 0) {
+  const ref = `${columnIndexToName(columnIndex)}${rowIndex}`;
+  const style = styleId ? ` s="${styleId}"` : "";
+  return `<c r="${ref}" t="inlineStr"${style}><is><t>${escapeXml(value)}</t></is></c>`;
+}
+
+function columnIndexToName(index) {
+  let number = index + 1;
+  let name = "";
+  while (number > 0) {
+    const remainder = (number - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    number = Math.floor((number - 1) / 26);
+  }
+  return name;
+}
+
+function escapeXml(value = "") {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function createXlsxContentTypesXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`;
+}
+
+function createXlsxRootRelsXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`;
+}
+
+function createXlsxWorkbookXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Sheet1" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>`;
+}
+
+function createXlsxWorkbookRelsXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+}
+
+function createXlsxStylesXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="3">
+    <font><sz val="11"/><name val="宋体"/></font>
+    <font><b/><sz val="11"/><color rgb="FFFF0000"/><name val="宋体"/></font>
+    <font><b/><sz val="11"/><color rgb="FF000000"/><name val="宋体"/></font>
+  </fonts>
+  <fills count="2">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+  </fills>
+  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="3">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+    <xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+  </cellXfs>
+  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+}
+
+function createZipArchive(files) {
+  const encoder = new TextEncoder();
+  const fileEntries = Object.entries(files).map(([name, content]) => ({
+    nameBytes: encoder.encode(name),
+    data: typeof content === "string" ? encoder.encode(content) : new Uint8Array(content)
+  }));
+  const fileParts = [];
+  const centralParts = [];
+  let offset = 0;
+  const { dosTime, dosDate } = getZipDosDateTime();
+
+  fileEntries.forEach((entry) => {
+    const crc = crc32(entry.data);
+    const localHeader = new Uint8Array(30 + entry.nameBytes.length);
+    const localView = new DataView(localHeader.buffer);
+    localView.setUint32(0, 0x04034b50, true);
+    localView.setUint16(4, 20, true);
+    localView.setUint16(6, 0x0800, true);
+    localView.setUint16(8, 0, true);
+    localView.setUint16(10, dosTime, true);
+    localView.setUint16(12, dosDate, true);
+    localView.setUint32(14, crc, true);
+    localView.setUint32(18, entry.data.length, true);
+    localView.setUint32(22, entry.data.length, true);
+    localView.setUint16(26, entry.nameBytes.length, true);
+    localHeader.set(entry.nameBytes, 30);
+    fileParts.push(localHeader, entry.data);
+
+    const centralHeader = new Uint8Array(46 + entry.nameBytes.length);
+    const centralView = new DataView(centralHeader.buffer);
+    centralView.setUint32(0, 0x02014b50, true);
+    centralView.setUint16(4, 20, true);
+    centralView.setUint16(6, 20, true);
+    centralView.setUint16(8, 0x0800, true);
+    centralView.setUint16(10, 0, true);
+    centralView.setUint16(12, dosTime, true);
+    centralView.setUint16(14, dosDate, true);
+    centralView.setUint32(16, crc, true);
+    centralView.setUint32(20, entry.data.length, true);
+    centralView.setUint32(24, entry.data.length, true);
+    centralView.setUint16(28, entry.nameBytes.length, true);
+    centralView.setUint32(42, offset, true);
+    centralHeader.set(entry.nameBytes, 46);
+    centralParts.push(centralHeader);
+
+    offset += localHeader.length + entry.data.length;
+  });
+
+  const centralOffset = offset;
+  const centralSize = centralParts.reduce((total, part) => total + part.length, 0);
+  const end = new Uint8Array(22);
+  const endView = new DataView(end.buffer);
+  endView.setUint32(0, 0x06054b50, true);
+  endView.setUint16(8, fileEntries.length, true);
+  endView.setUint16(10, fileEntries.length, true);
+  endView.setUint32(12, centralSize, true);
+  endView.setUint32(16, centralOffset, true);
+
+  return concatUint8Arrays([...fileParts, ...centralParts, end]);
+}
+
+function getZipDosDateTime() {
+  const now = new Date();
+  const year = Math.max(1980, now.getFullYear());
+  return {
+    dosTime: (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2),
+    dosDate: ((year - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate()
+  };
+}
+
+function concatUint8Arrays(parts) {
+  const totalLength = parts.reduce((total, part) => total + part.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  parts.forEach((part) => {
+    result.set(part, offset);
+    offset += part.length;
+  });
+  return result;
+}
+
+function crc32(bytes) {
+  const table = crc32.table || (crc32.table = createCrc32Table());
+  let crc = -1;
+  bytes.forEach((byte) => {
+    crc = (crc >>> 8) ^ table[(crc ^ byte) & 0xff];
+  });
+  return (crc ^ -1) >>> 0;
+}
+
+function createCrc32Table() {
+  return Array.from({ length: 256 }, (_, index) => {
+    let crc = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
+    }
+    return crc >>> 0;
+  });
+}
+
 function exportCsv() {
   const header = exportFields.map(([, label]) => toCsvValue(label)).join(",");
   const rows = filteredRecords.map((record) => exportFields.map(([key]) => toCsvValue(getExportFieldValue(record, key))).join(","));
@@ -3747,7 +4210,7 @@ function exportCsv() {
 }
 
 function downloadFile(filename, content, type) {
-  const blob = new Blob([content], { type });
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -3760,6 +4223,10 @@ function downloadFile(filename, content, type) {
 
 function dateStamp() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function chineseDateFileName(date = new Date()) {
+  return `${date.getMonth() + 1}月${date.getDate()}号.xlsx`;
 }
 
 async function loadSampleRecords() {
@@ -4343,8 +4810,12 @@ function bindEvents() {
   els.importExcelBtn.addEventListener("click", () => els.importExcelInput.click());
   els.importExcelInput.addEventListener("change", () => importExcelFile(els.importExcelInput.files[0]));
   els.resetFiltersBtn.addEventListener("click", resetFilters);
+  els.exportExpressBtn.addEventListener("click", openExpressExportDialog);
   els.exportCsvBtn.addEventListener("click", exportCsv);
   els.pushWecomBtn.addEventListener("click", pushRepairStatsToWecom);
+  els.expressExportForm.addEventListener("submit", exportExpressFromDialog);
+  els.closeExpressExportDialogBtn.addEventListener("click", () => els.expressExportDialog.close());
+  els.cancelExpressExportBtn.addEventListener("click", () => els.expressExportDialog.close());
   els.metricCards.forEach((card) => {
     card.addEventListener("click", () => applyMetricShortcut(card));
   });
