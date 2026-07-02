@@ -235,6 +235,7 @@ const els = {
   analysisCategoryBars: document.querySelector("#analysisCategoryBars"),
   analysisRegionBars: document.querySelector("#analysisRegionBars"),
   analysisModelBars: document.querySelector("#analysisModelBars"),
+  analysisAccessoryBars: document.querySelector("#analysisAccessoryBars"),
   analysisTrendBars: document.querySelector("#analysisTrendBars"),
   analysisOwnershipTotal: document.querySelector("#analysisOwnershipTotal"),
   analysisOwnershipBars: document.querySelector("#analysisOwnershipBars"),
@@ -2135,6 +2136,11 @@ function countBy(items, getter) {
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "zh-CN"));
 }
 
+function getAccessoryUsageItems(items = []) {
+  return countBy(items, (record) => normalizeAccessoryParts(record.accessoryParts))
+    .filter((item) => !["快递费", "无费用"].includes(item.label));
+}
+
 function renderAnalysisBars(container, items, total, { limit = ANALYSIS_TOP_LIMIT, detailType = "" } = {}) {
   const visibleItems = items.slice(0, limit);
   if (visibleItems.length === 0) {
@@ -2227,6 +2233,8 @@ function renderAnalytics() {
   const categoryItems = countBy(analysisRecords, (record) => normalizeFaultCategories(record.faultCategory));
   const regionItems = countBy(analysisRecords, (record) => record.region || "未填写");
   const modelItems = countBy(analysisRecords, (record) => record.model || "未填写");
+  const accessoryItems = getAccessoryUsageItems(analysisRecords);
+  const accessoryTotal = accessoryItems.reduce((sum, item) => sum + item.count, 0);
   const ownershipItems = countBy(analysisRecords, (record) => record.faultOwnership || "未填写");
   const areaItems = countBy(analysisRecords, (record) => record.area || "未填写");
   const trendItems = getRecentTrend(analysisRecords);
@@ -2240,6 +2248,7 @@ function renderAnalytics() {
   renderAnalysisBars(els.analysisCategoryBars, categoryItems, stats.total, { detailType: "category-models" });
   renderAnalysisBars(els.analysisRegionBars, regionItems, stats.total, { detailType: "region-models" });
   renderAnalysisBars(els.analysisModelBars, modelItems, stats.total, { detailType: "model-categories" });
+  renderAnalysisBars(els.analysisAccessoryBars, accessoryItems, accessoryTotal);
   renderAnalysisBars(els.analysisTrendBars, trendItems, Math.max(...trendItems.map((item) => item.count), 0), {
     limit: ANALYSIS_TREND_DAYS
   });
@@ -4113,6 +4122,7 @@ function bindEvents() {
     els.analysisCategoryBars,
     els.analysisRegionBars,
     els.analysisModelBars,
+    els.analysisAccessoryBars,
     els.analysisOwnershipBars,
     els.analysisAreaBars
   ].forEach((container) => {
