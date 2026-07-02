@@ -37,7 +37,7 @@ const optionSets = {
   finalStatus: ["维修中", "邮寄并结束", "已寄出", "返厂中", "今天需要寄", "已修未付费", "测试中"],
   faultOwnership: ["硬件损坏", "非硬件", "外接因素"],
   faultCategory: ["传感器", "主板", "打印头", "模块", "屏幕", "电源", "塑料件", "未复现", "其他"],
-  accessoryParts: ["传感器", "打印头", "主板", "wifi模块", "wifi模块5g", "屏幕", "电源适配器", "卡勾", "电源接口", "塑料件/其他件", "快递费", "无费用"],
+  accessoryParts: ["传感器", "打印头", "主板", "wifi模块", "wifi模块5g", "屏幕", "电源适配器", "电池", "卡勾", "电源接口", "塑料件/其他件", "快递费", "无费用"],
   model: ["GMX", "GMI", "GMT", "GMH", "GMX-5G", "GMT-5G", "DK110A", "DK110B", "DK110S", "DK80", "新北洋110", "芯烨80"]
 };
 
@@ -87,6 +87,7 @@ const accessoryPartPricesByModel = {
     wifi模块: 50,
     屏幕: 60,
     电源适配器: 60,
+    电池: null,
     电源接口: 60,
     "塑料件/其他件": 1
   },
@@ -950,6 +951,9 @@ function getAccessoryPartQuote(part) {
   const model = els.recordForm.elements.model.value;
   const modelPrices = accessoryPartPricesByModel[model] || {};
   if (Object.prototype.hasOwnProperty.call(modelPrices, part)) {
+    if (modelPrices[part] == null || modelPrices[part] === "") {
+      return { hasPrice: false, label: part };
+    }
     return { hasPrice: true, label: part, price: modelPrices[part] };
   }
   return { hasPrice: false, label: part };
