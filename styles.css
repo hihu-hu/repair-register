@@ -391,6 +391,24 @@ h2 {
   white-space: nowrap;
 }
 
+.analysis-panel-toggle {
+  height: 32px;
+  min-width: 56px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.analysis-panel-toggle.is-active {
+  border-color: #d13f3f;
+  background: #d13f3f;
+  color: #fff;
+}
+
 .analysis-panel-select {
   width: auto;
   min-width: 104px;

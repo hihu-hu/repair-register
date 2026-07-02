@@ -237,6 +237,7 @@ const els = {
   analysisRegionBars: document.querySelector("#analysisRegionBars"),
   analysisModelBars: document.querySelector("#analysisModelBars"),
   analysisAccessoryPanel: document.querySelector("#analysisAccessoryPanel"),
+  analysisAccessoryFeeModeBtn: document.querySelector("#analysisAccessoryFeeModeBtn"),
   analysisAccessoryModelFilter: document.querySelector("#analysisAccessoryModelFilter"),
   analysisAccessoryBars: document.querySelector("#analysisAccessoryBars"),
   analysisTrendBars: document.querySelector("#analysisTrendBars"),
@@ -340,6 +341,7 @@ let cloudMode = false;
 let adminMode = false;
 let currentAdmin = null;
 let showAccessoryAnalytics = false;
+let accessoryFeeMode = "paid";
 let forceReadonlyMode = false;
 let supabaseClient = null;
 const sharedData = readSharedData();
@@ -579,12 +581,14 @@ function handleRecordBeforeUnload(event) {
 }
 
 function normalizeCustomerSubmission(item = {}) {
+  const deviceNumber = String(item.deviceNumber || item.device_number || "").trim();
+  const inferredModel = inferModelFromDeviceNumber(deviceNumber);
   const customerIssue = String(item.customerIssue || item.customer_issue || "").trim();
   return {
     id: String(item.id || createCustomerSubmissionId()),
     createdTime: normalizeDateTime(item.createdTime || item.created_at || new Date()),
-    deviceNumber: String(item.deviceNumber || item.device_number || "").trim(),
-    model: normalizeOption(item.model, optionSets.model, "GMX"),
+    deviceNumber,
+    model: inferredModel || normalizeOption(item.model, optionSets.model, "GMX"),
     companyName: String(item.companyName || item.company_name || "").trim(),
     contactName: String(item.contactName || item.contact_name || "").trim(),
     phone: String(item.phone || "").trim(),
@@ -600,6 +604,8 @@ function normalizeCustomerSubmission(item = {}) {
 
 function normalizeRecord(record = {}) {
   const region = String(record.region || "");
+  const deviceNumber = String(record.deviceNumber || record.printerId || "");
+  const inferredModel = inferModelFromDeviceNumber(deviceNumber);
   const rawAccessoryParts = record.accessoryParts || record.accessory_parts;
   const rawCustomPartPrice = record.customPartPrice ?? record.custom_part_price ?? extractCustomPartPriceFromAccessoryParts(rawAccessoryParts);
   const rawZeroFeeParts = record.zeroFeeParts ?? record.zero_fee_parts ?? extractZeroFeePartsFromAccessoryParts(rawAccessoryParts);
@@ -609,7 +615,7 @@ function normalizeRecord(record = {}) {
     trackingNumber: String(record.trackingNumber || record.inboundTracking || ""),
     region,
     area: classifyArea(region),
-    deviceNumber: String(record.deviceNumber || record.printerId || ""),
+    deviceNumber,
     hasPower: normalizeOption(record.hasPower, optionSets.hasPower, "有"),
     companyName: String(record.companyName || record.customer || ""),
     customerIssue: String(record.customerIssue || record.issue || ""),
@@ -621,7 +627,7 @@ function normalizeRecord(record = {}) {
     faultCategory: normalizeFaultCategories(record.faultCategory).join(MULTI_VALUE_SEPARATOR),
     accessoryParts: normalizeAccessoryParts(rawAccessoryParts).join(MULTI_VALUE_SEPARATOR),
     customerAddress: String(record.customerAddress || record.address || ""),
-    model: normalizeOption(record.model, optionSets.model, "GMX"),
+    model: inferredModel || normalizeOption(record.model, optionSets.model, "GMX"),
     customPartPrice: normalizeMoneyValue(rawCustomPartPrice),
     zeroFeeParts: normalizeAccessoryParts(rawZeroFeeParts).join(MULTI_VALUE_SEPARATOR),
     updatedAt: String(record.updatedAt || new Date().toISOString())
@@ -1112,10 +1118,9 @@ function classifyArea(region) {
 
 function normalizeDateTime(value) {
   if (!value) return "";
-  const date = value instanceof Date ? value : new Date(String(value));
-  if (Number.isNaN(date.getTime())) {
-    return String(value).slice(0, 16);
-  }
+  const parsedTime = parseRecordTime(value);
+  const date = parsedTime ? new Date(parsedTime) : value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 16);
   return toInputDateTime(date);
 }
 
@@ -1959,6 +1964,9 @@ function refreshAccessoryAnalyticsVisibility() {
   els.analysisAccessoryToggleBtn.classList.toggle("is-active", canView && showAccessoryAnalytics);
   els.analysisAccessoryToggleBtn.setAttribute("aria-pressed", canView && showAccessoryAnalytics ? "true" : "false");
   els.analysisAccessoryPanel.hidden = !canView || !showAccessoryAnalytics;
+  els.analysisAccessoryFeeModeBtn.textContent = accessoryFeeMode === "warranty" ? "保修" : "付费";
+  els.analysisAccessoryFeeModeBtn.classList.toggle("is-active", accessoryFeeMode === "warranty");
+  els.analysisAccessoryFeeModeBtn.setAttribute("aria-pressed", accessoryFeeMode === "warranty" ? "true" : "false");
 }
 
 function setView(view) {
@@ -2194,12 +2202,16 @@ function countBy(items, getter) {
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "zh-CN"));
 }
 
-function getAccessoryUsageItems(items = [], model = "") {
+function getAccessoryUsageItems(items = [], model = "", feeMode = "paid") {
   const matchedItems = model ? items.filter((record) => record.model === model) : items;
   const usageMap = new Map();
   matchedItems.forEach((record) => {
+    const zeroFeeSet = new Set(normalizeAccessoryParts(record.zeroFeeParts));
     normalizeAccessoryParts(record.accessoryParts).forEach((part) => {
       if (model && part === "无费用") return;
+      const isWarrantyPart = zeroFeeSet.has(part) || part === "无费用";
+      if (feeMode === "warranty" && !isWarrantyPart) return;
+      if (feeMode !== "warranty" && isWarrantyPart) return;
       const item = usageMap.get(part) || {
         label: part,
         count: 0,
@@ -2378,7 +2390,7 @@ function renderAnalytics() {
   const modelItems = countBy(analysisRecords, (record) => record.model || "未填写");
   const accessoryModelFilter = els.analysisAccessoryModelFilter.value;
   const accessoryItems = showAccessoryAnalytics
-    ? getAccessoryUsageItems(analysisRecords, accessoryModelFilter)
+    ? getAccessoryUsageItems(analysisRecords, accessoryModelFilter, accessoryFeeMode)
     : [];
   const accessoryTotal = accessoryItems.reduce((sum, item) => sum + item.count, 0);
   const accessoryDisplayItems = withAccessoryPriceText(accessoryItems, accessoryModelFilter, accessoryTotal);
@@ -4237,6 +4249,10 @@ function bindEvents() {
   els.analysisAccessoryToggleBtn.addEventListener("click", () => {
     if (!canViewAccessoryAnalytics()) return;
     showAccessoryAnalytics = !showAccessoryAnalytics;
+    renderAnalytics();
+  });
+  els.analysisAccessoryFeeModeBtn.addEventListener("click", () => {
+    accessoryFeeMode = accessoryFeeMode === "warranty" ? "paid" : "warranty";
     renderAnalytics();
   });
   els.analysisAccessoryModelFilter.addEventListener("change", renderAnalytics);
