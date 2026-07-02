@@ -3967,8 +3967,8 @@ function buildExpressExportRow(record, recipient) {
     "",
     recipient.address,
     record.companyName || "",
-    "维修件",
-    "1",
+    "",
+    "",
     "",
     `维修=${record.deviceNumber || ""}`
   ];
