@@ -87,7 +87,7 @@ const accessoryPartPricesByModel = {
     wifi模块: 50,
     屏幕: 60,
     电源适配器: 60,
-    电池: null,
+    电池: 100,
     电源接口: 60,
     "塑料件/其他件": 1
   },
