@@ -235,6 +235,7 @@ const els = {
   analysisCategoryBars: document.querySelector("#analysisCategoryBars"),
   analysisRegionBars: document.querySelector("#analysisRegionBars"),
   analysisModelBars: document.querySelector("#analysisModelBars"),
+  analysisAccessoryModelFilter: document.querySelector("#analysisAccessoryModelFilter"),
   analysisAccessoryBars: document.querySelector("#analysisAccessoryBars"),
   analysisTrendBars: document.querySelector("#analysisTrendBars"),
   analysisOwnershipTotal: document.querySelector("#analysisOwnershipTotal"),
@@ -1497,6 +1498,8 @@ function fillStaticOptions() {
   fillSelect(els.ownershipFilter, optionSets.faultOwnership, true);
   fillCategoryFilterPicker();
   fillSelect(els.modelFilter, optionSets.model, true);
+  fillSelect(els.analysisAccessoryModelFilter, optionSets.model, true);
+  els.analysisAccessoryModelFilter.options[0].textContent = "全部型号";
   fillSelect(els.areaFilter, optionSets.area, true);
   fillRequiredSelect(els.submissionForm.elements.model, optionSets.model);
   fillRequiredSelect(els.recordForm.elements.hasPower, optionSets.hasPower);
@@ -2136,8 +2139,9 @@ function countBy(items, getter) {
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "zh-CN"));
 }
 
-function getAccessoryUsageItems(items = []) {
-  return countBy(items, (record) => normalizeAccessoryParts(record.accessoryParts))
+function getAccessoryUsageItems(items = [], model = "") {
+  const matchedItems = model ? items.filter((record) => record.model === model) : items;
+  return countBy(matchedItems, (record) => normalizeAccessoryParts(record.accessoryParts))
     .filter((item) => !["快递费", "无费用"].includes(item.label));
 }
 
@@ -2233,7 +2237,7 @@ function renderAnalytics() {
   const categoryItems = countBy(analysisRecords, (record) => normalizeFaultCategories(record.faultCategory));
   const regionItems = countBy(analysisRecords, (record) => record.region || "未填写");
   const modelItems = countBy(analysisRecords, (record) => record.model || "未填写");
-  const accessoryItems = getAccessoryUsageItems(analysisRecords);
+  const accessoryItems = getAccessoryUsageItems(analysisRecords, els.analysisAccessoryModelFilter.value);
   const accessoryTotal = accessoryItems.reduce((sum, item) => sum + item.count, 0);
   const ownershipItems = countBy(analysisRecords, (record) => record.faultOwnership || "未填写");
   const areaItems = countBy(analysisRecords, (record) => record.area || "未填写");
@@ -2248,7 +2252,7 @@ function renderAnalytics() {
   renderAnalysisBars(els.analysisCategoryBars, categoryItems, stats.total, { detailType: "category-models" });
   renderAnalysisBars(els.analysisRegionBars, regionItems, stats.total, { detailType: "region-models" });
   renderAnalysisBars(els.analysisModelBars, modelItems, stats.total, { detailType: "model-categories" });
-  renderAnalysisBars(els.analysisAccessoryBars, accessoryItems, accessoryTotal);
+  renderAnalysisBars(els.analysisAccessoryBars, accessoryItems, accessoryTotal, { limit: optionSets.accessoryParts.length });
   renderAnalysisBars(els.analysisTrendBars, trendItems, Math.max(...trendItems.map((item) => item.count), 0), {
     limit: ANALYSIS_TREND_DAYS
   });
@@ -4084,6 +4088,7 @@ function bindEvents() {
       renderAnalytics();
     });
   });
+  els.analysisAccessoryModelFilter.addEventListener("change", renderAnalytics);
   els.resetAnalysisDateBtn.addEventListener("click", () => {
     setAnalysisDateToThisYear();
     hideAnalysisPopover();
