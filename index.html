@@ -10,7 +10,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260702-super-accessory-toggle">
+    <link rel="stylesheet" href="styles.css?v=20260702-table-fee-col">
   </head>
   <body>
     <header class="app-header">
@@ -138,13 +138,14 @@
             <thead>
               <tr>
                 <th>创建时间</th>
-                <th>快递单号</th>
+                <th class="tracking-col">快递单号</th>
                 <th>地区 / 区域</th>
                 <th>编号 / 型号</th>
                 <th>电源</th>
-                <th>公司名</th>
+                <th class="company-col">公司名</th>
                 <th class="customer-issue-heading">客户描述问题</th>
                 <th class="customer-issue-heading">维修过程</th>
+                <th class="fee-col">费用</th>
                 <th>寄回单号</th>
                 <th>最终状态</th>
                 <th>故障归属</th>
@@ -417,10 +418,6 @@
             <input name="region" required placeholder="例如：上海、浙江、华东">
           </label>
           <label>
-            <span>型号</span>
-            <input class="readonly-field" name="model" readonly placeholder="填写编号后自动匹配">
-          </label>
-          <label>
             <span>编号</span>
             <input name="deviceNumber" required inputmode="numeric" maxlength="10" pattern="\d{10}" title="请填写 10 位数字">
           </label>
@@ -429,16 +426,20 @@
             <select name="hasPower" required></select>
           </label>
           <label>
+            <span>型号</span>
+            <input class="readonly-field" name="model" readonly placeholder="填写编号后自动匹配">
+          </label>
+          <label>
             <span>最终状态</span>
             <select name="finalStatus" required></select>
           </label>
           <label>
-            <span>公司名</span>
-            <input class="readonly-field" name="companyName" readonly required placeholder="匹配客户提交后自动显示">
-          </label>
-          <label>
             <span>故障归属</span>
             <select name="faultOwnership" required></select>
+          </label>
+          <label>
+            <span>公司名</span>
+            <input class="readonly-field" name="companyName" readonly required placeholder="匹配客户提交后自动显示">
           </label>
           <label>
             <span>故障分类</span>
@@ -460,7 +461,7 @@
           </label>
           <label>
             <span id="accessoryPartsLabel">本单所用配件</span>
-            <select name="accessoryParts" multiple hidden></select>
+            <select name="accessoryParts" multiple required hidden></select>
             <input name="customPartPrice" type="hidden">
             <input name="zeroFeeParts" type="hidden">
             <div class="checkbox-select" id="accessoryPartsPicker">
@@ -654,6 +655,6 @@
     <div class="analysis-popover analysis-grandchild-popover" id="analysisGrandchildPopover" role="dialog" aria-label="分析下级明细" hidden></div>
 
     <script src="area-data.js"></script>
-    <script src="app.js?v=20260702-accessory-actual-total"></script>
+    <script src="app.js?v=20260702-accessory-required"></script>
   </body>
 </html>

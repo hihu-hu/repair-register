@@ -972,6 +972,35 @@ function getAccessoryPartQuote(part) {
   return { hasPrice: false, label: part };
 }
 
+function getRecordAccessoryPartAmount(record = {}, part = "") {
+  const actualAmount = getRecordAccessoryActualAmount(record, part);
+  if (actualAmount.shouldUseActualAmount) return actualAmount;
+
+  const price = accessoryPartPricesByModel[record.model]?.[part];
+  if (Number.isFinite(Number(price))) {
+    return { shouldUseActualAmount: false, hasAmount: true, amount: Number(price) };
+  }
+  return { shouldUseActualAmount: false, hasAmount: false, amount: 0 };
+}
+
+function getRecordRepairFeeText(record = {}) {
+  const selectedParts = normalizeAccessoryParts(record.accessoryParts);
+  if (selectedParts.length === 0) return "-";
+
+  let total = 0;
+  let hasPendingAmount = false;
+  selectedParts.forEach((part) => {
+    const amount = getRecordAccessoryPartAmount(record, part);
+    if (amount.hasAmount) {
+      total += amount.amount;
+    } else {
+      hasPendingAmount = true;
+    }
+  });
+
+  return hasPendingAmount ? "待定" : `${formatPlainAmount(total)}元`;
+}
+
 function updateRepairFeeDetails(selectedParts = getMultiSelectValues(els.recordForm.elements.accessoryParts)) {
   if (!els.repairFeeBox) return;
   if (selectedParts.length === 0) {
@@ -1011,7 +1040,7 @@ function updateRepairFeeDetails(selectedParts = getMultiSelectValues(els.recordF
 }
 
 function isAccessoryPartsRequired() {
-  return ["今天需要寄", "已修未付费", "邮寄并结束", "已寄出"].includes(els.recordForm.elements.finalStatus.value);
+  return true;
 }
 
 function updateAccessoryPartsRequirement() {
@@ -2888,7 +2917,7 @@ function renderTable() {
       (record) => `
         <tr data-id="${escapeHtml(record.id)}">
           <td>${compact(formatDateTime(record.createdTime))}</td>
-          <td><span class="plain-cell">${compact(record.trackingNumber)}</span></td>
+          <td class="tracking-col"><span class="plain-cell tracking-cell">${compact(record.trackingNumber)}</span></td>
           <td>
             <span class="cell-main">${compact(record.region)}</span>
             <span class="cell-sub"><span class="tag ${areaClass(record.area)}">${compact(record.area)}</span></span>
@@ -2898,9 +2927,10 @@ function renderTable() {
             <span class="cell-sub">${compact(record.model)}</span>
           </td>
           <td><span class="tag ${powerClass(record.hasPower)}">${compact(record.hasPower)}</span></td>
-          <td><span class="plain-cell">${compact(record.companyName)}</span></td>
+          <td class="company-col"><span class="plain-cell company-cell">${compact(record.companyName)}</span></td>
           <td class="text-cell">${compact(record.customerIssue)}</td>
           <td class="text-cell">${compact(record.repairProcess)}</td>
+          <td class="fee-col"><span class="plain-cell fee-cell">${compact(getRecordRepairFeeText(record))}</span></td>
           <td><span class="plain-cell">${compact(record.returnTrackingNumber)}</span></td>
           <td><span class="tag ${statusClass(record.finalStatus)}">${compact(record.finalStatus)}</span></td>
           <td><span class="tag ${ownershipClass(record.faultOwnership)}">${compact(record.faultOwnership)}</span></td>
@@ -3335,7 +3365,7 @@ function getFormRecord() {
     showCustomPartPriceRequired();
     return null;
   }
-  if (["今天需要寄", "已修未付费", "邮寄并结束", "已寄出"].includes(record.finalStatus) && record.accessoryParts.length === 0) {
+  if (isAccessoryPartsRequired() && record.accessoryParts.length === 0) {
     showAccessoryPartsRequired();
     return null;
   }

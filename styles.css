@@ -1106,6 +1106,41 @@ body:not(.readonly) tbody tr {
   font-weight: 400;
 }
 
+.tracking-col {
+  width: 10ch;
+  max-width: 10ch;
+}
+
+.tracking-cell {
+  max-width: 10ch;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  line-height: 1.45;
+}
+
+.company-col {
+  width: 12ch;
+  max-width: 12ch;
+}
+
+.company-cell {
+  max-width: 12ch;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  line-height: 1.45;
+}
+
+.fee-col {
+  width: 8ch;
+  max-width: 8ch;
+}
+
+.fee-cell {
+  color: var(--accent-dark);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .cell-sub {
   display: block;
   margin-top: 3px;
