@@ -3719,9 +3719,30 @@ function toCsvValue(value) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
+function formatExportAccessoryParts(record = {}) {
+  const selectedParts = normalizeAccessoryParts(record.accessoryParts);
+  if (selectedParts.length === 0) return "";
+
+  const zeroFeeSet = new Set(normalizeAccessoryParts(record.zeroFeeParts));
+  return selectedParts
+    .map((part) => {
+      const amount = zeroFeeSet.has(part)
+        ? { hasAmount: true, amount: 0 }
+        : getRecordAccessoryPartAmount(record, part);
+      const amountText = amount.hasAmount ? `${formatPlainAmount(amount.amount)}元` : "待定";
+      return `${part}(${amountText})`;
+    })
+    .join(MULTI_VALUE_SEPARATOR);
+}
+
+function getExportFieldValue(record = {}, key = "") {
+  if (key === "accessoryParts") return formatExportAccessoryParts(record);
+  return record[key];
+}
+
 function exportCsv() {
   const header = exportFields.map(([, label]) => toCsvValue(label)).join(",");
-  const rows = filteredRecords.map((record) => exportFields.map(([key]) => toCsvValue(record[key])).join(","));
+  const rows = filteredRecords.map((record) => exportFields.map(([key]) => toCsvValue(getExportFieldValue(record, key))).join(","));
   downloadFile(`打印机维修记录_${dateStamp()}.csv`, "\ufeff" + [header, ...rows].join("\n"), "text/csv;charset=utf-8");
 }
 
