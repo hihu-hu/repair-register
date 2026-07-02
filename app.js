@@ -2217,7 +2217,10 @@ function getAccessoryUsageItems(items = [], model = "", feeMode = "paid") {
         count: 0,
         actualAmountTotal: 0,
         hasActualAmount: false,
-        hasPendingAmount: false
+        hasPendingAmount: false,
+        warrantyAmountTotal: 0,
+        hasWarrantyAmount: false,
+        hasPendingWarrantyAmount: false
       };
       item.count += 1;
 
@@ -2228,6 +2231,16 @@ function getAccessoryUsageItems(items = [], model = "", feeMode = "paid") {
           item.actualAmountTotal += actualAmount.amount;
         } else {
           item.hasPendingAmount = true;
+        }
+      }
+
+      if (isWarrantyPart) {
+        const warrantyAmount = getRecordAccessoryWarrantyAmount(record, part);
+        item.hasWarrantyAmount = true;
+        if (warrantyAmount.hasAmount) {
+          item.warrantyAmountTotal += warrantyAmount.amount;
+        } else {
+          item.hasPendingWarrantyAmount = true;
         }
       }
 
@@ -2266,13 +2279,37 @@ function getRecordAccessoryActualAmount(record = {}, part = "") {
   return { shouldUseActualAmount: false, hasAmount: false, amount: 0 };
 }
 
+function getRecordAccessoryWarrantyAmount(record = {}, part = "") {
+  if (part === "无费用") return { hasAmount: true, amount: 0 };
+  if (part === CUSTOM_PRICE_ACCESSORY_PART) {
+    const price = normalizeMoneyValue(record.customPartPrice || extractCustomPartPriceFromAccessoryParts(record.accessoryParts));
+    return {
+      hasAmount: Boolean(price),
+      amount: Number(price) || 0
+    };
+  }
+  if (part === "快递费") return getRecordShippingFeeAmount(record);
+
+  const unitPrice = getAccessoryUnitPrice(part, record.model);
+  return {
+    hasAmount: unitPrice != null,
+    amount: unitPrice || 0
+  };
+}
+
 function getAccessoryUnitPrice(part, model) {
   const modelPrices = accessoryPartPricesByModel[model] || {};
   const price = modelPrices[part];
   return Number.isFinite(Number(price)) ? Number(price) : null;
 }
 
-function withAccessoryPriceText(items = [], model = "", total = 0) {
+function withAccessoryPriceText(items = [], model = "", total = 0, feeMode = "paid") {
+  if (feeMode === "warranty") {
+    return items.map((item) => ({
+      ...item,
+      valueText: `${item.count} 条 共 ${item.hasPendingWarrantyAmount ? "待定" : `${formatPlainAmount(item.warrantyAmountTotal)}元`} · ${formatPercent(item.count, total)}`
+    }));
+  }
   if (!model) return items;
   return items.map((item) => {
     if (item.hasActualAmount) {
@@ -2393,7 +2430,7 @@ function renderAnalytics() {
     ? getAccessoryUsageItems(analysisRecords, accessoryModelFilter, accessoryFeeMode)
     : [];
   const accessoryTotal = accessoryItems.reduce((sum, item) => sum + item.count, 0);
-  const accessoryDisplayItems = withAccessoryPriceText(accessoryItems, accessoryModelFilter, accessoryTotal);
+  const accessoryDisplayItems = withAccessoryPriceText(accessoryItems, accessoryModelFilter, accessoryTotal, accessoryFeeMode);
   const ownershipItems = countBy(analysisRecords, (record) => record.faultOwnership || "未填写");
   const areaItems = countBy(analysisRecords, (record) => record.area || "未填写");
   const trendItems = getRecentTrend(analysisRecords);
