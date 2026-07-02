@@ -2167,9 +2167,62 @@ function countBy(items, getter) {
 
 function getAccessoryUsageItems(items = [], model = "") {
   const matchedItems = model ? items.filter((record) => record.model === model) : items;
-  const usageItems = countBy(matchedItems, (record) => normalizeAccessoryParts(record.accessoryParts));
-  if (!model) return usageItems;
-  return usageItems.filter((item) => !["快递费", "无费用"].includes(item.label));
+  const usageMap = new Map();
+  matchedItems.forEach((record) => {
+    normalizeAccessoryParts(record.accessoryParts).forEach((part) => {
+      if (model && part === "无费用") return;
+      const item = usageMap.get(part) || {
+        label: part,
+        count: 0,
+        actualAmountTotal: 0,
+        hasActualAmount: false,
+        hasPendingAmount: false
+      };
+      item.count += 1;
+
+      const actualAmount = getRecordAccessoryActualAmount(record, part);
+      if (actualAmount.shouldUseActualAmount) {
+        item.hasActualAmount = true;
+        if (actualAmount.hasAmount) {
+          item.actualAmountTotal += actualAmount.amount;
+        } else {
+          item.hasPendingAmount = true;
+        }
+      }
+
+      usageMap.set(part, item);
+    });
+  });
+  return [...usageMap.values()]
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "zh-CN"));
+}
+
+function getRecordShippingFeeAmount(record = {}) {
+  const province = provinceKeyFromAreaName([record.region, record.customerAddress].join(" "));
+  if (!province) return { hasAmount: false, amount: 0 };
+  return { hasAmount: true, amount: Number(shippingFeesByProvince[province]) || 0 };
+}
+
+function getRecordAccessoryActualAmount(record = {}, part = "") {
+  const zeroFeeSet = new Set(normalizeAccessoryParts(record.zeroFeeParts));
+  if (zeroFeeSet.has(part) || part === "无费用") {
+    return { shouldUseActualAmount: true, hasAmount: true, amount: 0 };
+  }
+  if (part === CUSTOM_PRICE_ACCESSORY_PART) {
+    const price = normalizeMoneyValue(record.customPartPrice || extractCustomPartPriceFromAccessoryParts(record.accessoryParts));
+    return {
+      shouldUseActualAmount: true,
+      hasAmount: Boolean(price),
+      amount: Number(price) || 0
+    };
+  }
+  if (part === "快递费") {
+    return {
+      shouldUseActualAmount: true,
+      ...getRecordShippingFeeAmount(record)
+    };
+  }
+  return { shouldUseActualAmount: false, hasAmount: false, amount: 0 };
 }
 
 function getAccessoryUnitPrice(part, model) {
@@ -2181,6 +2234,12 @@ function getAccessoryUnitPrice(part, model) {
 function withAccessoryPriceText(items = [], model = "", total = 0) {
   if (!model) return items;
   return items.map((item) => {
+    if (item.hasActualAmount) {
+      return {
+        ...item,
+        valueText: `${item.count} 条 共 ${item.hasPendingAmount ? "待定" : `${formatPlainAmount(item.actualAmountTotal)}元`} · ${formatPercent(item.count, total)}`
+      };
+    }
     const unitPrice = getAccessoryUnitPrice(item.label, model);
     if (unitPrice == null) {
       return {
