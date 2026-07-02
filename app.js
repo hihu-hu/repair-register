@@ -903,6 +903,14 @@ function formatRepairFee(value) {
   })}`;
 }
 
+function formatPlainAmount(value) {
+  const amount = Number(value);
+  return amount.toLocaleString("zh-CN", {
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2
+  });
+}
+
 function compactAreaName(value = "") {
   return String(value)
     .replace(/\s/g, "")
@@ -2164,6 +2172,29 @@ function getAccessoryUsageItems(items = [], model = "") {
   return usageItems.filter((item) => !["快递费", "无费用"].includes(item.label));
 }
 
+function getAccessoryUnitPrice(part, model) {
+  const modelPrices = accessoryPartPricesByModel[model] || {};
+  const price = modelPrices[part];
+  return Number.isFinite(Number(price)) ? Number(price) : null;
+}
+
+function withAccessoryPriceText(items = [], model = "", total = 0) {
+  if (!model) return items;
+  return items.map((item) => {
+    const unitPrice = getAccessoryUnitPrice(item.label, model);
+    if (unitPrice == null) {
+      return {
+        ...item,
+        valueText: `${item.count} 条 · 待定 · ${formatPercent(item.count, total)}`
+      };
+    }
+    return {
+      ...item,
+      valueText: `${item.count} 条 * ${formatPlainAmount(unitPrice)} = ${formatPlainAmount(item.count * unitPrice)}元 · ${formatPercent(item.count, total)}`
+    };
+  });
+}
+
 function renderAnalysisBars(container, items, total, { limit = ANALYSIS_TOP_LIMIT, detailType = "" } = {}) {
   const visibleItems = items.slice(0, limit);
   if (visibleItems.length === 0) {
@@ -2257,10 +2288,12 @@ function renderAnalytics() {
   const categoryItems = countBy(analysisRecords, (record) => normalizeFaultCategories(record.faultCategory));
   const regionItems = countBy(analysisRecords, (record) => record.region || "未填写");
   const modelItems = countBy(analysisRecords, (record) => record.model || "未填写");
+  const accessoryModelFilter = els.analysisAccessoryModelFilter.value;
   const accessoryItems = showAccessoryAnalytics
-    ? getAccessoryUsageItems(analysisRecords, els.analysisAccessoryModelFilter.value)
+    ? getAccessoryUsageItems(analysisRecords, accessoryModelFilter)
     : [];
   const accessoryTotal = accessoryItems.reduce((sum, item) => sum + item.count, 0);
+  const accessoryDisplayItems = withAccessoryPriceText(accessoryItems, accessoryModelFilter, accessoryTotal);
   const ownershipItems = countBy(analysisRecords, (record) => record.faultOwnership || "未填写");
   const areaItems = countBy(analysisRecords, (record) => record.area || "未填写");
   const trendItems = getRecentTrend(analysisRecords);
@@ -2275,7 +2308,7 @@ function renderAnalytics() {
   renderAnalysisBars(els.analysisRegionBars, regionItems, stats.total, { detailType: "region-models" });
   renderAnalysisBars(els.analysisModelBars, modelItems, stats.total, { detailType: "model-categories" });
   if (showAccessoryAnalytics) {
-    renderAnalysisBars(els.analysisAccessoryBars, accessoryItems, accessoryTotal, { limit: optionSets.accessoryParts.length });
+    renderAnalysisBars(els.analysisAccessoryBars, accessoryDisplayItems, accessoryTotal, { limit: optionSets.accessoryParts.length });
   }
   renderAnalysisBars(els.analysisTrendBars, trendItems, Math.max(...trendItems.map((item) => item.count), 0), {
     limit: ANALYSIS_TREND_DAYS
