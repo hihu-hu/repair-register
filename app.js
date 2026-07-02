@@ -874,6 +874,7 @@ function updateAccessoryPartsPicker() {
   els.accessoryPartsClearBtn.disabled = selected.length === 0;
   syncCheckboxMenu(els.accessoryPartsMenu, selected);
   updateRepairFeeDetails(selected);
+  if (!els.accessoryPartsMenu.hidden) requestAnimationFrame(positionAccessoryPartsMenu);
 }
 
 function clearAccessoryPartsPicker() {
@@ -1122,6 +1123,43 @@ function closeFaultCategoryPicker() {
 function closeAccessoryPartsPicker() {
   els.accessoryPartsMenu.hidden = true;
   els.accessoryPartsToggle.setAttribute("aria-expanded", "false");
+  resetFloatingMenu(els.accessoryPartsMenu);
+}
+
+function resetFloatingMenu(menu) {
+  menu.classList.remove("is-floating-menu");
+  ["top", "left", "width", "maxHeight"].forEach((property) => {
+    menu.style[property] = "";
+  });
+}
+
+function positionAccessoryPartsMenu() {
+  if (els.accessoryPartsMenu.hidden) return;
+  const anchor = document.querySelector("#accessoryPartsPicker .checkbox-select-actions") || els.accessoryPartsToggle;
+  const rect = anchor.getBoundingClientRect();
+  const margin = 12;
+  const gap = 6;
+  const maxMenuHeight = 260;
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+  const width = Math.min(rect.width, viewportWidth - margin * 2);
+  const left = Math.min(Math.max(margin, rect.left), viewportWidth - width - margin);
+  const spaceBelow = viewportHeight - rect.bottom - gap - margin;
+  const spaceAbove = rect.top - gap - margin;
+  const openUp = spaceBelow < 180 && spaceAbove > spaceBelow;
+  const availableHeight = Math.max(120, Math.min(maxMenuHeight, openUp ? spaceAbove : spaceBelow));
+  let top = openUp ? rect.top - availableHeight - gap : rect.bottom + gap;
+
+  if (top + availableHeight > viewportHeight - margin) {
+    top = viewportHeight - margin - availableHeight;
+  }
+  top = Math.max(margin, top);
+
+  els.accessoryPartsMenu.classList.add("is-floating-menu");
+  els.accessoryPartsMenu.style.left = `${left}px`;
+  els.accessoryPartsMenu.style.top = `${top}px`;
+  els.accessoryPartsMenu.style.width = `${width}px`;
+  els.accessoryPartsMenu.style.maxHeight = `${availableHeight}px`;
 }
 
 function toggleCategoryFilterPicker() {
@@ -1142,10 +1180,15 @@ function toggleFaultCategoryPicker() {
 
 function toggleAccessoryPartsPicker() {
   const willOpen = els.accessoryPartsMenu.hidden;
-  els.accessoryPartsMenu.hidden = !willOpen;
-  els.accessoryPartsToggle.setAttribute("aria-expanded", String(willOpen));
   closeCategoryFilterPicker();
   closeFaultCategoryPicker();
+  if (!willOpen) {
+    closeAccessoryPartsPicker();
+    return;
+  }
+  els.accessoryPartsMenu.hidden = false;
+  els.accessoryPartsToggle.setAttribute("aria-expanded", "true");
+  requestAnimationFrame(positionAccessoryPartsMenu);
 }
 
 function classifyArea(region) {
@@ -4925,7 +4968,9 @@ function bindEvents() {
   document.addEventListener("click", (event) => {
     if (!event.target.closest("#categoryFilterPicker")) closeCategoryFilterPicker();
     if (!event.target.closest("#faultCategoryPicker")) closeFaultCategoryPicker();
-    if (!event.target.closest("#accessoryPartsPicker")) closeAccessoryPartsPicker();
+    if (!event.target.closest("#accessoryPartsPicker") && !event.target.closest("#accessoryPartsMenu")) {
+      closeAccessoryPartsPicker();
+    }
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
@@ -5105,7 +5150,14 @@ function bindEvents() {
   window.addEventListener("scroll", () => {
     hideAddressPopover();
     hideAnalysisPopover();
+    if (!els.accessoryPartsMenu.hidden) positionAccessoryPartsMenu();
   }, true);
+  window.addEventListener("resize", () => {
+    if (!els.accessoryPartsMenu.hidden) positionAccessoryPartsMenu();
+  });
+  els.recordDialog.addEventListener("scroll", () => {
+    if (!els.accessoryPartsMenu.hidden) positionAccessoryPartsMenu();
+  });
   window.addEventListener("hashchange", applyHashRoute);
 }
 

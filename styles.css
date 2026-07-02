@@ -740,6 +740,11 @@ select[multiple] {
   box-shadow: var(--shadow);
 }
 
+.checkbox-select-menu.is-floating-menu {
+  position: fixed;
+  z-index: 80;
+}
+
 .checkbox-select-option {
   display: flex;
   align-items: center;
