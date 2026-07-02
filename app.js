@@ -2159,8 +2159,9 @@ function countBy(items, getter) {
 
 function getAccessoryUsageItems(items = [], model = "") {
   const matchedItems = model ? items.filter((record) => record.model === model) : items;
-  return countBy(matchedItems, (record) => normalizeAccessoryParts(record.accessoryParts))
-    .filter((item) => !["快递费", "无费用"].includes(item.label));
+  const usageItems = countBy(matchedItems, (record) => normalizeAccessoryParts(record.accessoryParts));
+  if (!model) return usageItems;
+  return usageItems.filter((item) => !["快递费", "无费用"].includes(item.label));
 }
 
 function renderAnalysisBars(container, items, total, { limit = ANALYSIS_TOP_LIMIT, detailType = "" } = {}) {
