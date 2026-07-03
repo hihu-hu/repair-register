@@ -113,8 +113,8 @@ const accessoryPartPricesByModel = {
   },
   GMH: {
     打印头: 190,
-    主板: 260,
-    wifi模块: 50,
+    主板: 210,
+    wifi模块: 110,
     屏幕: 60,
     电源适配器: 60,
     电池: 100,
