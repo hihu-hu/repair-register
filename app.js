@@ -2384,19 +2384,51 @@ function getAccessoryUnitPrice(part, model) {
   return Number.isFinite(Number(price)) ? Number(price) : null;
 }
 
+function shouldShowAggregateAccessoryAmount(label = "") {
+  return [CUSTOM_PRICE_ACCESSORY_PART, "快递费"].includes(label);
+}
+
+function formatAggregateAccessoryAmount(item, amountKey, pendingKey, total) {
+  return `${item.count} 条 共 ${item[pendingKey] ? "待定" : `${formatPlainAmount(item[amountKey])}元`} · ${formatPercent(item.count, total)}`;
+}
+
 function withAccessoryPriceText(items = [], model = "", total = 0, feeMode = "paid") {
   if (feeMode === "warranty") {
+    return items.map((item) => {
+      if (!model) {
+        return {
+          ...item,
+          valueText: shouldShowAggregateAccessoryAmount(item.label)
+            ? formatAggregateAccessoryAmount(item, "warrantyAmountTotal", "hasPendingWarrantyAmount", total)
+            : `${item.count} 条 · ${formatPercent(item.count, total)}`
+        };
+      }
+      const unitPrice = model ? getAccessoryUnitPrice(item.label, model) : null;
+      if (unitPrice != null) {
+        return {
+          ...item,
+          valueText: `${item.count} 条 * ${formatPlainAmount(unitPrice)} = ${formatPlainAmount(item.count * unitPrice)}元 · ${formatPercent(item.count, total)}`
+        };
+      }
+      return {
+        ...item,
+        valueText: formatAggregateAccessoryAmount(item, "warrantyAmountTotal", "hasPendingWarrantyAmount", total)
+      };
+    });
+  }
+  if (!model) {
     return items.map((item) => ({
       ...item,
-      valueText: `${item.count} 条 共 ${item.hasPendingWarrantyAmount ? "待定" : `${formatPlainAmount(item.warrantyAmountTotal)}元`} · ${formatPercent(item.count, total)}`
+      valueText: shouldShowAggregateAccessoryAmount(item.label)
+        ? formatAggregateAccessoryAmount(item, "actualAmountTotal", "hasPendingAmount", total)
+        : `${item.count} 条 · ${formatPercent(item.count, total)}`
     }));
   }
-  if (!model) return items;
   return items.map((item) => {
     if (item.hasActualAmount) {
       return {
         ...item,
-        valueText: `${item.count} 条 共 ${item.hasPendingAmount ? "待定" : `${formatPlainAmount(item.actualAmountTotal)}元`} · ${formatPercent(item.count, total)}`
+        valueText: formatAggregateAccessoryAmount(item, "actualAmountTotal", "hasPendingAmount", total)
       };
     }
     const unitPrice = getAccessoryUnitPrice(item.label, model);
