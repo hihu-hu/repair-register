@@ -1526,14 +1526,6 @@ dialog::backdrop {
   padding: 16px;
 }
 
-.device-history-title {
-  display: block;
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 800;
-}
-
 .device-history-list {
   display: grid;
   gap: 10px;

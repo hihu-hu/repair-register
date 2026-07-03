@@ -366,7 +366,6 @@ const els = {
   cancelExpressExportBtn: document.querySelector("#cancelExpressExportBtn"),
   confirmExpressExportBtn: document.querySelector("#confirmExpressExportBtn"),
   deviceHistoryDialog: document.querySelector("#deviceHistoryDialog"),
-  deviceHistoryTitle: document.querySelector("#deviceHistoryTitle"),
   deviceHistoryList: document.querySelector("#deviceHistoryList"),
   closeDeviceHistoryDialogBtn: document.querySelector("#closeDeviceHistoryDialogBtn"),
   closeDeviceHistoryBtn: document.querySelector("#closeDeviceHistoryBtn"),
@@ -3506,7 +3505,6 @@ function openDeviceHistoryDialog() {
     return;
   }
 
-  els.deviceHistoryTitle.textContent = `${deviceNumber} · ${matches.length} 条`;
   els.deviceHistoryList.innerHTML = matches
     .map((record) => `
       <article class="device-history-card">
