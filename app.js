@@ -336,6 +336,7 @@ const els = {
   recordForm: document.querySelector("#recordForm"),
   recordId: document.querySelector("#recordId"),
   dialogTitle: document.querySelector("#dialogTitle"),
+  deviceHistoryBtn: document.querySelector("#deviceHistoryBtn"),
   faultCategoryToggle: document.querySelector("#faultCategoryToggle"),
   faultCategoryMenu: document.querySelector("#faultCategoryMenu"),
   accessoryPartsLabel: document.querySelector("#accessoryPartsLabel"),
@@ -364,6 +365,11 @@ const els = {
   closeExpressExportDialogBtn: document.querySelector("#closeExpressExportDialogBtn"),
   cancelExpressExportBtn: document.querySelector("#cancelExpressExportBtn"),
   confirmExpressExportBtn: document.querySelector("#confirmExpressExportBtn"),
+  deviceHistoryDialog: document.querySelector("#deviceHistoryDialog"),
+  deviceHistoryTitle: document.querySelector("#deviceHistoryTitle"),
+  deviceHistoryList: document.querySelector("#deviceHistoryList"),
+  closeDeviceHistoryDialogBtn: document.querySelector("#closeDeviceHistoryDialogBtn"),
+  closeDeviceHistoryBtn: document.querySelector("#closeDeviceHistoryBtn"),
   modeNote: document.querySelector("#modeNote"),
   toast: document.querySelector("#toast"),
   addressPopover: document.querySelector("#addressPopover"),
@@ -461,7 +467,7 @@ function applyHashRoute() {
 
 function closeOpenDialogs() {
   if (els.recordDialog.open && !closeRecordDialogWithGuard()) return false;
-  [els.shareDialog].forEach((dialog) => {
+  [els.shareDialog, els.deviceHistoryDialog].forEach((dialog) => {
     if (dialog.open) dialog.close();
   });
   return true;
@@ -3064,6 +3070,31 @@ function formatDateTime(value) {
   return String(value).replace("T", " ");
 }
 
+function formatMonthDay(value) {
+  if (!value) return "";
+  const parsedTime = parseRecordTime(value);
+  if (parsedTime) {
+    const date = new Date(parsedTime);
+    return `${date.getMonth() + 1}月${date.getDate()}日`;
+  }
+  const text = String(value).trim();
+  const match = text.match(/(?:^|\D)(\d{1,2})[月/-](\d{1,2})日?/);
+  if (match) return `${Number(match[1])}月${Number(match[2])}日`;
+  return "";
+}
+
+function renderReturnTrackingCell(record) {
+  const tracking = compact(record.returnTrackingNumber);
+  const returnTime = formatMonthDay(record.returnTime);
+  if (!returnTime) return `<span class="plain-cell">${tracking}</span>`;
+  return `
+    <span class="plain-cell return-info-cell">
+      <span>${tracking}</span>
+      <span class="cell-sub">寄回时间 ${escapeHtml(returnTime)}</span>
+    </span>
+  `;
+}
+
 function renderAddress(record) {
   if (!record.customerAddress) return `<span class="muted">-</span>`;
   return `
@@ -3093,7 +3124,7 @@ function renderTable() {
           <td class="text-cell">${compact(record.customerIssue)}</td>
           <td class="text-cell">${compact(record.repairProcess)}</td>
           <td class="fee-col"><span class="plain-cell fee-cell">${compact(getRecordRepairFeeText(record))}</span></td>
-          <td><span class="plain-cell">${compact(record.returnTrackingNumber)}</span></td>
+          <td>${renderReturnTrackingCell(record)}</td>
           <td><span class="tag ${statusClass(record.finalStatus)}">${compact(record.finalStatus)}</span></td>
           <td><span class="tag ${ownershipClass(record.faultOwnership)}">${compact(record.faultOwnership)}</span></td>
           <td><div class="tag-list">${renderFaultCategoryTags(record)}</div></td>
@@ -3246,6 +3277,7 @@ function resetForm() {
   els.recordForm.elements.customerPowerAdapter.value = "";
   updateAccessoryPartsRequirement();
   hideMatchBox();
+  updateDeviceHistoryButton();
 }
 
 function openNewDialog() {
@@ -3450,11 +3482,71 @@ function hideMatchBox() {
   matchedSubmissionForRecord = null;
 }
 
+function getDeviceHistoryRecords(deviceNumber = "") {
+  const key = String(deviceNumber || "").trim();
+  if (!key) return [];
+  const editingId = els.recordId.value || "";
+  return sortRecordsNewestFirst(
+    records.filter((record) => String(record.deviceNumber || "").trim() === key && record.id !== editingId)
+  );
+}
+
+function updateDeviceHistoryButton() {
+  const matches = getDeviceHistoryRecords(els.recordForm.elements.deviceNumber.value);
+  els.deviceHistoryBtn.hidden = matches.length === 0;
+  els.deviceHistoryBtn.textContent = matches.length > 0 ? `历史(${matches.length})` : "历史";
+}
+
+function openDeviceHistoryDialog() {
+  const deviceNumber = els.recordForm.elements.deviceNumber.value;
+  const matches = getDeviceHistoryRecords(deviceNumber);
+  if (matches.length === 0) {
+    updateDeviceHistoryButton();
+    showToast("没有找到之前的维修记录");
+    return;
+  }
+
+  els.deviceHistoryTitle.textContent = `${deviceNumber} · ${matches.length} 条`;
+  els.deviceHistoryList.innerHTML = matches
+    .map((record) => `
+      <article class="device-history-card">
+        <div class="device-history-card-head">
+          <strong>${compact(formatDateTime(record.createdTime))}</strong>
+          <span>${compact(record.deviceNumber)}</span>
+        </div>
+        <dl>
+          <div>
+            <dt>公司名</dt>
+            <dd>${compact(record.companyName)}</dd>
+          </div>
+          <div>
+            <dt>客户描述问题</dt>
+            <dd>${compact(record.customerIssue)}</dd>
+          </div>
+          <div>
+            <dt>维修过程</dt>
+            <dd>${compact(record.repairProcess)}</dd>
+          </div>
+        </dl>
+      </article>
+    `)
+    .join("");
+  els.deviceHistoryDialog.showModal();
+}
+
 function checkDeviceNumberMatch() {
   autoFillRecordModel();
   const submission = findSubmissionByDeviceNumber(els.recordForm.elements.deviceNumber.value);
   if (submission?.id !== ignoredSubmissionId) ignoredSubmissionId = "";
   showMatchedSubmission(submission);
+  updateDeviceHistoryButton();
+}
+
+function updateReturnTimeFromStatus() {
+  const form = els.recordForm.elements;
+  if (form.finalStatus.value !== "今天需要寄") return;
+  if (form.returnTime.value) return;
+  form.returnTime.value = toInputDate(new Date());
 }
 
 function autoFillRecordModel() {
@@ -3556,6 +3648,7 @@ function fillForm(record) {
   els.recordForm.elements.customerPowerAdapter.value = extractPowerAdapterAnswer(matchedSubmission);
   updateAccessoryPartsRequirement();
   hideMatchBox();
+  updateDeviceHistoryButton();
 }
 
 function openEditDialog(id) {
@@ -4891,6 +4984,9 @@ function bindEvents() {
   els.expressExportForm.addEventListener("submit", exportExpressFromDialog);
   els.closeExpressExportDialogBtn.addEventListener("click", () => els.expressExportDialog.close());
   els.cancelExpressExportBtn.addEventListener("click", () => els.expressExportDialog.close());
+  els.deviceHistoryBtn.addEventListener("click", openDeviceHistoryDialog);
+  els.closeDeviceHistoryDialogBtn.addEventListener("click", () => els.deviceHistoryDialog.close());
+  els.closeDeviceHistoryBtn.addEventListener("click", () => els.deviceHistoryDialog.close());
   els.metricCards.forEach((card) => {
     card.addEventListener("click", () => applyMetricShortcut(card));
   });
@@ -5042,7 +5138,10 @@ function bindEvents() {
     }
   });
 
-  els.recordForm.elements.finalStatus.addEventListener("change", updateAccessoryPartsRequirement);
+  els.recordForm.elements.finalStatus.addEventListener("change", () => {
+    updateAccessoryPartsRequirement();
+    updateReturnTimeFromStatus();
+  });
   els.recordForm.elements.deviceNumber.addEventListener("input", () => {
     const input = els.recordForm.elements.deviceNumber;
     input.value = input.value.replace(/\D/g, "").slice(0, 10);

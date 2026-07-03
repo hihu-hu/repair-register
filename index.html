@@ -10,7 +10,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260702-floating-accessory-menu">
+    <link rel="stylesheet" href="styles.css?v=20260703-device-history">
   </head>
   <body>
     <header class="app-header">
@@ -429,7 +429,10 @@
           </label>
           <label>
             <span>编号</span>
-            <input name="deviceNumber" required inputmode="numeric" maxlength="10" pattern="\d{10}" title="请填写 10 位数字">
+            <div class="device-number-field">
+              <input name="deviceNumber" required inputmode="numeric" maxlength="10" pattern="\d{10}" title="请填写 10 位数字">
+              <button class="device-history-button" id="deviceHistoryBtn" type="button" hidden>历史</button>
+            </div>
           </label>
           <label>
             <span>有无电源（实际签收）</span>
@@ -677,6 +680,25 @@
       </form>
     </dialog>
 
+    <dialog id="deviceHistoryDialog">
+      <div class="device-history-dialog">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">历史维修</p>
+            <h2>之前的维修记录</h2>
+            <span class="device-history-title" id="deviceHistoryTitle"></span>
+          </div>
+          <button class="icon-btn" id="closeDeviceHistoryDialogBtn" type="button" aria-label="关闭">×</button>
+        </div>
+
+        <div class="device-history-list" id="deviceHistoryList"></div>
+
+        <div class="dialog-actions">
+          <button class="secondary" id="closeDeviceHistoryBtn" type="button">关闭</button>
+        </div>
+      </div>
+    </dialog>
+
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
     <div class="address-popover" id="addressPopover" role="dialog" aria-label="完整客户地址" hidden></div>
     <div class="analysis-popover" id="analysisPopover" role="dialog" aria-label="分析明细" hidden></div>
@@ -684,6 +706,6 @@
     <div class="analysis-popover analysis-grandchild-popover" id="analysisGrandchildPopover" role="dialog" aria-label="分析下级明细" hidden></div>
 
     <script src="area-data.js"></script>
-    <script src="app.js?v=20260703-accessory-aggregate-amount-v2"></script>
+    <script src="app.js?v=20260703-device-history"></script>
   </body>
 </html>
