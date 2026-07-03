@@ -3089,7 +3089,7 @@ function renderReturnTrackingCell(record) {
   return `
     <span class="plain-cell return-info-cell">
       <span>${tracking}</span>
-      <span class="cell-sub">寄回时间 ${escapeHtml(returnTime)}</span>
+      <span class="cell-sub">${escapeHtml(returnTime)}</span>
     </span>
   `;
 }
