@@ -470,7 +470,7 @@
             <input class="readonly-field" name="customerPowerAdapter" readonly placeholder="匹配客户提交后自动显示">
           </label>
           <label>
-            <span id="accessoryPartsLabel">本单所用配件</span>
+            <span id="accessoryPartsLabel">本单所用配件 <small class="field-note-danger">（不修需要清空）</small></span>
             <select name="accessoryParts" multiple required hidden></select>
             <input name="customPartPrice" type="hidden">
             <input name="zeroFeeParts" type="hidden">
@@ -496,7 +496,7 @@
             <textarea class="readonly-field" name="customerIssue" rows="3" readonly required placeholder="匹配客户提交后自动显示"></textarea>
           </label>
           <label class="wide">
-            <span>维修过程</span>
+            <span>维修过程 <small class="field-note-danger">（不修需要清空本单所用配件）</small></span>
             <textarea name="repairProcess" rows="4" required></textarea>
           </label>
           <label class="wide">

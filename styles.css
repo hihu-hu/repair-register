@@ -1539,6 +1539,12 @@ dialog::backdrop {
   margin-bottom: 6px;
 }
 
+.field-note-danger {
+  color: #d06b6b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .form-grid label:has(:required) > span::after,
 .form-grid label span.is-required::after {
   margin-left: 4px;
