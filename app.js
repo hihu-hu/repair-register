@@ -3398,6 +3398,7 @@ function applySubmissionToRecordForm(submission, { keepDeviceNumber = true } = {
   if (appliedSubmissionId === submission.id) return;
   const form = els.recordForm.elements;
   if (appliedSubmissionSnapshot && appliedSubmissionId && appliedSubmissionId !== submission.id) {
+    form.trackingNumber.value = appliedSubmissionSnapshot.trackingNumber;
     form.companyName.value = appliedSubmissionSnapshot.companyName;
     form.customerPowerAdapter.value = appliedSubmissionSnapshot.customerPowerAdapter;
     form.customerIssue.value = appliedSubmissionSnapshot.customerIssue;
@@ -3407,6 +3408,7 @@ function applySubmissionToRecordForm(submission, { keepDeviceNumber = true } = {
   }
   if (!appliedSubmissionSnapshot) {
     appliedSubmissionSnapshot = {
+      trackingNumber: form.trackingNumber.value,
       companyName: form.companyName.value,
       customerPowerAdapter: form.customerPowerAdapter.value,
       customerIssue: form.customerIssue.value,
@@ -3415,6 +3417,7 @@ function applySubmissionToRecordForm(submission, { keepDeviceNumber = true } = {
   }
   if (!keepDeviceNumber) form.deviceNumber.value = submission.deviceNumber;
   autoFillRecordModel();
+  form.trackingNumber.value = submission.trackingNumber || form.trackingNumber.value;
   form.customerPowerAdapter.value = extractPowerAdapterAnswer(submission);
   form.companyName.value = submission.companyName || form.companyName.value;
   form.customerIssue.value = cleanCustomerIssueForRecord(submission) || form.customerIssue.value;
@@ -3431,6 +3434,7 @@ function undoSubmissionToRecordForm() {
   }
 
   const form = els.recordForm.elements;
+  form.trackingNumber.value = appliedSubmissionSnapshot.trackingNumber;
   form.companyName.value = appliedSubmissionSnapshot.companyName;
   form.customerPowerAdapter.value = appliedSubmissionSnapshot.customerPowerAdapter;
   form.customerIssue.value = appliedSubmissionSnapshot.customerIssue;
