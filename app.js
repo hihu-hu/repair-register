@@ -296,6 +296,7 @@ const els = {
   cancelSubmissionDialogBtn: document.querySelector("#cancelSubmissionDialogBtn"),
   submissionsBody: document.querySelector("#submissionsBody"),
   submissionCount: document.querySelector("#submissionCount"),
+  submissionSearchInput: document.querySelector("#submissionSearchInput"),
   submissionsEmptyState: document.querySelector("#submissionsEmptyState"),
   metricCards: document.querySelectorAll("[data-metric-target]"),
   testingCount: document.querySelector("#testingCount"),
@@ -3194,14 +3195,21 @@ async function pushRepairStatsToWecom() {
 
 function renderSubmissions() {
   const reviewedSubmissionIds = getReviewedSubmissionIds();
-  const visibleSubmissions =
+  const statusFilteredSubmissions =
     submissionStatusFilter === "unreviewed"
       ? customerSubmissions.filter((item) => !reviewedSubmissionIds.has(item.id))
       : customerSubmissions;
+  const query = String(els.submissionSearchInput.value || "").trim().toLowerCase();
+  const visibleSubmissions = query
+    ? statusFilteredSubmissions.filter((item) => getSubmissionSearchText(item).includes(query))
+    : statusFilteredSubmissions;
   const emptyTitle = els.submissionsEmptyState.querySelector("strong");
   const emptyText = els.submissionsEmptyState.querySelector("span");
   els.submissionCount.textContent = `${visibleSubmissions.length} 条`;
-  if (submissionStatusFilter === "unreviewed") {
+  if (query) {
+    emptyTitle.textContent = "没有搜到客户提交";
+    emptyText.textContent = "换个关键词再试试，比如编号、快递单号、电话或地址。";
+  } else if (submissionStatusFilter === "unreviewed") {
     emptyTitle.textContent = "暂无未维修客户提交";
     emptyText.textContent = "当前客户提交都已经生成维修记录。";
   } else {
@@ -3249,6 +3257,23 @@ function renderSubmissions() {
     })
     .join("");
   els.submissionsEmptyState.hidden = visibleSubmissions.length > 0;
+}
+
+function getSubmissionSearchText(item = {}) {
+  return [
+    formatDateTime(item.createdTime),
+    item.trackingNumber,
+    item.deviceNumber,
+    item.model,
+    extractPowerAdapterAnswer(item),
+    item.companyName,
+    cleanCustomerIssueForRecord(item),
+    item.contactName,
+    item.phone,
+    item.customerAddress
+  ]
+    .join(" ")
+    .toLowerCase();
 }
 
 function resetForm() {
@@ -4959,6 +4984,9 @@ function bindEvents() {
   els.customerViewBtn.addEventListener("click", () => {
     location.hash = "customer-admin";
     setView("customerAdmin");
+  });
+  ["input", "change"].forEach((eventName) => {
+    els.submissionSearchInput.addEventListener(eventName, renderSubmissions);
   });
   els.copyCustomerLinkBtn.addEventListener("click", async () => {
     try {

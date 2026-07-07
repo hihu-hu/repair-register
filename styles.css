@@ -1107,10 +1107,33 @@ body.customer-portal .customer-layout {
   border-bottom: 1px solid var(--line);
 }
 
+.table-title > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .table-title span {
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
+}
+
+.submission-search-input {
+  width: min(360px, 100%);
+  min-height: 36px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.submission-search-input:focus {
+  border-color: var(--accent);
+  outline: 2px solid rgba(15, 123, 108, 0.15);
 }
 
 .table-wrap {
@@ -2202,6 +2225,19 @@ body.readonly .row-actions {
   .toolbar-actions button,
   .dialog-actions button {
     flex: 1 1 auto;
+  }
+
+  .table-title {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .table-title > div {
+    justify-content: space-between;
+  }
+
+  .submission-search-input {
+    width: 100%;
   }
 
   .stats-grid,
