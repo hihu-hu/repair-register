@@ -57,10 +57,6 @@ const EXPRESS_EXPORT_HEADERS = [
 ];
 const EXPRESS_REQUIRED_HEADER_INDEXES = new Set([2, 4, 5, 7, 8, 10]);
 const EXPRESS_MOBILE_RE = /1[3-9]\d{9}/;
-const COMMON_CHINESE_SURNAMES =
-  "赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹姚邵汪祁毛禹狄米贝明臧计伏成戴谈宋庞熊纪舒屈项祝董梁杜阮蓝闵席季麻强贾路娄危江童颜郭梅盛林刁钟徐邱骆高夏蔡田胡凌霍虞万支柯昝管卢莫经房裘缪干解应宗丁宣邓郁单杭洪包诸左石崔吉龚程嵇邢滑裴陆荣翁荀羊於惠甄曲家封芮羿储靳汲邴糜松井段富巫乌焦巴弓牧隗山谷车侯宓蓬全郗班仰秋仲伊宫宁仇栾暴甘斜厉戎祖武符刘景詹束龙叶幸司韶郜黎蓟薄印宿白怀蒲台从鄂索咸籍赖卓蔺屠蒙池乔阴胥能苍双闻莘党翟谭贡劳逄姬申扶堵冉宰郦雍郤璩桑桂濮牛寿通边扈燕冀郏浦尚农温别庄晏柴瞿阎充慕连茹习宦艾鱼容向古易慎戈廖庾终暨居衡步都耿满弘匡国文寇广禄阙东沃利蔚越夔隆师巩厍聂晁勾敖融冷訾辛阚那简饶空曾毋沙乜养鞠须丰巢关蒯相查后荆红游竺权逯盖益桓公";
-const COMPOUND_CHINESE_SURNAMES = ["欧阳", "太史", "端木", "上官", "司马", "东方", "独孤", "南宫", "万俟", "闻人", "夏侯", "诸葛", "尉迟", "公羊", "赫连", "澹台", "皇甫", "宗政", "濮阳", "公冶", "仲孙", "钟离", "长孙", "慕容", "司徒", "司空"];
-
 const optionSets = {
   hasPower: ["有", "没有"],
   area: ["直营", "代理商"],
@@ -3333,17 +3329,9 @@ function cleanExpressText(value = "") {
     .trim();
 }
 
-function findSubmissionForExpressRecord(record = {}) {
-  return findSubmissionForRecord(record) || findSubmissionByDeviceNumber(record.deviceNumber);
-}
-
 function getExpressRecipientInfo(record = {}) {
-  const submission = findSubmissionForExpressRecord(record);
   const parsedFromAddress = parseRecipientFromAddress(record.customerAddress);
-  const name = cleanExpressText(submission?.contactName) || parsedFromAddress.name;
-  const mobile = normalizeMobileNumber(submission?.phone) || parsedFromAddress.mobile;
-  const address = cleanExpressText(submission?.customerAddress) || parsedFromAddress.address;
-  return { name, mobile, address };
+  return parsedFromAddress;
 }
 
 function normalizeMobileNumber(value = "") {
@@ -3357,49 +3345,35 @@ function parseRecipientFromAddress(value = "") {
 
   const mobileMatch = original.match(EXPRESS_MOBILE_RE);
   const mobile = mobileMatch?.[0] || "";
-  if (!mobileMatch) return { name: "", mobile: "", address: original };
+  if (!mobileMatch) return parseAddressAndNameBeforePhone(original, "");
 
   const beforePhone = cleanExpressText(original.slice(0, mobileMatch.index));
-  const afterPhone = cleanExpressText(original.slice(mobileMatch.index + mobile.length));
-  const name = extractRecipientName(beforePhone, afterPhone);
-  let address = beforePhone;
-  if (name && address.endsWith(name)) {
-    address = cleanExpressText(address.slice(0, -name.length));
-  }
-  if (!address && afterPhone) address = afterPhone;
-
-  return { name, mobile, address };
+  return parseAddressAndNameBeforePhone(beforePhone, mobile);
 }
 
-function extractRecipientName(beforePhone = "", afterPhone = "") {
-  const afterName = extractChineseNameCandidate(afterPhone, { fromStart: true });
-  if (afterName) return afterName;
-
-  const separators = /[\s,，;；/|]+/;
-  const beforeParts = cleanExpressText(beforePhone).split(separators).filter(Boolean);
-  for (let index = beforeParts.length - 1; index >= 0; index -= 1) {
-    const name = extractChineseNameCandidate(beforeParts[index], { fromEnd: true });
-    if (name) return name;
-  }
-  return extractChineseNameCandidate(beforePhone, { fromEnd: true });
+function parseAddressAndNameBeforePhone(text = "", mobile = "") {
+  const parts = cleanExpressText(text).split(/\s+/).filter(Boolean);
+  const name = parts.length >= 2 ? parts[parts.length - 1] : "";
+  const address = parts.length >= 2 ? parts.slice(0, -1).join(" ") : cleanExpressText(text);
+  return {
+    name: isExpressRecipientName(name) ? name : "",
+    mobile,
+    address: isLikelyExpressAddress(address) ? address : ""
+  };
 }
 
-function extractChineseNameCandidate(value = "", { fromStart = false, fromEnd = false } = {}) {
-  const text = String(value || "").replace(/[^\u4e00-\u9fa5·]/g, "");
-  if (!text) return "";
-  const names = [];
-  for (const surname of COMPOUND_CHINESE_SURNAMES) {
-    const pattern = new RegExp(`${surname}[\u4e00-\u9fa5·]{1,4}`, "g");
-    names.push(...(text.match(pattern) || []));
-  }
-  const singleSurnamePattern = new RegExp(`[${COMMON_CHINESE_SURNAMES}][\\u4e00-\\u9fa5·]{1,3}`, "g");
-  names.push(...(text.match(singleSurnamePattern) || []));
-  const validNames = names
-    .map((name) => name.slice(0, 4))
-    .filter((name) => name.length >= 2 && name.length <= 4);
-  if (fromStart) return validNames.find((name) => text.startsWith(name)) || "";
-  if (fromEnd) return [...validNames].reverse().find((name) => text.endsWith(name)) || "";
-  return validNames[0] || "";
+function isLikelyExpressAddress(value = "") {
+  const text = cleanExpressText(value);
+  if (!text) return false;
+  const chineseLength = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+  if (chineseLength < 6) return false;
+  return /省|市|区|县|镇|乡|街|道|路|巷|村|号|栋|幢|单元|室|楼|层|档|口|座|店|城|市场|园|广场|中心|大厦/.test(text);
+}
+
+function isExpressRecipientName(value = "") {
+  const text = String(value || "");
+  if (text.length < 1 || text.length > 20) return false;
+  return /^[\u4e00-\u9fa5A-Za-z][\u4e00-\u9fa5A-Za-z·.\-]*$/.test(text);
 }
 
 function extractPowerAdapterAnswerFromText(text) {
@@ -4115,9 +4089,9 @@ function getExpressExportItems(items) {
 
 function getExpressExportIssues(recipient) {
   const issues = [];
-  if (!recipient.name) issues.push("缺收件人");
-  if (!recipient.mobile) issues.push("缺收件人手机");
-  if (!recipient.address) issues.push("缺收件人地址");
+  if (!recipient.name) issues.push("客户地址里缺收件人");
+  if (!recipient.mobile) issues.push("客户地址里缺手机号");
+  if (!recipient.address) issues.push("客户地址里缺详细地址");
   return issues;
 }
 
