@@ -265,6 +265,7 @@ const els = {
   analysisAccessoryPanel: document.querySelector("#analysisAccessoryPanel"),
   analysisAccessoryFeeModeBtn: document.querySelector("#analysisAccessoryFeeModeBtn"),
   analysisAccessoryModelFilter: document.querySelector("#analysisAccessoryModelFilter"),
+  exportAccessoryExcelBtn: document.querySelector("#exportAccessoryExcelBtn"),
   analysisAccessoryBars: document.querySelector("#analysisAccessoryBars"),
   analysisTrendBars: document.querySelector("#analysisTrendBars"),
   analysisOwnershipTotal: document.querySelector("#analysisOwnershipTotal"),
@@ -668,7 +669,9 @@ function normalizeRecord(record = {}) {
     customerAddress: String(record.customerAddress || record.address || ""),
     model: inferredModel || normalizeOption(record.model, optionSets.model, "GMX"),
     customPartPrice: normalizeMoneyValue(rawCustomPartPrice),
-    zeroFeeParts: normalizeAccessoryParts(rawZeroFeeParts).join(MULTI_VALUE_SEPARATOR),
+    zeroFeeParts: normalizeAccessoryParts(rawZeroFeeParts)
+      .filter((part) => part !== "无费用")
+      .join(MULTI_VALUE_SEPARATOR),
     updatedAt: String(record.updatedAt || new Date().toISOString())
   };
 }
@@ -751,6 +754,15 @@ function stripAccessoryPartPrice(value = "") {
   return text;
 }
 
+function isWarrantyAccessoryPart(part = "", zeroFeeParts = "") {
+  const normalizedPart = String(part || "").trim();
+  if (!normalizedPart || normalizedPart === "无费用") return false;
+  const zeroFeeSet = zeroFeeParts instanceof Set
+    ? zeroFeeParts
+    : new Set(normalizeAccessoryParts(zeroFeeParts));
+  return zeroFeeSet.has(normalizedPart);
+}
+
 function normalizeMoneyValue(value = "") {
   const text = String(value ?? "")
     .trim()
@@ -780,7 +792,7 @@ function extractZeroFeePartsFromAccessoryParts(value = "") {
     .filter((item) => item.endsWith(WARRANTY_FEE_MARK) || item.endsWith(ZERO_FEE_MARK))
     .map(stripAccessoryPartPrice)
     .map((item) => accessoryPartAliases[item] || item)
-    .filter((item) => optionSets.accessoryParts.includes(item));
+    .filter((item) => item !== "无费用" && optionSets.accessoryParts.includes(item));
   return [...new Set(selected)].join(MULTI_VALUE_SEPARATOR);
 }
 
@@ -790,7 +802,7 @@ function serializeAccessoryPartsForStorage(accessoryParts, customPartPrice = "",
   return normalizeAccessoryParts(accessoryParts)
     .map((part) => {
       const customPart = part === CUSTOM_PRICE_ACCESSORY_PART && price ? `${part}{${price}}` : part;
-      return zeroFeeSet.has(part) ? `${customPart}${WARRANTY_FEE_MARK}` : customPart;
+      return isWarrantyAccessoryPart(part, zeroFeeSet) ? `${customPart}${WARRANTY_FEE_MARK}` : customPart;
     })
     .join(MULTI_VALUE_SEPARATOR);
 }
@@ -931,6 +943,10 @@ function showCustomPartPriceRequired() {
 function toggleZeroFeePart(part) {
   const selectedParts = getMultiSelectValues(els.recordForm.elements.accessoryParts);
   if (!selectedParts.includes(part)) return;
+  if (part === "无费用") {
+    showToast("无费用不属于保修");
+    return;
+  }
   const zeroFeeSet = new Set(normalizeAccessoryParts(els.recordForm.elements.zeroFeeParts.value));
   if (zeroFeeSet.has(part)) {
     zeroFeeSet.delete(part);
@@ -1001,7 +1017,7 @@ function getAccessoryPartQuote(part) {
   if (part === "快递费") return getShippingFeeQuote();
   if (part === CUSTOM_PRICE_ACCESSORY_PART) {
     const zeroFeeSet = new Set(normalizeAccessoryParts(els.recordForm.elements.zeroFeeParts.value));
-    if (zeroFeeSet.has(part)) return { hasPrice: true, label: part, price: 0 };
+    if (isWarrantyAccessoryPart(part, zeroFeeSet)) return { hasPrice: true, label: part, price: 0 };
     const price = getCustomPartPriceValue();
     return price
       ? { hasPrice: true, label: part, price }
@@ -1059,7 +1075,7 @@ function updateRepairFeeDetails(selectedParts = getMultiSelectValues(els.recordF
   let hasPendingPrice = false;
   const rows = selectedParts.map((part) => {
     const quote = getAccessoryPartQuote(part);
-    const isZeroFee = zeroFeeSet.has(part);
+    const isZeroFee = isWarrantyAccessoryPart(part, zeroFeeSet);
     const displayPrice = quote.hasPrice && isZeroFee ? 0 : quote.price;
     if (quote.hasPrice) {
       total += Number(displayPrice) || 0;
@@ -2292,7 +2308,7 @@ function getAccessoryUsageItems(items = [], model = "", feeMode = "paid") {
     const zeroFeeSet = new Set(normalizeAccessoryParts(record.zeroFeeParts));
     normalizeAccessoryParts(record.accessoryParts).forEach((part) => {
       if (model && part === "无费用") return;
-      const isWarrantyPart = zeroFeeSet.has(part) || part === "无费用";
+      const isWarrantyPart = isWarrantyAccessoryPart(part, zeroFeeSet);
       if (feeMode === "warranty" && !isWarrantyPart) return;
       if (feeMode !== "warranty" && isWarrantyPart) return;
       const item = usageMap.get(part) || {
@@ -2342,7 +2358,7 @@ function getRecordShippingFeeAmount(record = {}) {
 
 function getRecordAccessoryActualAmount(record = {}, part = "") {
   const zeroFeeSet = new Set(normalizeAccessoryParts(record.zeroFeeParts));
-  if (zeroFeeSet.has(part) || part === "无费用") {
+  if (isWarrantyAccessoryPart(part, zeroFeeSet) || part === "无费用") {
     return { shouldUseActualAmount: true, hasAmount: true, amount: 0 };
   }
   if (part === CUSTOM_PRICE_ACCESSORY_PART) {
@@ -2445,6 +2461,41 @@ function withAccessoryPriceText(items = [], model = "", total = 0, feeMode = "pa
       valueText: `${item.count} 条 * ${formatPlainAmount(unitPrice)} = ${formatPlainAmount(item.count * unitPrice)}元 · ${formatPercent(item.count, total)}`
     };
   });
+}
+
+function getAccessoryExportItems(items = [], model = "", feeMode = "paid") {
+  const matchedItems = model ? items.filter((record) => record.model === model) : items;
+  const shouldExportAllFeeTypes = feeMode === "all";
+  const exportItems = [];
+  matchedItems.forEach((record) => {
+    const zeroFeeSet = new Set(normalizeAccessoryParts(record.zeroFeeParts));
+    normalizeAccessoryParts(record.accessoryParts).forEach((part) => {
+      if (model && part === "无费用") return;
+      const isWarrantyPart = isWarrantyAccessoryPart(part, zeroFeeSet);
+      if (!shouldExportAllFeeTypes && feeMode === "warranty" && !isWarrantyPart) return;
+      if (!shouldExportAllFeeTypes && feeMode !== "warranty" && isWarrantyPart) return;
+      const amount = isWarrantyPart
+        ? getRecordAccessoryWarrantyAmount(record, part)
+        : getRecordAccessoryPartAmount(record, part);
+      exportItems.push({ record, part, amount, warrantyType: isWarrantyPart ? "保修" : "付费" });
+    });
+  });
+  return exportItems;
+}
+
+function formatAccessoryExportAmount(amount = {}) {
+  return amount.hasAmount ? Number(amount.amount) || 0 : "待定";
+}
+
+function buildAccessoryExportRows(items = []) {
+  return items.map(({ record, part, amount, warrantyType }) => [
+    recordDateKey(record.createdTime),
+    record.model || "",
+    record.deviceNumber || "",
+    part,
+    warrantyType || "",
+    formatAccessoryExportAmount(amount)
+  ]);
 }
 
 function renderAnalysisBars(container, items, total, { limit = ANALYSIS_TOP_LIMIT, detailType = "" } = {}) {
@@ -3683,7 +3734,7 @@ function getFormRecord() {
   }
   const selectedPartSet = new Set(record.accessoryParts);
   record.zeroFeeParts = normalizeAccessoryParts(record.zeroFeeParts)
-    .filter((part) => selectedPartSet.has(part))
+    .filter((part) => part !== "无费用" && selectedPartSet.has(part))
     .join(MULTI_VALUE_SEPARATOR);
   if (record.faultCategory.length === 0) {
     showFaultCategoryRequired();
@@ -4016,7 +4067,7 @@ function formatExportAccessoryParts(record = {}) {
   const zeroFeeSet = new Set(normalizeAccessoryParts(record.zeroFeeParts));
   return selectedParts
     .map((part) => {
-      const amount = zeroFeeSet.has(part)
+      const amount = isWarrantyAccessoryPart(part, zeroFeeSet)
         ? { hasAmount: true, amount: 0 }
         : getRecordAccessoryPartAmount(record, part);
       const amountText = amount.hasAmount ? `${formatPlainAmount(amount.amount)}元` : "待定";
@@ -4122,6 +4173,30 @@ function exportExpressFromDialog(event) {
   showToast(`已导出 ${rows.length} 条快递`);
 }
 
+function exportAccessoryExcel() {
+  if (!canViewAccessoryAnalytics()) {
+    showToast("请先管理员登录");
+    return;
+  }
+
+  const analysisRecords = getAnalysisRecords();
+  const model = els.analysisAccessoryModelFilter.value;
+  const exportItems = getAccessoryExportItems(analysisRecords, model, "all");
+  if (exportItems.length === 0) {
+    showToast("当前配件排行没有可导出的明细");
+    return;
+  }
+
+  const rows = buildAccessoryExportRows(exportItems);
+  const workbook = createAccessoryWorkbook(rows);
+  downloadFile(
+    `配件使用明细_${toInputDate(new Date())}.xlsx`,
+    workbook,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  showToast(`已导出 ${rows.length} 条配件明细`);
+}
+
 function buildExpressExportRow(record, recipient) {
   return [
     "",
@@ -4155,6 +4230,46 @@ function createExpressWorkbook(rows) {
   return createZipArchive(files);
 }
 
+function createAccessoryWorkbook(rows) {
+  const files = {
+    "[Content_Types].xml": createXlsxContentTypesXml(),
+    "_rels/.rels": createXlsxRootRelsXml(),
+    "xl/workbook.xml": createXlsxWorkbookXml(),
+    "xl/_rels/workbook.xml.rels": createXlsxWorkbookRelsXml(),
+    "xl/styles.xml": createXlsxStylesXml(),
+    "xl/worksheets/sheet1.xml": createAccessorySheetXml(rows)
+  };
+  return createZipArchive(files);
+}
+
+function createAccessorySheetXml(rows) {
+  const headers = ["日期", "型号", "编号", "所用配件", "是否保修", "产生费用"];
+  const sheetRows = [
+    createXlsxRow(1, headers, () => 2),
+    ...rows.map((row, index) => createXlsxRow(index + 2, row, () => 0))
+  ].join("");
+  const validationRange = `E2:E${Math.max(rows.length + 1, 2)}`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <dimension ref="A1:F${Math.max(rows.length + 1, 1)}"/>
+  <sheetViews><sheetView workbookViewId="0"/></sheetViews>
+  <sheetFormatPr defaultRowHeight="18"/>
+  <cols>
+    <col min="1" max="1" width="14" customWidth="1"/>
+    <col min="2" max="2" width="14" customWidth="1"/>
+    <col min="3" max="3" width="16" customWidth="1"/>
+    <col min="4" max="4" width="24" customWidth="1"/>
+    <col min="5" max="6" width="14" customWidth="1"/>
+  </cols>
+  <sheetData>${sheetRows}</sheetData>
+  <dataValidations count="1">
+    <dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="${validationRange}">
+      <formula1>"保修,付费"</formula1>
+    </dataValidation>
+  </dataValidations>
+</worksheet>`;
+}
+
 function createExpressSheetXml(rows) {
   const sheetRows = [
     createXlsxRow(1, EXPRESS_EXPORT_HEADERS, (index) => (
@@ -4183,9 +4298,22 @@ function createExpressSheetXml(rows) {
 
 function createXlsxRow(rowIndex, values, styleGetter) {
   const cells = values
-    .map((value, columnIndex) => createXlsxInlineCell(rowIndex, columnIndex, value, styleGetter(columnIndex)))
+    .map((value, columnIndex) => createXlsxCell(rowIndex, columnIndex, value, styleGetter(columnIndex)))
     .join("");
   return `<row r="${rowIndex}">${cells}</row>`;
+}
+
+function createXlsxCell(rowIndex, columnIndex, value, styleId = 0) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return createXlsxNumberCell(rowIndex, columnIndex, value, styleId);
+  }
+  return createXlsxInlineCell(rowIndex, columnIndex, value, styleId);
+}
+
+function createXlsxNumberCell(rowIndex, columnIndex, value, styleId = 0) {
+  const ref = `${columnIndexToName(columnIndex)}${rowIndex}`;
+  const style = styleId ? ` s="${styleId}"` : "";
+  return `<c r="${ref}"${style}><v>${value}</v></c>`;
 }
 
 function createXlsxInlineCell(rowIndex, columnIndex, value, styleId = 0) {
@@ -4950,6 +5078,7 @@ function bindEvents() {
     renderAnalytics();
   });
   els.analysisAccessoryModelFilter.addEventListener("change", renderAnalytics);
+  els.exportAccessoryExcelBtn.addEventListener("click", exportAccessoryExcel);
   els.resetAnalysisDateBtn.addEventListener("click", () => {
     setAnalysisDateToThisYear();
     hideAnalysisPopover();

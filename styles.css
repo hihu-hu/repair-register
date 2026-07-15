@@ -404,12 +404,14 @@ body.submissions-view .submissions-header-tips {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 14px;
 }
 
 .analysis-panel-title h3 {
   margin: 0;
+  margin-right: auto;
   font-size: 16px;
 }
 
@@ -436,6 +438,22 @@ body.submissions-view .submissions-header-tips {
   border-color: #d13f3f;
   background: #d13f3f;
   color: #fff;
+}
+
+.analysis-panel-export {
+  height: 32px;
+  min-width: 86px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.analysis-panel-export:hover {
+  background: var(--accent-dark);
 }
 
 .analysis-panel-select {
