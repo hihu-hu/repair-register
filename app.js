@@ -22,11 +22,14 @@ const ADMIN_ACCOUNTS = [
 ];
 const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
+const INVENTORY_SUPABASE_URL = "https://jvcbmfspsyijsaskvxdj.supabase.co";
+const INVENTORY_SUPABASE_ANON_KEY = "sb_publishable__bMTZy2Ol1b5Lrx17YaLIA_3Gp3R9zu";
 const WECOM_PUSH_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/push-repair-stats`;
 const MULTI_VALUE_SEPARATOR = "、";
 const CUSTOM_PRICE_ACCESSORY_PART = "塑料件/其他件";
 const ZERO_FEE_MARK = "{0元}";
 const WARRANTY_FEE_MARK = "{保修}";
+const WARRANTY_STATUS_STORAGE_PREFIX = "__warranty_status__:";
 const CUSTOMER_SUBMIT_FAST_FEEDBACK_MS = 1200;
 const LOCKED_CUSTOMER_EDIT_STATUSES = ["已寄出", "邮寄并结束"];
 const UNSAVED_RECORD_MESSAGE = "这条维修记录有改动，关闭后不会保存。确定关闭吗？";
@@ -64,6 +67,7 @@ const optionSets = {
   faultOwnership: ["硬件损坏", "非硬件", "外接因素"],
   faultCategory: ["传感器", "主板", "打印头", "模块", "屏幕", "电源", "塑料件", "未复现", "其他"],
   accessoryParts: ["传感器", "打印头", "主板", "wifi模块", "wifi模块5g", "屏幕", "电源适配器", "电池", "卡勾", "电源接口", "塑料件/其他件", "快递费", "无费用"],
+  warrantyStatus: ["保修", "不保修"],
   model: ["GMX", "GMI", "GMT", "GMH", "GMX-5G", "GMT-5G", "DK110A", "DK110B", "DK110S", "DK80", "新北洋110", "芯烨80"]
 };
 
@@ -241,7 +245,8 @@ const exportFields = [
   ["customerAddress", "客户地址"],
   ["model", "型号"],
   ["customPartPrice", "自定义配件金额"],
-  ["zeroFeeParts", "保修配件"]
+  ["zeroFeeParts", "保修配件"],
+  ["warrantyStatus", "是否保修"]
 ];
 
 const els = {
@@ -308,6 +313,7 @@ const els = {
   recordsBody: document.querySelector("#recordsBody"),
   emptyState: document.querySelector("#emptyState"),
   searchInput: document.querySelector("#searchInput"),
+  warrantyFilter: document.querySelector("#warrantyFilter"),
   statusFilter: document.querySelector("#statusFilter"),
   ownershipFilter: document.querySelector("#ownershipFilter"),
   categoryFilter: document.querySelector("#categoryFilter"),
@@ -384,6 +390,7 @@ let showAccessoryAnalytics = false;
 let accessoryFeeMode = "paid";
 let forceReadonlyMode = false;
 let supabaseClient = null;
+let inventorySupabaseClient = null;
 const sharedData = readSharedData();
 const shouldUseLocalStartupData = !SUPABASE_URL || location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1";
 let records = sharedData ? sharedData.records : shouldUseLocalStartupData ? loadRecords() : [];
@@ -649,6 +656,7 @@ function normalizeRecord(record = {}) {
   const rawAccessoryParts = record.accessoryParts || record.accessory_parts;
   const rawCustomPartPrice = record.customPartPrice ?? record.custom_part_price ?? extractCustomPartPriceFromAccessoryParts(rawAccessoryParts);
   const rawZeroFeeParts = record.zeroFeeParts ?? record.zero_fee_parts ?? extractZeroFeePartsFromAccessoryParts(rawAccessoryParts);
+  const rawWarrantyStatus = record.warrantyStatus ?? record.warranty_status ?? extractWarrantyStatusFromAccessoryParts(rawAccessoryParts);
   return {
     id: String(record.id || createId()),
     createdTime: normalizeDateTime(record.createdTime || record.createdAt || record.repairDate),
@@ -666,6 +674,7 @@ function normalizeRecord(record = {}) {
     faultOwnership: normalizeOption(record.faultOwnership, optionSets.faultOwnership, "硬件损坏"),
     faultCategory: normalizeFaultCategories(record.faultCategory).join(MULTI_VALUE_SEPARATOR),
     accessoryParts: normalizeAccessoryParts(rawAccessoryParts).join(MULTI_VALUE_SEPARATOR),
+    warrantyStatus: normalizeWarrantyStatus(rawWarrantyStatus),
     customerAddress: String(record.customerAddress || record.address || ""),
     model: inferredModel || normalizeOption(record.model, optionSets.model, "GMX"),
     customPartPrice: normalizeMoneyValue(rawCustomPartPrice),
@@ -679,6 +688,15 @@ function normalizeRecord(record = {}) {
 function normalizeOption(value, options, fallback) {
   const text = String(value || "").trim();
   return options.includes(text) ? text : fallback;
+}
+
+function normalizeWarrantyStatus(value = "") {
+  const text = String(value ?? "").trim();
+  if (optionSets.warrantyStatus.includes(text)) return text;
+  if (["不保修", "付费", "自费", "收费", "否", "不", "false", "no", "0"].includes(text.toLowerCase())) {
+    return "不保修";
+  }
+  return "不保修";
 }
 
 function normalizePowerAdapterAnswer(value) {
@@ -796,15 +814,23 @@ function extractZeroFeePartsFromAccessoryParts(value = "") {
   return [...new Set(selected)].join(MULTI_VALUE_SEPARATOR);
 }
 
-function serializeAccessoryPartsForStorage(accessoryParts, customPartPrice = "", zeroFeeParts = "") {
+function extractWarrantyStatusFromAccessoryParts(value = "") {
+  const text = Array.isArray(value) ? value.join(MULTI_VALUE_SEPARATOR) : String(value || "");
+  const marker = escapeRegExp(WARRANTY_STATUS_STORAGE_PREFIX);
+  const match = text.match(new RegExp(`${marker}\\s*([^、,，;；/|]+)`));
+  return match ? normalizeWarrantyStatus(match[1]) : "";
+}
+
+function serializeAccessoryPartsForStorage(accessoryParts, customPartPrice = "", zeroFeeParts = "", warrantyStatus = "不保修") {
   const price = normalizeMoneyValue(customPartPrice);
   const zeroFeeSet = new Set(normalizeAccessoryParts(zeroFeeParts));
-  return normalizeAccessoryParts(accessoryParts)
+  const items = normalizeAccessoryParts(accessoryParts)
     .map((part) => {
       const customPart = part === CUSTOM_PRICE_ACCESSORY_PART && price ? `${part}{${price}}` : part;
       return isWarrantyAccessoryPart(part, zeroFeeSet) ? `${customPart}${WARRANTY_FEE_MARK}` : customPart;
-    })
-    .join(MULTI_VALUE_SEPARATOR);
+    });
+  items.push(`${WARRANTY_STATUS_STORAGE_PREFIX}${normalizeWarrantyStatus(warrantyStatus)}`);
+  return items.join(MULTI_VALUE_SEPARATOR);
 }
 
 function getMultiSelectValues(select) {
@@ -1349,6 +1375,68 @@ function hasSupabaseConfig() {
   return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase?.createClient);
 }
 
+function getInventorySupabaseClient() {
+  if (inventorySupabaseClient) return inventorySupabaseClient;
+  if (!INVENTORY_SUPABASE_URL || !INVENTORY_SUPABASE_ANON_KEY || !window.supabase?.createClient) return null;
+  inventorySupabaseClient = window.supabase.createClient(INVENTORY_SUPABASE_URL, INVENTORY_SUPABASE_ANON_KEY);
+  return inventorySupabaseClient;
+}
+
+function repairMaterialItems(record) {
+  return [...new Set(String(record.accessoryParts || "")
+    .split(MULTI_VALUE_SEPARATOR)
+    .map((item) => item.trim())
+    .filter((item) => item && !["无费用", "快递费"].includes(item)))];
+}
+
+function repairMaterialRows(record) {
+  return repairMaterialItems(record).map((item) => ({
+    id: `repair-${record.id}-${encodeURIComponent(item)}`,
+    action: "维修用料",
+    warehouse: "总仓",
+    target: "总仓",
+    model: record.model || "",
+    item,
+    quantity: 1,
+    company: record.companyName || "",
+    printer_number: record.deviceNumber || "",
+    merchant_no: "",
+    receiver: "维修中心",
+    message: `维修记录 ${record.id}`,
+    time: record.returnTime || record.updatedAt || new Date().toISOString(),
+    source_record_id: record.id,
+    updated_at: record.updatedAt || new Date().toISOString()
+  }));
+}
+
+async function syncRepairMaterialsToInventory(record) {
+  const client = getInventorySupabaseClient();
+  if (!client) throw new Error("库存管理云端连接未加载");
+  const { data: oldRows, error: oldError } = await client
+    .from("repair_material_logs")
+    .select("id")
+    .eq("source_record_id", record.id);
+  if (oldError) throw oldError;
+
+  const rows = repairMaterialRows(record);
+  const newIds = new Set(rows.map((row) => row.id));
+  const staleIds = (oldRows || []).map((row) => row.id).filter((id) => !newIds.has(id));
+  if (staleIds.length) {
+    const { error } = await client.from("repair_material_logs").delete().in("id", staleIds);
+    if (error) throw error;
+  }
+  if (!rows.length) return;
+  const { error } = await client.from("repair_material_logs").upsert(rows, { onConflict: "id" });
+  if (error) throw error;
+}
+
+async function deleteRepairMaterialsFromInventory(recordId) {
+  const client = getInventorySupabaseClient();
+  if (!client) return;
+  const { error } = await client.from("repair_material_logs").delete().eq("source_record_id", recordId);
+  if (error) throw error;
+}
+
 function findAdminByUsername(username) {
   const value = String(username || "").trim().toLowerCase();
   return ADMIN_ACCOUNTS.find((account) => account.username.toLowerCase() === value) || null;
@@ -1435,7 +1523,7 @@ function toDatabaseRecord(record) {
     return_tracking_number: record.returnTrackingNumber || "",
     fault_ownership: record.faultOwnership || "",
     fault_category: record.faultCategory || "",
-    accessory_parts: serializeAccessoryPartsForStorage(record.accessoryParts, record.customPartPrice, record.zeroFeeParts),
+    accessory_parts: serializeAccessoryPartsForStorage(record.accessoryParts, record.customPartPrice, record.zeroFeeParts, record.warrantyStatus),
     customer_address: record.customerAddress || "",
     model: record.model || "",
     updated_at: record.updatedAt || new Date().toISOString()
@@ -1463,6 +1551,7 @@ function fromDatabaseRecord(record) {
     accessoryParts: rawAccessoryParts,
     customerAddress: record.customer_address,
     model: record.model,
+    warrantyStatus: record.warranty_status,
     customPartPrice: record.custom_part_price ?? extractCustomPartPriceFromAccessoryParts(rawAccessoryParts),
     zeroFeeParts: record.zero_fee_parts ?? extractZeroFeePartsFromAccessoryParts(rawAccessoryParts),
     updatedAt: record.updated_at
@@ -1639,6 +1728,7 @@ function fillAccessoryPartsPicker() {
 
 function fillStaticOptions() {
   fillSelect(els.statusFilter, optionSets.finalStatus, true);
+  fillSelect(els.warrantyFilter, optionSets.warrantyStatus, true);
   fillSelect(els.ownershipFilter, optionSets.faultOwnership, true);
   fillCategoryFilterPicker();
   fillSelect(els.modelFilter, optionSets.model, true);
@@ -1647,6 +1737,7 @@ function fillStaticOptions() {
   fillSelect(els.areaFilter, optionSets.area, true);
   fillRequiredSelect(els.submissionForm.elements.model, optionSets.model);
   fillRequiredSelect(els.recordForm.elements.hasPower, optionSets.hasPower);
+  fillRequiredSelect(els.recordForm.elements.warrantyStatus, optionSets.warrantyStatus);
   fillSelect(els.recordForm.elements.finalStatus, optionSets.finalStatus);
   fillRequiredSelect(els.recordForm.elements.faultOwnership, optionSets.faultOwnership);
   fillFaultCategoryPicker();
@@ -2160,6 +2251,7 @@ function updateFilterOptions(select, values) {
 function getFilters() {
   return {
     search: els.searchInput.value.trim().toLowerCase(),
+    warranty: els.warrantyFilter.value,
     status: els.statusFilter.value,
     ownership: els.ownershipFilter.value,
     categories: getMultiSelectValues(els.categoryFilter),
@@ -2182,6 +2274,7 @@ function applyFilters() {
 
     return (
       (!filters.search || text.includes(filters.search)) &&
+      (!filters.warranty || normalizeWarrantyStatus(record.warrantyStatus) === filters.warranty) &&
       (!filters.status || record.finalStatus === filters.status) &&
       (!filters.ownership || record.faultOwnership === filters.ownership) &&
       (filters.categories.length === 0 ||
@@ -2477,7 +2570,7 @@ function getAccessoryExportItems(items = [], model = "", feeMode = "paid") {
       const amount = isWarrantyPart
         ? getRecordAccessoryWarrantyAmount(record, part)
         : getRecordAccessoryPartAmount(record, part);
-      exportItems.push({ record, part, amount, warrantyType: isWarrantyPart ? "保修" : "付费" });
+      exportItems.push({ record, part, amount, warrantyType: normalizeWarrantyStatus(record.warrantyStatus) });
     });
   });
   return exportItems;
@@ -3112,6 +3205,10 @@ function powerClass(hasPower) {
   return hasPower === "有" ? "power-yes" : "";
 }
 
+function warrantyClass(warrantyStatus) {
+  return normalizeWarrantyStatus(warrantyStatus) === "保修" ? "done" : "hardware";
+}
+
 function formatDateTime(value) {
   if (!value) return "";
   return String(value).replace("T", " ");
@@ -3176,6 +3273,7 @@ function renderTable() {
           <td><span class="tag ${ownershipClass(record.faultOwnership)}">${compact(record.faultOwnership)}</span></td>
           <td><div class="tag-list">${renderFaultCategoryTags(record)}</div></td>
           <td class="address-cell">${renderAddress(record)}</td>
+          <td class="warranty-col"><span class="tag ${warrantyClass(record.warrantyStatus)}">${compact(normalizeWarrantyStatus(record.warrantyStatus))}</span></td>
           <td class="actions-col">
             <div class="row-actions">
               <button class="secondary" type="button" data-action="edit" data-id="${escapeHtml(record.id)}">编辑</button>
@@ -3330,6 +3428,7 @@ function resetForm() {
   els.deleteRecordBtn.hidden = true;
   els.recordForm.elements.createdTime.value = toInputDateTime(new Date());
   els.recordForm.elements.hasPower.value = "";
+  els.recordForm.elements.warrantyStatus.value = "不保修";
   els.recordForm.elements.finalStatus.value = "维修中";
   els.recordForm.elements.faultOwnership.value = "";
   clearMultiSelect(els.recordForm.elements.faultCategory);
@@ -3765,9 +3864,10 @@ async function upsertRecord(record) {
 
   try {
     if (cloudMode) await saveCloudRecord(record);
+    await syncRepairMaterialsToInventory(record);
   } catch (error) {
     console.error(error);
-    showToast("云端保存失败");
+    showToast(cloudMode ? "维修记录已保存，但同步到库存网页失败" : "同步到库存网页失败", "error");
     return false;
   }
 
@@ -3994,9 +4094,10 @@ async function deleteRecord(id) {
 
   try {
     if (cloudMode) await deleteCloudRecord(id);
+    await deleteRepairMaterialsFromInventory(id);
   } catch (error) {
     console.error(error);
-    showToast("云端删除失败");
+    showToast("记录删除或同步删除失败");
     return false;
   }
 
@@ -4009,6 +4110,7 @@ async function deleteRecord(id) {
 
 function clearRepairFilters(status = "") {
   els.searchInput.value = "";
+  els.warrantyFilter.value = "";
   els.statusFilter.value = status;
   els.ownershipFilter.value = "";
   clearMultiSelect(els.categoryFilter);
@@ -4793,6 +4895,7 @@ function resolveImportField(header) {
     accessoryParts: ["本单所用配件", "所用配件", "配件"],
     customPartPrice: ["自定义配件金额", "塑料件金额", "其他件金额"],
     zeroFeeParts: ["保修配件", "0元配件", "免费配件", "不收费配件"],
+    warrantyStatus: ["是否保修", "保修状态"],
     customerAddress: ["客户地址", "维修地址", "地址"],
     model: ["型号"]
   };
@@ -4803,6 +4906,7 @@ function normalizeImportedValue(key, value) {
   const text = String(value ?? "").trim();
   if (key === "createdTime") return convertExcelDateText(text, true);
   if (key === "returnTime") return convertExcelDateText(text, false);
+  if (key === "warrantyStatus") return normalizeWarrantyStatus(text);
   return text;
 }
 
@@ -5036,6 +5140,7 @@ function bindEvents() {
   ["input", "change"].forEach((eventName) => {
     [
       els.searchInput,
+      els.warrantyFilter,
       els.statusFilter,
       els.ownershipFilter,
       els.categoryFilter,

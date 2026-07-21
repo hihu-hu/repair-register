@@ -555,7 +555,7 @@ body.submissions-view .submissions-header-tips {
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(230px, 1.35fr) repeat(6, minmax(112px, 0.72fr)) auto;
+  grid-template-columns: minmax(230px, 1.35fr) repeat(7, minmax(104px, 0.72fr)) auto;
   align-items: end;
   gap: 12px;
   padding: 16px;
@@ -577,7 +577,7 @@ body.submissions-view .submissions-header-tips {
 
 .filter-summary {
   display: grid;
-  grid-column: 7;
+  grid-column: 8;
   grid-row: 1;
   align-self: stretch;
   min-height: 88px;
@@ -602,7 +602,7 @@ body.submissions-view .submissions-header-tips {
 
 .express-export-slot {
   display: flex;
-  grid-column: 6;
+  grid-column: 7;
   grid-row: 1;
   align-self: center;
   justify-content: center;
@@ -1160,7 +1160,7 @@ body.customer-portal .customer-layout {
 
 table {
   width: 100%;
-  min-width: 1580px;
+  min-width: 1660px;
   border-collapse: collapse;
 }
 
@@ -1236,6 +1236,11 @@ body:not(.readonly) tbody tr {
 }
 
 .fee-col {
+  width: 8ch;
+  max-width: 8ch;
+}
+
+.warranty-col {
   width: 8ch;
   max-width: 8ch;
 }
@@ -1710,6 +1715,15 @@ dialog::backdrop {
 
 .repair-fee-field {
   grid-column: 3 / 4;
+}
+
+.warranty-status-field {
+  justify-items: end;
+}
+
+.warranty-status-field > span,
+.warranty-status-field select {
+  width: min(170px, 100%);
 }
 
 .repair-fee-box {
@@ -2273,6 +2287,15 @@ body.readonly .row-actions {
 
   .repair-fee-field {
     grid-column: auto;
+  }
+
+  .warranty-status-field {
+    justify-items: stretch;
+  }
+
+  .warranty-status-field > span,
+  .warranty-status-field select {
+    width: 100%;
   }
 
   .analytics-head {

@@ -10,7 +10,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260715-accessory-excel-export">
+    <link rel="stylesheet" href="styles.css?v=20260721-warranty-field-right">
   </head>
   <body>
     <header class="app-header">
@@ -82,6 +82,12 @@
         <div class="field search-field">
           <label for="searchInput">关键词</label>
           <input id="searchInput" type="search" placeholder="快递单号、编号、公司名、地址、问题">
+        </div>
+        <div class="field">
+          <label for="warrantyFilter">是否保修</label>
+          <select id="warrantyFilter">
+            <option value="">全部</option>
+          </select>
         </div>
         <div class="field">
           <label for="statusFilter">最终状态</label>
@@ -160,6 +166,7 @@
                 <th>故障归属</th>
                 <th>故障分类</th>
                 <th>客户地址</th>
+                <th class="warranty-col">是否保修</th>
                 <th class="actions-col">操作</th>
               </tr>
             </thead>
@@ -491,6 +498,10 @@
               <div class="checkbox-select-menu" id="accessoryPartsMenu" hidden></div>
             </div>
           </label>
+          <label class="warranty-status-field">
+            <span>是否保修</span>
+            <select name="warrantyStatus" required></select>
+          </label>
           <label class="repair-fee-field">
             <span>费用：</span>
             <div class="repair-fee-box" id="repairFeeBox">
@@ -708,6 +719,6 @@
     <div class="analysis-popover analysis-grandchild-popover" id="analysisGrandchildPopover" role="dialog" aria-label="分析下级明细" hidden></div>
 
     <script src="area-data.js"></script>
-    <script src="app.js?v=20260715-accessory-amount-number-cell"></script>
+    <script src="app.js?v=20260721-warranty-default-no"></script>
   </body>
 </html>
