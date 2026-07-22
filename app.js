@@ -1390,6 +1390,8 @@ function repairMaterialItems(record) {
 }
 
 function repairMaterialRows(record) {
+  if (record.finalStatus !== "邮寄并结束") return [];
+
   return repairMaterialItems(record).map((item) => ({
     id: `repair-${record.id}-${encodeURIComponent(item)}`,
     action: "维修用料",
@@ -1400,10 +1402,10 @@ function repairMaterialRows(record) {
     quantity: 1,
     company: record.companyName || "",
     printer_number: record.deviceNumber || "",
-    merchant_no: "",
+    merchant_no: normalizeWarrantyStatus(record.warrantyStatus) === "保修" ? "保修" : "",
     receiver: "维修中心",
     message: `维修记录 ${record.id}`,
-    time: record.returnTime || record.updatedAt || new Date().toISOString(),
+    time: record.returnTime || "",
     source_record_id: record.id,
     updated_at: record.updatedAt || new Date().toISOString()
   }));
@@ -3239,6 +3241,14 @@ function renderReturnTrackingCell(record) {
   `;
 }
 
+function renderWarrantyFeeCell(record) {
+  const warrantyStatus = normalizeWarrantyStatus(record.warrantyStatus);
+  return `
+    <span class="tag ${warrantyClass(warrantyStatus)}">${compact(warrantyStatus)}</span>
+    <span class="warranty-fee-amount">${compact(getRecordRepairFeeText(record))}</span>
+  `;
+}
+
 function renderAddress(record) {
   if (!record.customerAddress) return `<span class="muted">-</span>`;
   return `
@@ -3267,13 +3277,12 @@ function renderTable() {
           <td class="company-col"><span class="plain-cell company-cell">${compact(record.companyName)}</span></td>
           <td class="text-cell">${compact(record.customerIssue)}</td>
           <td class="text-cell">${compact(record.repairProcess)}</td>
-          <td class="fee-col"><span class="plain-cell fee-cell">${compact(getRecordRepairFeeText(record))}</span></td>
+          <td class="warranty-fee-col">${renderWarrantyFeeCell(record)}</td>
           <td>${renderReturnTrackingCell(record)}</td>
           <td><span class="tag ${statusClass(record.finalStatus)}">${compact(record.finalStatus)}</span></td>
           <td><span class="tag ${ownershipClass(record.faultOwnership)}">${compact(record.faultOwnership)}</span></td>
           <td><div class="tag-list">${renderFaultCategoryTags(record)}</div></td>
           <td class="address-cell">${renderAddress(record)}</td>
-          <td class="warranty-col"><span class="tag ${warrantyClass(record.warrantyStatus)}">${compact(normalizeWarrantyStatus(record.warrantyStatus))}</span></td>
           <td class="actions-col">
             <div class="row-actions">
               <button class="secondary" type="button" data-action="edit" data-id="${escapeHtml(record.id)}">编辑</button>
@@ -3695,7 +3704,7 @@ function checkDeviceNumberMatch() {
 
 function updateReturnTimeFromStatus() {
   const form = els.recordForm.elements;
-  if (form.finalStatus.value !== "今天需要寄") return;
+  if (!["今天需要寄", "邮寄并结束"].includes(form.finalStatus.value)) return;
   if (form.returnTime.value) return;
   form.returnTime.value = toInputDate(new Date());
 }

@@ -1160,7 +1160,7 @@ body.customer-portal .customer-layout {
 
 table {
   width: 100%;
-  min-width: 1660px;
+  min-width: 1600px;
   border-collapse: collapse;
 }
 
@@ -1235,18 +1235,22 @@ body:not(.readonly) tbody tr {
   line-height: 1.45;
 }
 
-.fee-col {
-  width: 8ch;
-  max-width: 8ch;
-}
-
-.warranty-col {
-  width: 8ch;
-  max-width: 8ch;
+.warranty-fee-col {
+  width: 10ch;
+  max-width: 10ch;
 }
 
 .fee-cell {
   color: var(--accent-dark);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.warranty-fee-amount {
+  display: block;
+  margin-top: 8px;
+  color: var(--accent-dark);
+  font-size: 14px;
   font-weight: 800;
   white-space: nowrap;
 }
