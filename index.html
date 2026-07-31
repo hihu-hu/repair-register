@@ -10,7 +10,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260721-warranty-fee-combo">
+    <link rel="stylesheet" href="styles.css?v=20260730-return-fields-split">
   </head>
   <body>
     <header class="app-header">
@@ -423,7 +423,6 @@
         </div>
 
         <input id="recordId" type="hidden">
-        <input name="returnTime" type="hidden">
         <div class="form-grid">
           <label>
             <span>创建时间</span>
@@ -474,10 +473,16 @@
               <div class="checkbox-select-menu" id="faultCategoryMenu" hidden></div>
             </div>
           </label>
-          <label>
-            <span>寄回单号</span>
-            <input name="returnTrackingNumber">
-          </label>
+          <div class="return-fields">
+            <label>
+              <span>寄回单号</span>
+              <input name="returnTrackingNumber">
+            </label>
+            <label>
+              <span>寄回时间</span>
+              <input name="returnTime" type="date">
+            </label>
+          </div>
           <label>
             <span>电源适配器是否寄回（客户填写）</span>
             <input class="readonly-field" name="customerPowerAdapter" readonly placeholder="匹配客户提交后自动显示">

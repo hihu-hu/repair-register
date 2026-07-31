@@ -1700,6 +1700,16 @@ dialog::backdrop {
   color: var(--accent-dark);
 }
 
+.return-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.return-fields label {
+  min-width: 0;
+}
+
 .field-note-danger {
   color: #d06b6b;
   font-size: 12px;
