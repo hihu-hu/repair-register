@@ -385,7 +385,7 @@ let readonlyMode = false;
 let cloudMode = false;
 let adminMode = false;
 let currentAdmin = null;
-let showAccessoryAnalytics = false;
+let showAccessoryAnalytics = true;
 let accessoryFeeMode = "paid";
 let forceReadonlyMode = false;
 let supabaseClient = null;
@@ -2155,16 +2155,16 @@ function canViewAnalytics() {
 }
 
 function canViewAccessoryAnalytics() {
-  return canViewAnalytics() && currentAdmin?.level === "super";
+  return canViewAnalytics();
 }
 
 function refreshAccessoryAnalyticsVisibility() {
   const canView = canViewAccessoryAnalytics();
-  if (!canView) showAccessoryAnalytics = false;
-  els.analysisAccessoryToggleBtn.hidden = !canView;
-  els.analysisAccessoryToggleBtn.classList.toggle("is-active", canView && showAccessoryAnalytics);
-  els.analysisAccessoryToggleBtn.setAttribute("aria-pressed", canView && showAccessoryAnalytics ? "true" : "false");
-  els.analysisAccessoryPanel.hidden = !canView || !showAccessoryAnalytics;
+  showAccessoryAnalytics = canView;
+  els.analysisAccessoryToggleBtn.hidden = true;
+  els.analysisAccessoryToggleBtn.classList.toggle("is-active", canView);
+  els.analysisAccessoryToggleBtn.setAttribute("aria-pressed", canView ? "true" : "false");
+  els.analysisAccessoryPanel.hidden = !canView;
   els.analysisAccessoryFeeModeBtn.textContent = accessoryFeeMode === "warranty" ? "保修" : "付费";
   els.analysisAccessoryFeeModeBtn.classList.toggle("is-active", accessoryFeeMode === "warranty");
   els.analysisAccessoryFeeModeBtn.setAttribute("aria-pressed", accessoryFeeMode === "warranty" ? "true" : "false");
@@ -5187,7 +5187,7 @@ function bindEvents() {
   });
   els.analysisAccessoryToggleBtn.addEventListener("click", () => {
     if (!canViewAccessoryAnalytics()) return;
-    showAccessoryAnalytics = !showAccessoryAnalytics;
+    showAccessoryAnalytics = true;
     renderAnalytics();
   });
   els.analysisAccessoryFeeModeBtn.addEventListener("click", () => {
