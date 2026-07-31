@@ -30,7 +30,6 @@ const CUSTOM_PRICE_ACCESSORY_PART = "塑料件/其他件";
 const ZERO_FEE_MARK = "{0元}";
 const WARRANTY_FEE_MARK = "{保修}";
 const WARRANTY_STATUS_STORAGE_PREFIX = "__warranty_status__:";
-const CUSTOMER_SUBMIT_FAST_FEEDBACK_MS = 1200;
 const LOCKED_CUSTOMER_EDIT_STATUSES = ["已寄出", "邮寄并结束"];
 const UNSAVED_RECORD_MESSAGE = "这条维修记录有改动，关闭后不会保存。确定关闭吗？";
 const EXPRESS_EXPORT_SENDER = {
@@ -1679,6 +1678,26 @@ async function saveCloudSubmission(item) {
   if (error) throw error;
 }
 
+async function saveCustomerSubmissionReliably(item) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/customer_repair_submissions?on_conflict=id`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates,return=representation"
+    },
+    body: JSON.stringify(toDatabaseSubmission(item))
+  });
+
+  const result = await response.json().catch(() => null);
+  if (!response.ok || !Array.isArray(result) || result[0]?.id !== item.id) {
+    const error = new Error(result?.message || "客户提交没有得到云端确认");
+    error.code = result?.code || String(response.status);
+    throw error;
+  }
+}
+
 async function deleteCloudSubmission(id) {
   const { error } = await supabaseClient.from("customer_repair_submissions").delete().eq("id", id);
   if (error) throw error;
@@ -1984,15 +2003,6 @@ function setCustomerSubmitting(isSubmitting) {
     return;
   }
   els.customerSubmitBtn.textContent = editingCustomerSubmissionId ? "保存修改" : "提交登记";
-}
-
-function waitForFastFeedback(promise, timeoutMs = CUSTOMER_SUBMIT_FAST_FEEDBACK_MS) {
-  return Promise.race([
-    promise.then(() => ({ ok: true })).catch((error) => ({ ok: false, error })),
-    new Promise((resolve) => {
-      setTimeout(() => resolve({ ok: true, pending: true }), timeoutMs);
-    })
-  ]);
 }
 
 function getCustomerSubmissionFingerprint(submission) {
@@ -3955,26 +3965,19 @@ async function submitCustomerForm() {
   }
 
   setCustomerSubmitting(true);
-  const savePromise = cloudMode ? saveCloudSubmission(submission) : Promise.resolve();
-  const saveResult = await waitForFastFeedback(savePromise);
-  if (!saveResult.ok) {
-    console.error(saveResult.error);
-    const error = saveResult.error;
+  try {
+    await saveCustomerSubmissionReliably(submission);
+  } catch (error) {
+    console.error(error);
     if (error?.code === "PGRST205" || String(error?.message || "").includes("customer_repair_submissions")) {
       showToast("云端还没升级客户登记表，请先执行数据库 SQL");
     } else if (error?.code === "42501") {
       showToast("云端权限没打开，请检查客户登记表权限");
     } else {
-      showToast("提交失败，请稍后再试");
+      showToast("提交失败，信息还没有保存，请检查网络后重试");
     }
     setCustomerSubmitting(false);
     return;
-  }
-  if (saveResult.pending) {
-    savePromise.catch((error) => {
-      console.error(error);
-      showToast("云端保存较慢，请检查网络后刷新确认");
-    });
   }
 
   lastCustomerSubmitFingerprint = fingerprint;
