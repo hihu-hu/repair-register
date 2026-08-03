@@ -2,16 +2,142 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f5f7f8">
+    <meta name="description" content="客户维修登记">
     <title>客户维修登记</title>
-    <link rel="icon" type="image/png" href="assets/favicon.png?v=20260630-transparent">
-    <meta http-equiv="refresh" content="0; url=./?page=customer">
-    <script>
-      location.replace("./?page=customer");
-    </script>
+    <link rel="icon" type="image/png" href="assets/favicon.png">
+    <style>
+      :root { --ink:#182026; --muted:#607080; --line:#dce3e8; --accent:#0f7b6c; --accent-dark:#075f54; --soft:#e5f4f1; }
+      * { box-sizing:border-box; }
+      body { margin:0; min-width:320px; background:#f5f7f8; color:var(--ink); font-family:Inter,"PingFang SC","Microsoft YaHei",Arial,sans-serif; }
+      main { width:min(760px,calc(100% - 28px)); margin:0 auto; padding:24px 0 40px; }
+      .page-head { margin-bottom:18px; }
+      .eyebrow { margin:0 0 5px; color:var(--accent-dark); font-size:13px; font-weight:700; }
+      h1 { margin:0; font-size:clamp(25px,7vw,34px); letter-spacing:0; }
+      .lead { margin:8px 0 0; color:var(--muted); line-height:1.6; }
+      form, .success { padding:18px; border:1px solid var(--line); border-radius:8px; background:#fff; box-shadow:0 12px 30px rgba(24,32,38,.07); }
+      .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:15px; }
+      label { display:grid; gap:7px; min-width:0; color:#34434d; font-size:14px; font-weight:700; }
+      label.wide { grid-column:1/-1; }
+      input, select, textarea { width:100%; min-height:44px; border:1px solid #c4d0d8; border-radius:6px; padding:10px 11px; background:#fff; color:var(--ink); font-size:16px; }
+      textarea { min-height:86px; resize:vertical; line-height:1.5; }
+      input:focus, select:focus, textarea:focus { outline:2px solid rgba(15,123,108,.18); border-color:var(--accent); }
+      .address-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+      .address-grid label { font-size:13px; }
+      .form-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:18px; }
+      .form-tip { color:var(--muted); font-size:13px; line-height:1.5; }
+      button { min-height:44px; border:0; border-radius:7px; padding:0 18px; font:inherit; font-weight:700; cursor:pointer; }
+      .primary { background:var(--accent); color:#fff; }
+      .primary:hover { background:var(--accent-dark); }
+      button:disabled { cursor:not-allowed; opacity:.65; }
+      .draft-note { margin:12px 0 0; color:var(--accent-dark); font-size:13px; }
+      .error { min-height:22px; margin:12px 0 0; color:#b53636; font-size:14px; line-height:1.5; }
+      .success { display:grid; gap:0; }
+      .success-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:16px; }
+      .success-head h2 { margin:0; font-size:24px; }
+      .success-actions { display:flex; gap:8px; }
+      .success-actions button { min-height:40px; padding:0 14px; }
+      .secondary { border:1px solid #c4d0d8; background:#fff; color:var(--ink); }
+      .success-panel { display:grid; gap:5px; padding:15px 18px; border:1px solid #b8e0d9; border-radius:8px; background:#e5f4f1; }
+      .success-panel strong { color:var(--accent-dark); font-size:26px; }
+      .success-panel span, .success-detail dd { color:#34434d; line-height:1.7; }
+      .wechat-card { display:flex; align-items:center; gap:16px; padding:16px; border:1px solid var(--line); border-radius:8px 8px 0 0; background:#fff; }
+      .wechat-card strong { font-size:18px; line-height:1.5; }
+      .wechat-qr { width:230px; height:230px; object-fit:contain; flex:0 0 auto; }
+      .success-detail dl { display:grid; gap:0; margin:0; }
+      .success-detail dl div { display:grid; gap:4px; padding:12px 0; border-bottom:1px solid var(--line); }
+      .success-detail dt { color:var(--muted); font-weight:700; }
+      .success-detail dd { margin:0; font-size:18px; }
+      @media (max-width:560px) {
+        main { width:min(100% - 20px,760px); padding-top:16px; }
+        form, .success { padding:15px; }
+        .form-grid { grid-template-columns:1fr; gap:14px; }
+        label.wide { grid-column:auto; }
+        .address-grid { gap:7px; }
+        .address-grid select { padding-left:7px; padding-right:22px; }
+        .form-foot { align-items:stretch; flex-direction:column; }
+        .form-foot button { width:100%; }
+        .success-head { flex-direction:column; }
+        .success-actions { width:100%; }
+        .success-actions button { flex:1; }
+        .wechat-card { align-items:flex-start; flex-direction:column; }
+        .wechat-qr { width:230px; height:230px; }
+      }
+    </style>
   </head>
   <body>
-    <p>正在打开客户维修登记页面...</p>
-    <p><a href="./?page=customer">如果没有自动打开，请点这里</a></p>
+    <main>
+      <header class="page-head">
+        <p class="eyebrow">维修登记</p>
+        <h1>请填写机器和收件信息</h1>
+        <p class="lead">填好后点击提交，维修人员会尽快联系您。填写过程中刷新页面，内容也会自动保留。</p>
+      </header>
+
+      <form id="customerForm">
+        <div class="form-grid">
+          <label><span>寄出快递单号</span><input name="trackingNumber" required placeholder="输入快递公司和单号"></label>
+          <label><span>打印机编号</span><input name="deviceNumber" required inputmode="numeric" maxlength="10" pattern="\d{10}" placeholder="打印机底部铭牌上的10位数字"></label>
+          <label><span>公司名</span><input name="companyName" required placeholder="在黑端的公司信息里查看"></label>
+          <label class="wide"><span>打印机故障原因</span><textarea name="customerIssue" required placeholder="请详细描述打印机哪里坏了"></textarea></label>
+          <label class="wide"><span>电源适配器是否寄回</span><select name="powerAdapterReturned" required><option value="">请选择</option><option value="否">否</option><option value="是">是</option></select></label>
+          <label><span>收件人（您的名字）</span><input name="contactName" required></label>
+          <label><span>您的手机号码</span><input name="phone" required inputmode="numeric" maxlength="11" pattern="\d{11}"></label>
+          <div class="wide">
+            <label><span>收件地区</span></label>
+            <div class="address-grid">
+              <select name="addressProvince" required aria-label="省"><option value="">省</option></select>
+              <select name="addressCity" required aria-label="市"><option value="">市</option></select>
+              <select name="addressDistrict" required aria-label="区县"><option value="">区 / 县</option></select>
+            </div>
+          </div>
+          <label class="wide"><span>详细地址</span><textarea name="addressDetail" required rows="2" placeholder="街道、门牌号、档口号"></textarea></label>
+        </div>
+        <p class="draft-note" id="draftNote" hidden>已自动保存填写内容</p>
+        <p class="error" id="error" role="alert"></p>
+        <div class="form-foot"><span class="form-tip">请确认信息填写正确后再提交</span><button class="primary" id="submitBtn" type="submit">提交登记</button></div>
+      </form>
+
+      <section class="success" id="success" hidden>
+        <div class="success-head">
+          <div><p class="eyebrow">最近一次提交</p><h2>您已提交维修登记</h2></div>
+          <div class="success-actions"><button class="secondary" id="editBtn" type="button">修改信息</button><button class="primary" id="newBtn" type="button">提交新的记录</button></div>
+        </div>
+        <div class="success-panel"><strong>登记成功</strong><span>维修人员会尽快处理您的机器信息。</span></div>
+        <div class="wechat-card"><img class="wechat-qr" src="assets/enterprise-wechat-qr.png" alt="企业微信二维码"><strong>长按/扫描二维码添加好友（以便咨询维修进度）</strong></div>
+        <div class="success-detail" id="successDetail"></div>
+      </section>
+    </main>
+    <script src="area-data.js"></script>
+    <script>
+      const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
+      const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
+      const DRAFT_KEY = "printer_customer_draft_v1";
+      const LAST_SUBMISSION_KEY = "printer_last_customer_submission_v2";
+      const form = document.querySelector("#customerForm");
+      const errorBox = document.querySelector("#error");
+      const draftNote = document.querySelector("#draftNote");
+      const submitBtn = document.querySelector("#submitBtn");
+      const success = document.querySelector("#success");
+      const modelRules = [["1009","GMX"],["10064","GMI"],["2003","GMT"],["10063","GMH"],["2009","GMX-5G"],["3003","GMT-5G"],["1002","DK110A"],["1007","DK110B"],["2002","DK110S"],["1003","DK80"],["7","新北洋110"],["9","芯烨80"]];
+      let areaData = null;
+      const clean = (value) => String(value || "").trim();
+      function inferModel(number) { const text = clean(number); return modelRules.find(([prefix]) => text.startsWith(prefix))?.[1] || ""; }
+      function selectText(name) { return form.elements[name].selectedOptions[0]?.textContent || ""; }
+      function addressText() { return ["addressProvince","addressCity","addressDistrict"].map(selectText).concat(clean(form.elements.addressDetail.value)).filter(Boolean).join(""); }
+      function saveDraft() { const data = {}; new FormData(form).forEach((value, key) => { data[key] = value; }); localStorage.setItem(DRAFT_KEY, JSON.stringify(data)); draftNote.hidden = false; }
+      function restoreDraft() { try { const data = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); if (!data) return; Object.entries(data).forEach(([key,value]) => { if (form.elements[key]) form.elements[key].value = value; }); draftNote.hidden = false; } catch {} }
+      function fillSelect(select, items, placeholder) { select.replaceChildren(new Option(placeholder, "")); Object.entries(items || {}).forEach(([code,name]) => select.append(new Option(name, code))); }
+      function updateCities() { fillSelect(form.elements.addressCity, areaData?.[form.elements.addressProvince.value], "市"); fillSelect(form.elements.addressDistrict, {}, "区 / 县"); saveDraft(); }
+      function updateDistricts() { fillSelect(form.elements.addressDistrict, areaData?.[form.elements.addressCity.value], "区 / 县"); saveDraft(); }
+      async function loadAreas() { try { if (window.CHINA_AREA_DATA) { areaData = window.CHINA_AREA_DATA; } else { const response = await fetch("area-data.json"); if (!response.ok) throw new Error(); areaData = await response.json(); } fillSelect(form.elements.addressProvince, areaData["86"], "省"); fillSelect(form.elements.addressCity, {}, "市"); fillSelect(form.elements.addressDistrict, {}, "区 / 县"); restoreDraft(); const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); if (draft) { form.elements.addressProvince.value = draft.addressProvince || ""; updateCities(); form.elements.addressCity.value = draft.addressCity || ""; updateDistricts(); form.elements.addressDistrict.value = draft.addressDistrict || ""; } } catch { errorBox.textContent = "省市区资料加载失败，请刷新页面重试"; } }
+      function validate() { const number = clean(form.elements.deviceNumber.value); const phone = clean(form.elements.phone.value); if (!/^\d{10}$/.test(number)) return "打印机编号要填写10位数字"; if (!/^\d{11}$/.test(phone)) return "手机号码要填写11位数字"; if (!areaData) return "省市区资料还没加载完，请稍等"; return ""; }
+      function showCachedSuccess(item) { if (!item) return; const value = (snake, camel = snake) => item[snake] || item[camel] || ""; const issue = value("customer_issue", "customerIssue"); const power = value("power_adapter_returned", "powerAdapterReturned") || (issue.match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1]; const created = value("created_time", "createdTime"); const address = value("customer_address", "customerAddress"); document.querySelector("#successDetail").innerHTML = `<dl><div><dt>提交时间</dt><dd>${escapeHtml(created)}</dd></div><div><dt>寄出单号</dt><dd>${escapeHtml(value("tracking_number", "trackingNumber"))}</dd></div><div><dt>打印机编号</dt><dd>${escapeHtml(value("device_number", "deviceNumber"))}</dd></div><div><dt>型号</dt><dd>${escapeHtml(value("model"))}</dd></div><div><dt>电源适配器是否寄回</dt><dd>${escapeHtml(power)}</dd></div><div><dt>公司名</dt><dd>${escapeHtml(value("company_name", "companyName"))}</dd></div><div><dt>故障原因</dt><dd>${escapeHtml(issue.replace(/^电源适配器是否寄回：[^\n]+\n?/, ""))}</dd></div><div><dt>收件信息</dt><dd>${escapeHtml([value("contact_name", "contactName"), value("phone"), address].filter(Boolean).join(" "))}</dd></div></dl>`; form.hidden = true; success.hidden = false; }
+      function escapeHtml(value) { return String(value || "").replace(/[&<>\"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[char])); }
+      async function submit(event) { event.preventDefault(); errorBox.textContent = ""; if (!form.reportValidity()) return; const message = validate(); if (message) { errorBox.textContent = message; return; } submitBtn.disabled = true; submitBtn.textContent = "正在提交"; const now = new Date().toISOString(); const data = { id: `customer-${Date.now()}-${Math.random().toString(16).slice(2)}`, created_time: now, device_number: clean(form.elements.deviceNumber.value), model: inferModel(form.elements.deviceNumber.value), company_name: clean(form.elements.companyName.value), contact_name: clean(form.elements.contactName.value), phone: clean(form.elements.phone.value), tracking_number: clean(form.elements.trackingNumber.value), customer_issue: `电源适配器是否寄回：${clean(form.elements.powerAdapterReturned.value)}\n故障描述：${clean(form.elements.customerIssue.value)}`, customer_address: addressText(), updated_at: now }; try { const response = await fetch(`${SUPABASE_URL}/rest/v1/customer_repair_submissions?on_conflict=id`, { method:"POST", headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}`, "Content-Type":"application/json", Prefer:"resolution=merge-duplicates,return=representation" }, body:JSON.stringify(data) }); if (!response.ok) throw new Error(); localStorage.removeItem(DRAFT_KEY); localStorage.setItem(LAST_SUBMISSION_KEY, JSON.stringify(data)); history.replaceState(null, "", `${location.pathname}?submitted=1`); showCachedSuccess(data); } catch { errorBox.textContent = "提交失败，信息还没有保存，请检查网络后重试"; } finally { submitBtn.disabled = false; submitBtn.textContent = "提交登记"; } }
+      function showForm() { success.hidden = true; form.hidden = false; errorBox.textContent = ""; }
+      function restoreLastSubmissionView() { if (document.hidden || new URLSearchParams(location.search).get("entry") === "edit") return; try { showCachedSuccess(JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null")); } catch {} }
+      form.addEventListener("input", saveDraft); form.addEventListener("change", saveDraft); form.elements.deviceNumber.addEventListener("input", () => { form.elements.deviceNumber.value = form.elements.deviceNumber.value.replace(/\D/g, "").slice(0,10); }); form.elements.phone.addEventListener("input", () => { form.elements.phone.value = form.elements.phone.value.replace(/\D/g, "").slice(0,11); }); form.elements.addressProvince.addEventListener("change", updateCities); form.elements.addressCity.addEventListener("change", updateDistricts); form.addEventListener("submit", submit); document.querySelector("#newBtn").addEventListener("click", () => { form.reset(); draftNote.hidden = true; history.replaceState(null, "", location.pathname); showForm(); }); document.querySelector("#editBtn").addEventListener("click", () => { const item = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null"); if (item) { form.elements.deviceNumber.value = item.device_number || item.deviceNumber || ""; form.elements.companyName.value = item.company_name || item.companyName || ""; form.elements.contactName.value = item.contact_name || item.contactName || ""; form.elements.phone.value = item.phone || ""; form.elements.trackingNumber.value = item.tracking_number || item.trackingNumber || ""; form.elements.customerIssue.value = (item.customer_issue || item.customerIssue || "").replace(/^电源适配器是否寄回：[^\n]+\n?/, ""); form.elements.powerAdapterReturned.value = item.power_adapter_returned || item.powerAdapterReturned || ((item.customer_issue || "").match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1]; } history.replaceState(null, "", `${location.pathname}?entry=edit`); showForm(); }); document.addEventListener("visibilitychange", restoreLastSubmissionView); window.addEventListener("pageshow", restoreLastSubmissionView); try { showCachedSuccess(JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null")); } catch {} loadAreas();
+    </script>
   </body>
 </html>
