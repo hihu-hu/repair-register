@@ -2,7 +2,7 @@ const STORAGE_KEY = "printer_repair_records_v3";
 const CUSTOMER_SUBMISSIONS_STORAGE_KEY = "printer_customer_submissions_v1";
 const LAST_CUSTOMER_SUBMISSION_KEY = "printer_last_customer_submission_v1";
 const PUBLIC_SHARE_BASE_URL = "https://hihu-hu.github.io/repair-register/";
-const CUSTOMER_REGISTER_URL = `${PUBLIC_SHARE_BASE_URL}customer.html?v=20260803-light-form`;
+const CUSTOMER_REGISTER_URL = `${PUBLIC_SHARE_BASE_URL}customer.html`;
 const LOCAL_CUSTOMER_REGISTER_URL = "http://192.168.1.211:5173/customer.html";
 const ADMIN_ACCOUNTS = [
   {
