@@ -3221,13 +3221,78 @@ function formatMonthDay(value) {
 function renderReturnTrackingCell(record) {
   const tracking = compact(record.returnTrackingNumber);
   const returnTime = formatMonthDay(record.returnTime);
-  if (!returnTime) return `<span class="plain-cell">${tracking}</span>`;
+  if (!returnTime) return `<span class="plain-cell inline-return-tracking" data-inline-return-tracking data-id="${escapeHtml(record.id)}" title="双击填写寄回快递单号">${tracking}</span>`;
   return `
-    <span class="plain-cell return-info-cell">
+    <span class="plain-cell return-info-cell inline-return-tracking" data-inline-return-tracking data-id="${escapeHtml(record.id)}" title="双击填写寄回快递单号">
       <span>${tracking}</span>
       <span class="cell-sub">${escapeHtml(returnTime)}</span>
     </span>
   `;
+}
+
+function openInlineReturnTrackingEditor(cell, recordId) {
+  if (readonlyMode || cell.querySelector("input")) return;
+  const record = records.find((item) => item.id === recordId);
+  if (!record) return;
+
+  const originalValue = String(record.returnTrackingNumber || "");
+  cell.classList.add("is-editing");
+  cell.innerHTML = `<input class="inline-return-tracking-input" type="text" value="${escapeHtml(originalValue)}" placeholder="输入快递单号" aria-label="寄回快递单号">`;
+  const input = cell.querySelector("input");
+  let finished = false;
+
+  const cancel = () => {
+    if (finished) return;
+    finished = true;
+    renderTable();
+  };
+
+  const save = async () => {
+    if (finished) return;
+    const nextValue = input.value.trim();
+    if (nextValue === originalValue) {
+      cancel();
+      return;
+    }
+
+    finished = true;
+    input.disabled = true;
+    const updatedRecord = normalizeRecord({
+      ...record,
+      returnTrackingNumber: nextValue,
+      updatedAt: new Date().toISOString()
+    });
+
+    try {
+      if (cloudMode) await saveCloudRecord(updatedRecord);
+      const index = records.findIndex((item) => item.id === updatedRecord.id);
+      if (index >= 0) records[index] = { ...records[index], ...updatedRecord };
+      if (!cloudMode) saveRecords();
+      render();
+      showToast("寄回快递单号已保存");
+    } catch (error) {
+      console.error(error);
+      finished = false;
+      input.disabled = false;
+      input.focus();
+      input.select();
+      showToast("保存失败，请重试", "error");
+    }
+  };
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      save();
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancel();
+    }
+  });
+  input.addEventListener("blur", save);
+  input.focus();
+  input.select();
 }
 
 function renderWarrantyFeeCell(record) {
@@ -5527,6 +5592,12 @@ function bindEvents() {
   els.recordsBody.addEventListener("dblclick", (event) => {
     if (readonlyMode) return;
     if (event.target.closest("button, a, input, select, textarea, label")) return;
+
+    const returnTrackingCell = event.target.closest("[data-inline-return-tracking]");
+    if (returnTrackingCell) {
+      openInlineReturnTrackingEditor(returnTrackingCell, returnTrackingCell.dataset.id);
+      return;
+    }
 
     const row = event.target.closest("tr[data-id]");
     if (!row) return;

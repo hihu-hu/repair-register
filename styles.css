@@ -1298,6 +1298,21 @@ body:not(.readonly) tbody tr {
   font-weight: 400;
 }
 
+body:not(.readonly) .inline-return-tracking {
+  cursor: text;
+}
+
+.inline-return-tracking-input {
+  width: 100%;
+  min-width: 9ch;
+  height: 36px;
+  padding: 6px 8px;
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+}
+
 .tracking-col {
   width: 10ch;
   max-width: 10ch;
