@@ -400,8 +400,6 @@ let submissionStatusFilter = "";
 let areaData = null;
 let appliedSubmissionSnapshot = null;
 let appliedSubmissionId = "";
-let ignoredSubmissionId = "";
-let matchedSubmissionForRecord = null;
 let isCustomerSubmitting = false;
 let editingCustomerSubmissionId = "";
 let lastCustomerSubmitFingerprint = "";
@@ -658,6 +656,7 @@ function normalizeRecord(record = {}) {
   const rawWarrantyStatus = record.warrantyStatus ?? record.warranty_status ?? extractWarrantyStatusFromAccessoryParts(rawAccessoryParts);
   return {
     id: String(record.id || createId()),
+    submissionId: String(record.submissionId || record.submission_id || "").trim(),
     createdTime: normalizeDateTime(record.createdTime || record.createdAt || record.repairDate),
     trackingNumber: String(record.trackingNumber || record.inboundTracking || ""),
     region,
@@ -1306,39 +1305,17 @@ function sortCustomerSubmissionsNewestFirst(items) {
   });
 }
 
-function compareItemsOldestFirst(a, b) {
-  const timeDiff = parseRecordTime(a.createdTime) - parseRecordTime(b.createdTime);
-  if (timeDiff !== 0) return timeDiff;
-  return String(a.updatedAt || "").localeCompare(String(b.updatedAt || ""));
-}
-
 function getReviewedSubmissionIds() {
   return new Set(getSubmissionRepairMatches().keys());
 }
 
 function getSubmissionRepairMatches() {
-  const submissionsByDevice = new Map();
-  customerSubmissions.forEach((submission) => {
-    const deviceNumber = String(submission.deviceNumber || "").trim().toLowerCase();
-    if (!deviceNumber) return;
-    if (!submissionsByDevice.has(deviceNumber)) submissionsByDevice.set(deviceNumber, []);
-    submissionsByDevice.get(deviceNumber).push(submission);
-  });
-
-  submissionsByDevice.forEach((items) => items.sort(compareItemsOldestFirst));
-
-  const recordCountsByDevice = new Map();
   const matches = new Map();
-  records
-    .filter((record) => String(record.deviceNumber || "").trim())
-    .sort(compareItemsOldestFirst)
-    .forEach((record) => {
-      const deviceNumber = String(record.deviceNumber || "").trim().toLowerCase();
-      const recordCount = recordCountsByDevice.get(deviceNumber) || 0;
-      const matchedSubmission = submissionsByDevice.get(deviceNumber)?.[recordCount];
-      recordCountsByDevice.set(deviceNumber, recordCount + 1);
-      if (matchedSubmission) matches.set(matchedSubmission.id, record);
-    });
+  records.forEach((record) => {
+    if (record.submissionId) {
+      matches.set(record.submissionId, record);
+    }
+  });
 
   return matches;
 }
@@ -1510,6 +1487,7 @@ function refreshAccessMode() {
 function toDatabaseRecord(record) {
   return {
     id: record.id,
+    submission_id: record.submissionId || null,
     created_time: record.createdTime || "",
     tracking_number: record.trackingNumber || "",
     region: record.region || "",
@@ -1535,6 +1513,7 @@ function fromDatabaseRecord(record) {
   const rawAccessoryParts = record.accessory_parts;
   return normalizeRecord({
     id: record.id,
+    submissionId: record.submission_id,
     createdTime: record.created_time,
     trackingNumber: record.tracking_number,
     region: record.region,
@@ -3465,7 +3444,7 @@ function resetForm() {
   lockAutoField(els.recordForm.elements.customerIssue);
   els.recordForm.elements.customerPowerAdapter.value = "";
   updateAccessoryPartsRequirement();
-  hideMatchBox();
+  clearSubmissionMatchState();
   updateDeviceHistoryButton();
 }
 
@@ -3475,11 +3454,11 @@ function openNewDialog() {
   openRecordDialogAndTrackChanges();
 }
 
-function findSubmissionByDeviceNumber(deviceNumber) {
+function findSubmissionsByDeviceNumber(deviceNumber) {
   const key = String(deviceNumber || "").trim().toLowerCase();
-  if (!key) return null;
+  if (!key) return [];
   const matches = customerSubmissions.filter((item) => item.deviceNumber.toLowerCase() === key);
-  return sortCustomerSubmissionsNewestFirst([...matches])[0] || null;
+  return sortCustomerSubmissionsNewestFirst([...matches]);
 }
 
 function buildAddressWithContact(submission) {
@@ -3592,14 +3571,12 @@ function applySubmissionToRecordForm(submission, { keepDeviceNumber = true } = {
   form.customerAddress.value = buildAddressWithContact(submission) || form.customerAddress.value;
   updateRepairFeeDetails();
   appliedSubmissionId = submission.id;
+  form.submissionId.value = submission.id;
   showToast("已带入客户提交的信息");
 }
 
 function undoSubmissionToRecordForm() {
-  if (!appliedSubmissionSnapshot) {
-    hideMatchBox();
-    return;
-  }
+  if (!appliedSubmissionSnapshot) return;
 
   const form = els.recordForm.elements;
   form.trackingNumber.value = appliedSubmissionSnapshot.trackingNumber;
@@ -3608,49 +3585,95 @@ function undoSubmissionToRecordForm() {
   form.customerIssue.value = appliedSubmissionSnapshot.customerIssue;
   form.customerAddress.value = appliedSubmissionSnapshot.customerAddress;
   appliedSubmissionSnapshot = null;
-  ignoredSubmissionId = appliedSubmissionId;
   appliedSubmissionId = "";
-  showToast("已取消带入");
-  showMatchedSubmission(matchedSubmissionForRecord, { autoApply: false });
+  form.submissionId.value = "";
+  updateRepairFeeDetails();
+  showToast("已取消关联");
+  renderSubmissionChoices(findAvailableSubmissionsByDeviceNumber(form.deviceNumber.value));
 }
 
-function showMatchedSubmission(submission, { autoApply = true } = {}) {
-  matchedSubmissionForRecord = submission || null;
-  if (!submission || els.recordId.value) {
-    hideMatchBox();
-    return;
-  }
-
-  const isIgnored = submission.id === ignoredSubmissionId;
-  const isApplied = appliedSubmissionId === submission.id;
-  if (autoApply && !isIgnored) applySubmissionToRecordForm(submission);
-
-  els.matchBox.hidden = false;
-  els.matchBox.innerHTML = `
-    <div>
-      <strong>${isIgnored && !isApplied ? "已取消带入客户提交的信息" : "已自动带入客户提交的信息"}</strong>
-    </div>
-    <div class="match-actions">
-      <button class="secondary" type="button" id="toggleSubmissionBtn">${isIgnored && !isApplied ? "带入" : "取消带入"}</button>
-    </div>
-  `;
-  document.querySelector("#toggleSubmissionBtn").addEventListener("click", () => {
-    if (isIgnored && !isApplied) {
-      ignoredSubmissionId = "";
-      applySubmissionToRecordForm(submission);
-      showMatchedSubmission(submission, { autoApply: false });
-      return;
-    }
-    undoSubmissionToRecordForm();
+function findAvailableSubmissionsByDeviceNumber(deviceNumber) {
+  const currentRecordId = els.recordId.value || "";
+  const linkedRecords = getSubmissionRepairMatches();
+  return findSubmissionsByDeviceNumber(deviceNumber).filter((submission) => {
+    const linkedRecord = linkedRecords.get(submission.id);
+    return !linkedRecord || linkedRecord.id === currentRecordId || submission.id === appliedSubmissionId;
   });
 }
 
 function hideMatchBox() {
   els.matchBox.hidden = true;
   els.matchBox.replaceChildren();
+}
+
+function clearSubmissionMatchState() {
+  hideMatchBox();
   appliedSubmissionSnapshot = null;
   appliedSubmissionId = "";
-  matchedSubmissionForRecord = null;
+  if (els.recordForm.elements.submissionId) els.recordForm.elements.submissionId.value = "";
+}
+
+function renderSubmissionChoiceDetails(submission) {
+  return `
+    <span class="match-choice-tag">登记</span>
+    <span class="match-choice-main">
+      <strong>${compact(submission.companyName)}</strong>
+      <small>${compact(formatDateTime(submission.createdTime))} · ${compact(submission.trackingNumber)}</small>
+      <small>${compact(cleanCustomerIssueForRecord(submission))}</small>
+    </span>
+  `;
+}
+
+function renderSubmissionChoices(submissions) {
+  const selectedSubmission = customerSubmissions.find((item) => item.id === appliedSubmissionId) || null;
+  const otherChoices = submissions.filter((item) => item.id !== appliedSubmissionId);
+  const deviceNumber = String(els.recordForm.elements.deviceNumber.value || "").trim();
+
+  if (deviceNumber.length < 10 && !selectedSubmission) {
+    hideMatchBox();
+    return;
+  }
+
+  els.matchBox.hidden = false;
+  els.matchBox.innerHTML = `
+    ${
+      selectedSubmission
+        ? `<label class="match-choice match-selected">
+            ${renderSubmissionChoiceDetails(selectedSubmission)}
+            <input class="match-choice-checkbox" type="checkbox" data-match-action="unlink" data-submission-id="${escapeHtml(selectedSubmission.id)}" aria-label="取消关联客户登记" checked>
+          </label>`
+        : `<div class="match-choice-head">
+            <strong>${otherChoices.length ? `找到 ${otherChoices.length} 条客户登记，请选择关联` : "没有找到可关联的客户登记"}</strong>
+            ${otherChoices.length ? "" : "<span>可检查编号，或继续手工填写维修记录</span>"}
+          </div>`
+    }
+    ${
+      otherChoices.length
+        ? `<div class="match-choice-list">
+            ${otherChoices.map((submission) => `
+              <label class="match-choice">
+                ${renderSubmissionChoiceDetails(submission)}
+                <input class="match-choice-checkbox" type="checkbox" data-match-action="choose" data-submission-id="${escapeHtml(submission.id)}" aria-label="关联客户登记">
+              </label>
+            `).join("")}
+          </div>`
+        : ""
+    }
+  `;
+
+  els.matchBox.querySelectorAll("input[data-match-action]").forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      if (checkbox.dataset.matchAction === "unlink" && !checkbox.checked) {
+        undoSubmissionToRecordForm();
+        return;
+      }
+      if (!checkbox.checked) return;
+      const submission = customerSubmissions.find((item) => item.id === checkbox.dataset.submissionId);
+      if (!submission) return;
+      applySubmissionToRecordForm(submission);
+      renderSubmissionChoices(findAvailableSubmissionsByDeviceNumber(submission.deviceNumber));
+    });
+  });
 }
 
 function getDeviceHistoryRecords(deviceNumber = "") {
@@ -3706,9 +3729,13 @@ function openDeviceHistoryDialog() {
 
 function checkDeviceNumberMatch() {
   autoFillRecordModel();
-  const submission = findSubmissionByDeviceNumber(els.recordForm.elements.deviceNumber.value);
-  if (submission?.id !== ignoredSubmissionId) ignoredSubmissionId = "";
-  showMatchedSubmission(submission);
+  const deviceNumber = String(els.recordForm.elements.deviceNumber.value || "").trim();
+  const selectedSubmission = customerSubmissions.find((item) => item.id === appliedSubmissionId);
+  if (selectedSubmission && selectedSubmission.deviceNumber !== deviceNumber) {
+    undoSubmissionToRecordForm();
+  } else {
+    renderSubmissionChoices(findAvailableSubmissionsByDeviceNumber(deviceNumber));
+  }
   updateDeviceHistoryButton();
 }
 
@@ -3750,6 +3777,7 @@ function openNewDialogFromSubmission(id) {
   if (!submission) return;
   resetForm();
   applySubmissionToRecordForm(submission, { keepDeviceNumber: false });
+  renderSubmissionChoices(findAvailableSubmissionsByDeviceNumber(submission.deviceNumber));
   openRecordDialogAndTrackChanges();
 }
 
@@ -3776,16 +3804,12 @@ function openSubmissionEditDialog(id) {
 }
 
 function findSubmissionForRecord(record) {
-  if (!record?.deviceNumber) return null;
-  const matchedEntries = [...getSubmissionRepairMatches().entries()];
-  const matchedEntry = matchedEntries.find(([, matchedRecord]) => matchedRecord.id === record.id);
-  if (matchedEntry) {
-    return customerSubmissions.find((item) => item.id === matchedEntry[0]) || null;
-  }
-  return findSubmissionByDeviceNumber(record.deviceNumber);
+  if (!record?.submissionId) return null;
+  return customerSubmissions.find((item) => item.id === record.submissionId) || null;
 }
 
 function fillForm(record) {
+  clearSubmissionMatchState();
   els.recordId.value = record.id;
   els.dialogTitle.textContent = "编辑记录";
   els.deleteRecordBtn.hidden = false;
@@ -3816,8 +3840,20 @@ function fillForm(record) {
   lockAutoField(els.recordForm.elements.customerIssue);
   const matchedSubmission = findSubmissionForRecord(record);
   els.recordForm.elements.customerPowerAdapter.value = extractPowerAdapterAnswer(matchedSubmission);
+  if (matchedSubmission) {
+    const form = els.recordForm.elements;
+    appliedSubmissionSnapshot = {
+      trackingNumber: form.trackingNumber.value,
+      companyName: form.companyName.value,
+      customerPowerAdapter: form.customerPowerAdapter.value,
+      customerIssue: form.customerIssue.value,
+      customerAddress: form.customerAddress.value
+    };
+    appliedSubmissionId = matchedSubmission.id;
+    form.submissionId.value = matchedSubmission.id;
+  }
+  renderSubmissionChoices(findAvailableSubmissionsByDeviceNumber(record.deviceNumber));
   updateAccessoryPartsRequirement();
-  hideMatchBox();
   updateDeviceHistoryButton();
 }
 
@@ -3838,6 +3874,7 @@ function getFormRecord() {
       ? formData.getAll(key).map((value) => String(value).trim()).filter(Boolean)
       : String(formData.get(key) || "").trim();
   });
+  record.submissionId = String(formData.get("submissionId") || appliedSubmissionId || "").trim();
   record.deviceNumber = record.deviceNumber.replace(/\D/g, "").slice(0, 10);
   if (!/^\d{10}$/.test(record.deviceNumber)) {
     showToast("编号必须填写 10 位数字");
