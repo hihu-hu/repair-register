@@ -22,6 +22,16 @@
   box-sizing: border-box;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
 [hidden] {
   display: none !important;
 }
@@ -956,6 +966,382 @@ body.customer-portal .customer-layout {
   white-space: pre-wrap;
 }
 
+.customer-progress-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 50px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+}
+
+.customer-progress-button:hover,
+.customer-progress-button:focus-visible {
+  background: var(--accent-dark);
+  outline: 3px solid rgba(15, 123, 108, 0.18);
+  outline-offset: 2px;
+}
+
+.customer-progress-button span {
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+body.customer-progress-open {
+  overflow: hidden;
+}
+
+.customer-progress-page {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  overflow-y: auto;
+  background: #f6f8f9;
+  color: var(--ink);
+  overscroll-behavior: contain;
+}
+
+.customer-progress-header {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  min-height: 64px;
+  padding: max(8px, env(safe-area-inset-top)) 14px 8px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.customer-progress-header h2 {
+  font-size: 20px;
+  text-align: center;
+}
+
+.customer-progress-close {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+  font-size: 32px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.customer-progress-close:hover,
+.customer-progress-close:focus-visible {
+  background: var(--gray-soft);
+  outline: none;
+}
+
+.customer-progress-content {
+  width: min(680px, 100%);
+  min-height: calc(100vh - 64px);
+  margin: 0 auto;
+  padding: 0 24px calc(44px + env(safe-area-inset-bottom));
+  background: #fff;
+}
+
+.customer-progress-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 -24px 28px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--line);
+  background: #f8fafb;
+}
+
+.customer-progress-summary div {
+  min-width: 0;
+}
+
+.customer-progress-summary span,
+.customer-progress-summary small {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.customer-progress-summary strong {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  font-size: 18px;
+}
+
+.customer-progress-summary small {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #fff;
+  color: #40515d;
+  font-weight: 800;
+}
+
+.customer-progress-loading {
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  border-left: 4px solid var(--warning);
+  background: var(--warning-soft);
+  color: #6d4a0c;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.customer-progress-timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.customer-progress-step {
+  position: relative;
+  min-height: 112px;
+  padding: 2px 0 28px 66px;
+}
+
+.customer-progress-step:not(:last-child)::after {
+  position: absolute;
+  top: 40px;
+  bottom: -2px;
+  left: 20px;
+  width: 3px;
+  background: var(--line-strong);
+  content: "";
+}
+
+.customer-progress-step.is-complete:not(:last-child)::after {
+  background: #2fb171;
+}
+
+.customer-progress-marker {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 3px solid var(--line-strong);
+  border-radius: 50%;
+  background: #fff;
+  color: #fff;
+}
+
+.customer-progress-step.is-complete .customer-progress-marker {
+  border-color: #2fb171;
+  background: #2fb171;
+}
+
+.customer-progress-step.is-complete .customer-progress-marker::before {
+  content: "✓";
+  font-size: 25px;
+  line-height: 1;
+}
+
+.customer-progress-step.is-current .customer-progress-marker {
+  border: 10px solid var(--accent-soft);
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.customer-progress-step h3 {
+  margin: 0;
+  color: #7c8992;
+  font-size: 18px;
+  letter-spacing: 0;
+  line-height: 1.4;
+}
+
+.customer-progress-step.is-complete h3 {
+  color: #238659;
+}
+
+.customer-progress-step.is-current h3 {
+  color: var(--accent-dark);
+}
+
+.customer-progress-current-label {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 800;
+  vertical-align: 2px;
+}
+
+.customer-progress-current-label.is-skipped {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.customer-progress-time,
+.customer-progress-note {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.customer-progress-note {
+  color: #34434d;
+  white-space: pre-wrap;
+}
+
+.customer-progress-repair-suggestion {
+  margin: 9px 0 0;
+  color: #34434d;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.customer-progress-repair-suggestion strong {
+  color: var(--accent-dark);
+}
+
+.customer-progress-warranty {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  margin: 7px 0 0;
+  color: #000;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.customer-progress-warranty strong {
+  color: #000;
+  font-weight: 900;
+}
+
+.customer-progress-accessories {
+  display: grid;
+  gap: 7px;
+  max-width: 520px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.customer-progress-accessories-title {
+  color: #34434d;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.customer-progress-accessories ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.customer-progress-accessories li,
+.customer-progress-accessories > p {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0;
+  color: #40515d;
+  font-size: 13px;
+}
+
+.customer-progress-accessories li strong,
+.customer-progress-accessories > p strong {
+  color: #17242c;
+  white-space: nowrap;
+}
+
+.customer-progress-accessories > p {
+  padding-top: 6px;
+  border-top: 1px dashed var(--line-strong);
+  font-weight: 900;
+}
+
+.customer-payment-guide {
+  display: grid;
+  gap: 3px;
+  margin: 14px 0 0;
+  color: #40515d;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.customer-payment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.customer-payment-confirm,
+.customer-no-repair {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(132px, 100%);
+  min-height: 54px;
+  padding: 10px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.customer-payment-confirm:hover,
+.customer-payment-confirm:focus-visible {
+  background: var(--accent-dark);
+  outline: none;
+}
+
+.customer-no-repair {
+  border-color: #f5b061;
+  background: #fff7ed;
+  color: #b85c00;
+}
+
+.customer-no-repair:hover,
+.customer-no-repair:focus-visible {
+  border-color: #e89431;
+  background: #ffedd5;
+  outline: none;
+}
+
+.progress-payment-confirm input {
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  margin: 1px 0 0;
+  accent-color: var(--accent);
+}
+
 .success-panel {
   display: grid;
   gap: 6px;
@@ -1085,9 +1471,10 @@ body.customer-portal .customer-layout {
 .match-box {
   display: grid;
   gap: 8px;
-  align-self: end;
+  grid-column: 1 / -1;
+  align-self: stretch;
   min-height: 88px;
-  padding: 10px;
+  padding: 14px;
   border: 1px solid #b8d8d1;
   border-radius: 8px;
   background: var(--accent-soft);
@@ -1160,7 +1547,8 @@ body.customer-portal .customer-layout {
   background: #f8fffd;
 }
 
-.match-choice-tag {
+.match-choice-id,
+.record-id-badge {
   display: inline-grid;
   place-items: center;
   min-width: 46px;
@@ -1245,6 +1633,41 @@ body.customer-portal .customer-layout {
   overflow-x: auto;
 }
 
+.record-id-col {
+  width: 80px;
+  min-width: 80px;
+  white-space: nowrap;
+}
+
+.record-id-badge.repair-id {
+  border-color: #b9c9e8;
+  background: #edf3ff;
+  color: #315d9b;
+}
+
+.record-id-link {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.record-progress-state {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 6px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: #e4f4f0;
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+  white-space: normal;
+}
+
 table {
   width: 100%;
   min-width: 1600px;
@@ -1260,10 +1683,14 @@ td {
 }
 
 th {
+  height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
   background: #f8fafb;
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+  vertical-align: middle;
   white-space: nowrap;
 }
 
@@ -1337,9 +1764,18 @@ body:not(.readonly) .inline-return-tracking {
   line-height: 1.45;
 }
 
+.power-col {
+  width: 56px;
+  max-width: 56px;
+  padding-right: 13px;
+  padding-left: 13px;
+}
+
 .warranty-fee-col {
-  width: 10ch;
-  max-width: 10ch;
+  width: 80px;
+  max-width: 80px;
+  padding-right: 12px;
+  padding-left: 12px;
 }
 
 .fee-cell {
@@ -1487,11 +1923,45 @@ body:not(.readonly) .inline-return-tracking {
 }
 
 .row-actions button.reviewed,
-.row-actions button.reviewed:disabled {
+.row-actions button.reviewed:disabled,
+.row-actions button.received,
+.row-actions button.received:disabled {
   border-color: #0f766e;
   background: #0f8f7c;
   color: #fff;
   opacity: 1;
+}
+
+.row-actions button.received {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+.row-actions button.received::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 4px;
+  background: #b8ded6;
+  content: "";
+  pointer-events: none;
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.row-actions button.received.is-holding::after {
+  animation: received-undo-hold 3s linear forwards;
+}
+
+@keyframes received-undo-hold {
+  to {
+    transform: scaleX(1);
+  }
 }
 
 .submission-status-col {
@@ -1558,7 +2028,8 @@ dialog::backdrop {
   width: min(420px, calc(100% - 32px));
 }
 
-#customPartPriceDialog {
+#customPartPriceDialog,
+#progressCustomPartPriceDialog {
   width: min(420px, calc(100% - 32px));
 }
 
@@ -1566,11 +2037,44 @@ dialog::backdrop {
   width: min(520px, calc(100% - 32px));
 }
 
+#progressManageDialog {
+  width: min(760px, calc(100% - 28px));
+}
+
+#receivedUndoConfirmDialog {
+  width: min(440px, calc(100% - 32px));
+}
+
+#detectionReminderDialog {
+  width: min(440px, calc(100% - 32px));
+}
+
+.received-undo-confirm-dialog {
+  padding: 20px;
+}
+
+.received-undo-confirm-message {
+  margin: 18px 0 0;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.detection-reminder-dialog {
+  padding: 20px;
+}
+
+.detection-reminder-actions {
+  justify-content: flex-end;
+}
+
 #authForm {
   padding: 20px;
 }
 
-#customPartPriceForm {
+#customPartPriceForm,
+#progressCustomPartPriceForm {
   padding: 20px;
 }
 
@@ -1676,6 +2180,609 @@ dialog::backdrop {
   display: grid;
   gap: 12px;
   padding: 16px;
+}
+
+.progress-manage-dialog {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+
+.progress-manage-dialog .dialog-head {
+  margin-bottom: 0;
+}
+
+.progress-manage-dialog .dialog-head h2 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: 0;
+}
+
+.progress-manage-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.progress-manage-summary > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.progress-manage-summary span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.progress-manage-summary strong {
+  color: #34434d;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.progress-manage-current {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.progress-manage-current strong {
+  color: var(--accent-dark);
+}
+
+.progress-manage-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  list-style: none;
+}
+
+.progress-manage-step {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 82px;
+  padding: 12px 14px;
+  background: #fff;
+}
+
+.progress-manage-step + .progress-manage-step {
+  border-top: 1px solid var(--line);
+}
+
+.progress-manage-step:first-child {
+  border-radius: 7px 7px 0 0;
+}
+
+.progress-manage-step:last-child {
+  border-radius: 0 0 7px 7px;
+}
+
+.progress-manage-step.is-pending {
+  background: #f8fafb;
+}
+
+.progress-manage-step.is-next {
+  background: #f8fafb;
+}
+
+.progress-manage-step.is-current {
+  background: var(--accent-soft);
+}
+
+.progress-manage-marker {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 2px solid #c4d0d8;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.progress-manage-step.is-recorded .progress-manage-marker {
+  border-color: #2f9e70;
+  background: #2f9e70;
+  color: #fff;
+}
+
+.progress-manage-step.is-current .progress-manage-marker {
+  border-color: var(--accent);
+  background: #fff;
+  color: var(--accent-dark);
+}
+
+.progress-manage-step.is-current .progress-manage-step-head h3,
+.progress-manage-step.is-current .progress-manage-step-head > span {
+  color: var(--accent-dark);
+}
+
+.progress-manage-step-main {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.progress-manage-step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.progress-manage-step-head h3 {
+  margin: 0;
+  color: #34434d;
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.progress-manage-step-head > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.progress-operation-record {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 6px 9px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  color: #40515d;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.progress-operation-record span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.progress-operation-record strong {
+  color: var(--accent-dark);
+  font-weight: 900;
+}
+
+.progress-operation-record.is-no-repair {
+  border-left-color: #ff9500;
+  background: #f2e0cf;
+}
+
+.progress-operation-record.is-no-repair span,
+.progress-operation-record.is-no-repair strong {
+  color: #b85f00;
+}
+
+.progress-manage-step input {
+  width: min(260px, 100%);
+  min-height: 40px;
+  padding: 7px 10px;
+  font-size: 14px;
+}
+
+.progress-manage-step input:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  opacity: 1;
+}
+
+.progress-time-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(340px, 100%);
+}
+
+.progress-time-control label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.progress-time-control .progress-now-button {
+  flex: 0 0 50px;
+  width: 50px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.progress-result-fields,
+.progress-result-field {
+  display: grid;
+  gap: 6px;
+  max-width: 520px;
+}
+
+.progress-warranty-options {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.progress-warranty-options legend {
+  margin: 0;
+  padding: 0;
+  color: #40515d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.progress-warranty-options > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.progress-warranty-label {
+  color: #40515d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.progress-warranty-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: #fff;
+  color: #40515d;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.progress-warranty-options label.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.progress-warranty-options label.is-selected.is-expired {
+  border-color: #f5b061;
+  background: #f2e0cf;
+  color: #ff9500;
+}
+
+.progress-manage-step .progress-warranty-options input {
+  width: 15px;
+  height: 15px;
+  min-height: 15px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.progress-manage-step .progress-warranty-options label.is-selected.is-expired input {
+  accent-color: #ff9500;
+}
+
+.progress-warranty-options:disabled label {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.progress-result-field > span {
+  color: #40515d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.progress-result-field textarea {
+  width: 100%;
+  min-height: 82px;
+  resize: vertical;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  padding: 10px 11px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.progress-result-field textarea:focus {
+  border-color: var(--accent);
+  outline: 2px solid rgba(15, 123, 108, 0.15);
+}
+
+.progress-result-field textarea:disabled {
+  background: var(--gray-soft);
+}
+
+.progress-accessory-field {
+  display: grid;
+  gap: 7px;
+  max-width: 520px;
+  margin-top: 3px;
+}
+
+.progress-accessory-heading,
+.progress-accessory-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.progress-accessory-heading > strong {
+  color: #40515d;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.progress-accessory-heading > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.progress-accessory-notice {
+  margin: 0;
+  padding: 7px 9px;
+  border-left: 3px solid var(--warning);
+  background: var(--warning-soft);
+  color: #6d4a0c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.progress-accessory-field fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.progress-accessory-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 6px;
+}
+
+.progress-accessory-option {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 5px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #fff;
+  color: #40515d;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.progress-accessory-option.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.progress-manage-step .progress-accessory-option input {
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.progress-accessory-option strong {
+  color: #17242c;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.progress-custom-accessory-name {
+  min-width: 0;
+  overflow: hidden;
+  border-bottom: 1px dashed currentColor;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress-custom-accessory-name.is-editing {
+  overflow: visible;
+  padding: 2px 4px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  outline: 2px solid rgba(15, 123, 108, 0.15);
+  background: #fff;
+  color: var(--ink);
+  white-space: normal;
+}
+
+.progress-accessory-field fieldset:disabled .progress-accessory-option {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.progress-custom-part-price {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 7px;
+  color: #40515d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.progress-custom-part-price[hidden] {
+  display: none;
+}
+
+.progress-price-input {
+  display: flex;
+  align-items: center;
+  width: min(150px, 100%);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.progress-price-input b {
+  padding-left: 9px;
+  color: var(--muted);
+}
+
+.progress-manage-step .progress-price-input input {
+  width: 100%;
+  min-height: 34px;
+  padding: 5px 8px 5px 4px;
+  border: 0;
+  background: transparent;
+}
+
+.progress-accessory-total {
+  padding-top: 7px;
+  border-top: 1px dashed var(--line-strong);
+  color: #40515d;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.progress-accessory-total strong {
+  color: var(--accent-dark);
+  font-size: 14px;
+}
+
+.progress-repair-suggestion-field {
+  display: grid;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.progress-repair-suggestion-field > span {
+  color: #40515d;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.progress-manage-step .progress-repair-suggestion-field input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.progress-manage-step .progress-repair-suggestion-field input:focus {
+  border-color: var(--accent);
+  outline: 2px solid rgba(15, 123, 108, 0.15);
+}
+
+.progress-manage-step .progress-repair-suggestion-field input:disabled {
+  border-color: var(--line);
+  background: var(--gray-soft);
+}
+
+.progress-return-tracking-field {
+  display: grid;
+  gap: 6px;
+  max-width: 520px;
+}
+
+.progress-return-tracking-field > span {
+  color: #40515d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.progress-return-tracking-field > span b {
+  color: var(--danger);
+}
+
+.progress-manage-step .progress-return-tracking-field input {
+  width: min(520px, 100%);
+}
+
+.progress-manage-step-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 108px;
+}
+
+.progress-manage-step-actions button {
+  min-height: 36px;
+  padding: 0 11px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.progress-manage-step-actions .progress-no-repair-button {
+  border-color: #f5b061;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #b85c00;
+  font-weight: 800;
+}
+
+.progress-manage-step-actions .progress-no-repair-button:hover,
+.progress-manage-step-actions .progress-no-repair-button:focus-visible {
+  border-color: #e89431;
+  background: #ffedd5;
+  outline: none;
+}
+
+.progress-payment-confirm-admin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid #b8ded6;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.progress-manage-system,
+.progress-manage-wait {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.progress-manage-actions {
+  justify-content: flex-end;
+  margin-top: 0;
 }
 
 .device-history-list {
@@ -1816,6 +2923,34 @@ dialog::backdrop {
   color: #d06b6b;
   font-size: 12px;
   font-weight: 700;
+}
+
+.repair-process-field-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+}
+
+.repair-process-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.field-required-marker {
+  margin-left: 4px;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.record-progress-button {
+  width: 65px;
+  min-width: 65px;
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .form-grid label:has(:required) > span::after,
@@ -1964,7 +3099,7 @@ dialog::backdrop {
 }
 
 .address-picker {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   padding: 12px;
   border: 1px solid var(--line);
@@ -2430,7 +3565,7 @@ body.readonly .row-actions {
   }
 
   .address-picker {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .address-picker select {
@@ -2467,6 +3602,18 @@ body.readonly .row-actions {
     min-height: 36px;
     padding: 0 12px;
     font-size: 13px;
+  }
+
+  .customer-progress-content {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
+  .customer-progress-summary {
+    margin-right: -20px;
+    margin-left: -20px;
+    padding-right: 20px;
+    padding-left: 20px;
   }
 
   .match-actions {
@@ -2507,5 +3654,48 @@ body.readonly .row-actions {
   .dialog-actions > div {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .progress-manage-dialog {
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .progress-manage-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .progress-manage-current {
+    text-align: left;
+  }
+
+  .progress-manage-step {
+    grid-template-columns: 32px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .progress-manage-step-actions {
+    grid-column: 2;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .progress-payment-confirm-admin {
+    white-space: normal;
+  }
+
+  .progress-manage-step input {
+    width: 100%;
+  }
+
+  .progress-time-control {
+    width: 100%;
+  }
+
+  .progress-manage-step-actions button {
+    flex: 1 1 auto;
   }
 }

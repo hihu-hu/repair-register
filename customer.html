@@ -24,7 +24,7 @@
       input, select, textarea { width:100%; min-height:44px; border:1px solid #c4d0d8; border-radius:6px; padding:10px 11px; background:#fff; color:var(--ink); font-size:16px; }
       textarea { min-height:86px; resize:vertical; line-height:1.5; }
       input:focus, select:focus, textarea:focus { outline:2px solid rgba(15,123,108,.18); border-color:var(--accent); }
-      .address-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+      .address-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
       .address-grid label { font-size:13px; }
       .form-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:18px; }
       .form-tip { color:var(--muted); font-size:13px; line-height:1.5; }
@@ -50,12 +50,71 @@
       .success-detail dl div { display:grid; gap:4px; padding:12px 0; border-bottom:1px solid var(--line); }
       .success-detail dt { color:var(--muted); font-weight:700; }
       .success-detail dd { margin:0; font-size:18px; }
+      .progress-button { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; min-height:50px; margin-top:18px; background:var(--accent); color:#fff; }
+      .progress-button span { font-size:26px; font-weight:400; line-height:1; }
+      body.progress-open { overflow:hidden; }
+      .progress-page { position:fixed; z-index:20; inset:0; overflow-y:auto; background:#f6f8f9; color:var(--ink); overscroll-behavior:contain; }
+      .progress-header { position:sticky; z-index:2; top:0; display:grid; grid-template-columns:44px minmax(0,1fr) 44px; align-items:center; min-height:64px; padding:max(8px,env(safe-area-inset-top)) 14px 8px; border-bottom:1px solid var(--line); background:rgba(255,255,255,.98); }
+      .progress-header h2 { margin:0; font-size:20px; text-align:center; }
+      .progress-close { display:grid; width:44px; height:44px; min-height:44px; place-items:center; padding:0; border-radius:50%; background:transparent; color:var(--ink); font-size:32px; font-weight:300; line-height:1; }
+      .progress-close:hover, .progress-close:focus-visible { background:#eef2f5; outline:none; }
+      .progress-content { width:min(680px,100%); min-height:calc(100vh - 64px); margin:0 auto; padding:0 24px calc(44px + env(safe-area-inset-bottom)); background:#fff; }
+      .progress-summary { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:0 -24px 28px; padding:20px 24px; border-bottom:1px solid var(--line); background:#f8fafb; }
+      .progress-summary div { min-width:0; }
+      .progress-summary span, .progress-summary small { display:block; color:var(--muted); font-size:13px; }
+      .progress-summary strong { display:block; margin-top:4px; overflow-wrap:anywhere; font-size:18px; }
+      .progress-summary small { flex:0 0 auto; padding:6px 9px; border:1px solid #c4d0d8; border-radius:6px; background:#fff; color:#40515d; font-weight:800; }
+      .progress-loading { margin-bottom:20px; padding:12px 14px; border-left:4px solid #d79412; background:#fff3d8; color:#6d4a0c; font-size:14px; font-weight:700; }
+      .progress-timeline { margin:0; padding:0; list-style:none; }
+      .progress-step { position:relative; min-height:112px; padding:2px 0 28px 66px; }
+      .progress-step:not(:last-child)::after { position:absolute; top:40px; bottom:-2px; left:20px; width:3px; background:#c4d0d8; content:""; }
+      .progress-step.is-complete:not(:last-child)::after { background:#2fb171; }
+      .progress-marker { position:absolute; z-index:1; top:0; left:0; display:grid; width:42px; height:42px; place-items:center; border:3px solid #c4d0d8; border-radius:50%; background:#fff; color:#fff; }
+      .progress-step.is-complete .progress-marker { border-color:#2fb171; background:#2fb171; }
+      .progress-step.is-complete .progress-marker::before { content:"✓"; font-size:25px; line-height:1; }
+      .progress-step.is-current .progress-marker { border:10px solid var(--soft); background:#2fb171; box-shadow:0 0 0 2px #2fb171; }
+      .progress-step.is-current.is-half-complete .progress-marker { border:3px solid #2fb171; background:linear-gradient(to bottom,#2fb171 0 50%,#fff 50% 100%); box-shadow:none; }
+      .progress-step h3 { margin:0; color:#7c8992; font-size:18px; letter-spacing:0; line-height:1.4; }
+      .progress-step.is-complete h3 { color:#238659; }
+      .progress-step.is-current h3 { color:#238659; }
+      .progress-step.is-current.is-half-complete h3 { color:#7c8992; }
+      .progress-current-label { display:inline-block; margin-left:8px; padding:3px 7px; border-radius:5px; background:var(--soft); color:var(--accent-dark); font-size:12px; font-weight:800; vertical-align:2px; }
+      .progress-time, .progress-note { margin:7px 0 0; color:var(--muted); font-size:14px; line-height:1.6; }
+      .progress-note { color:#34434d; white-space:pre-wrap; }
+      .progress-repair-suggestion { margin:9px 0 0; color:#34434d; font-size:14px; line-height:1.6; white-space:pre-wrap; }
+      .progress-repair-suggestion strong { color:var(--accent-dark); }
+      .progress-warranty { display:flex; align-items:baseline; gap:3px; margin:7px 0 0; color:#000; font-size:14px; line-height:1.6; }
+      .progress-warranty strong { color:#000; font-weight:400; }
+      .progress-quote { margin:7px 0 0; color:#34434d; font-size:14px; line-height:1.6; }
+      .progress-accessories { max-width:420px; margin-top:7px; }
+      .progress-accessories summary { display:inline; color:#1677d2; font-size:14px; line-height:1.6; cursor:pointer; list-style:none; }
+      .progress-accessories summary::-webkit-details-marker { display:none; }
+      .progress-accessories summary:focus-visible { outline:2px solid rgba(22,119,210,.25); outline-offset:3px; }
+      .progress-accessories ul { display:grid; gap:5px; margin:7px 0 0; padding:7px 0 0; border-top:1px dashed var(--line); list-style:none; }
+      .progress-accessories li { display:grid; grid-template-columns:minmax(0,1fr) 120px; align-items:baseline; gap:14px; color:#40515d; font-size:13px; line-height:1.6; }
+      .progress-accessories li span:first-child { min-width:0; overflow-wrap:anywhere; }
+      .progress-accessories li span:last-child { color:#182026; text-align:left; white-space:nowrap; }
+      .payment-guide { display:grid; gap:3px; margin:14px 0 0; color:#40515d; font-size:14px; line-height:1.65; }
+      .payment-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+      .payment-confirm { display:inline-flex; align-items:center; justify-content:center; width:auto; min-height:44px; margin-top:10px; padding:0 18px; border:1px solid var(--accent); border-radius:8px; background:var(--accent); color:#fff; font-size:15px; font-weight:700; text-align:center; white-space:nowrap; }
+      .payment-actions .payment-confirm { margin-top:0; }
+      .payment-confirm:hover, .payment-confirm:focus-visible { background:var(--accent-dark); outline:none; }
+      .payment-no-repair { display:inline-flex; align-items:center; justify-content:center; width:auto; min-height:44px; padding:0 18px; border:1px solid #dfb33f; border-radius:8px; background:#fff3cd; color:#6d4a0c; font-size:15px; font-weight:700; text-align:center; white-space:nowrap; }
+      .payment-no-repair:hover, .payment-no-repair:focus-visible { background:#ffe69c; border-color:#c99518; outline:none; }
+      .no-repair-status { margin:10px 0 0; color:#6d4a0c; font-size:14px; font-weight:700; line-height:1.6; }
+      .payment-dialog { width:min(360px,calc(100% - 32px)); padding:0; border:0; border-radius:10px; background:#fff; color:var(--ink); box-shadow:0 18px 50px rgba(24,32,38,.25); }
+      .payment-dialog::backdrop { background:rgba(24,32,38,.42); }
+      .payment-dialog-content { padding:22px; }
+      .payment-dialog h3 { margin:0 0 8px; font-size:20px; }
+      .payment-dialog p { margin:0; color:var(--muted); line-height:1.6; }
+      .payment-dialog-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:20px; }
+      .payment-dialog-actions button { width:100%; min-height:44px; }
       @media (max-width:560px) {
         main { width:min(100% - 20px,760px); padding-top:16px; }
         form, .success { padding:15px; }
         .form-grid { grid-template-columns:1fr; gap:14px; }
         label.wide { grid-column:auto; }
-        .address-grid { gap:7px; }
+        .address-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
         .address-grid select { padding-left:7px; padding-right:22px; }
         .form-foot { align-items:stretch; flex-direction:column; }
         .form-foot button { width:100%; }
@@ -64,6 +123,8 @@
         .success-actions button { flex:1; }
         .wechat-card { align-items:flex-start; flex-direction:column; }
         .wechat-qr { width:230px; height:230px; }
+        .progress-content { padding-right:20px; padding-left:20px; }
+        .progress-summary { margin-right:-20px; margin-left:-20px; padding-right:20px; padding-left:20px; }
       }
     </style>
   </head>
@@ -90,9 +151,10 @@
               <select name="addressProvince" required aria-label="省"><option value="">省</option></select>
               <select name="addressCity" required aria-label="市"><option value="">市</option></select>
               <select name="addressDistrict" required aria-label="区县"><option value="">区 / 县</option></select>
+              <select name="addressStreet" required aria-label="街道"><option value="">街道 / 乡镇</option></select>
             </div>
           </div>
-          <label class="wide"><span>详细地址</span><textarea name="addressDetail" required rows="2" placeholder="街道、门牌号、档口号"></textarea></label>
+          <label class="wide"><span>详细地址</span><textarea name="addressDetail" required rows="2" placeholder="门牌号、档口号等详细信息"></textarea></label>
         </div>
         <p class="draft-note" id="draftNote" hidden>已自动保存填写内容</p>
         <p class="error" id="error" role="alert"></p>
@@ -107,35 +169,524 @@
         <div class="success-panel"><strong>登记成功</strong><span>维修人员会尽快处理您的机器信息。</span></div>
         <div class="wechat-card"><img class="wechat-qr" src="assets/enterprise-wechat-qr.png" alt="企业微信二维码"><strong>长按/扫描二维码添加好友（以便咨询维修进度）</strong></div>
         <div class="success-detail" id="successDetail"></div>
+        <button class="progress-button" id="viewProgressBtn" type="button" hidden>查看维修进度 <span aria-hidden="true">›</span></button>
       </section>
     </main>
+    <section class="progress-page" id="progressPage" aria-label="维修进度查询" hidden>
+      <header class="progress-header">
+        <button class="progress-close" id="closeProgressBtn" type="button" aria-label="关闭维修进度" title="关闭">×</button>
+        <h2>维修进度查询</h2>
+        <span aria-hidden="true"></span>
+      </header>
+      <div class="progress-content">
+        <div class="progress-summary" id="progressSummary"></div>
+        <div class="progress-loading" id="progressLoading" hidden>正在读取最新进度...</div>
+        <ol class="progress-timeline" id="progressTimeline"></ol>
+      </div>
+    </section>
+    <dialog class="payment-dialog" id="paymentConfirmDialog" aria-labelledby="paymentConfirmTitle">
+      <div class="payment-dialog-content">
+        <h3 id="paymentConfirmTitle">是否已支付维修费？</h3>
+        <div class="payment-dialog-actions">
+          <button class="secondary" id="paymentNotPaidBtn" type="button">未支付</button>
+          <button class="primary" id="paymentPaidBtn" type="button">已支付</button>
+        </div>
+      </div>
+    </dialog>
+    <dialog class="payment-dialog" id="noRepairConfirmDialog" aria-labelledby="noRepairConfirmTitle">
+      <div class="payment-dialog-content">
+        <h3 id="noRepairConfirmTitle">确认无需维修？</h3>
+        <p id="noRepairConfirmText">由于设备过保，并放弃维修，需您承担寄回运费（金额待确认，可在管理端-商城支付差价）</p>
+        <div class="payment-dialog-actions">
+          <button class="secondary" id="keepRepairBtn" type="button">继续维修</button>
+          <button class="payment-no-repair" id="confirmNoRepairBtn" type="button">确认放弃维修</button>
+        </div>
+      </div>
+    </dialog>
     <script src="area-data.js"></script>
+    <script src="street-data.js?v=20260807"></script>
     <script>
       const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
       const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
       const NEW_SUBMISSION_PUSH_URL = `${SUPABASE_URL}/functions/v1/push-new-customer-submission`;
       const DRAFT_KEY = "printer_customer_draft_v1";
       const LAST_SUBMISSION_KEY = "printer_last_customer_submission_v2";
+      const REPAIR_PROGRESS_ENABLED = false;
       const form = document.querySelector("#customerForm");
       const errorBox = document.querySelector("#error");
       const draftNote = document.querySelector("#draftNote");
       const submitBtn = document.querySelector("#submitBtn");
       const success = document.querySelector("#success");
+      const progressPage = document.querySelector("#progressPage");
+      const progressSummary = document.querySelector("#progressSummary");
+      const progressLoading = document.querySelector("#progressLoading");
+      const progressTimeline = document.querySelector("#progressTimeline");
+      const paymentConfirmDialog = document.querySelector("#paymentConfirmDialog");
+      const paymentPaidBtn = document.querySelector("#paymentPaidBtn");
+      const paymentNotPaidBtn = document.querySelector("#paymentNotPaidBtn");
+      const noRepairConfirmDialog = document.querySelector("#noRepairConfirmDialog");
+      const keepRepairBtn = document.querySelector("#keepRepairBtn");
+      const confirmNoRepairBtn = document.querySelector("#confirmNoRepairBtn");
+      const noRepairConfirmText = document.querySelector("#noRepairConfirmText");
+      const progressSteps = ["用户提交工单","等待收货","已收货","检测中","检测结果","待付款","维修中","等待发货","已发货"];
+      const AUTO_START_DETECTION_AFTER_MS = 14 * 60 * 60 * 1000;
+      const WAITING_RECEIPT_RESET_MARK = "__waiting_receipt_reset__";
+      const NO_REPAIR_PROGRESS_MARK = "__no_repair__";
+      const NO_REPAIR_CUSTOMER_PROGRESS_MARK = "__no_repair_customer__";
+      const NO_REPAIR_REQUEST_MARK = "客户选择：无需维修";
+      const PROGRESS_ACCESSORY_STORAGE_PREFIX = "__progress_accessories__:";
+      const CUSTOM_PRICE_ACCESSORY_PART = "塑料件/其他件";
+      const PROGRESS_CUSTOM_ACCESSORY_PART = "自定义";
+      const ACCESSORY_PRICES = {
+        GMX:{传感器:60,打印头:190,主板:260,wifi模块:50,wifi模块5g:60,屏幕:60,电源适配器:80,卡勾:40,电源接口:60,"塑料件/其他件":1},
+        GMI:{打印头:130,主板:110,wifi模块:50,电源适配器:60,"塑料件/其他件":1},
+        GMT:{传感器:60,打印头:150,主板:180,wifi模块:50,电源适配器:60,"塑料件/其他件":1},
+        GMH:{打印头:190,主板:210,wifi模块:110,屏幕:60,电源适配器:60,电池:100,电源接口:60,"塑料件/其他件":1},
+        "GMX-5G":{传感器:60,打印头:190,主板:260,wifi模块5g:60,屏幕:60,电源适配器:80,卡勾:40,电源接口:60,"塑料件/其他件":1},
+        "GMT-5G":{传感器:60,打印头:150,主板:180,wifi模块5g:60,电源适配器:60,"塑料件/其他件":1},
+        DK110A:{打印头:240,主板:450,wifi模块:50,电源适配器:155,卡勾:60,"塑料件/其他件":1},
+        DK110B:{打印头:550,主板:650,wifi模块:50,电源适配器:155,卡勾:60,"塑料件/其他件":1},
+        DK110S:{打印头:240,主板:450,wifi模块:50,电源适配器:155,卡勾:60,"塑料件/其他件":1},
+        DK80:{打印头:240,主板:220,wifi模块:50,电源适配器:80,电源接口:60,"塑料件/其他件":1}
+      };
+      const SHIPPING_PRICES = {浙江:8,江苏:8,上海:8,安徽:8,北京:13,福建:13,河南:13,湖南:13,湖北:13,江西:13,山东:13,河北:16,天津:16,广东:16,广西:16,山西:16,陕西:16,四川:16,重庆:16,贵州:19,海南:19,黑龙江:19,吉林:19,云南:19,辽宁:19,甘肃:32,宁夏:32,青海:32,内蒙古:32,新疆:49};
+      const previewSubmission = REPAIR_PROGRESS_ENABLED && ["localhost","127.0.0.1"].includes(location.hostname) && new URLSearchParams(location.search).get("preview") === "1" ? { id:"customer-preview", submission_number:1, created_time:new Date(Date.now() - 4 * 3600000).toISOString(), device_number:"1002000000", model:"DK110A", company_name:"进度预览", contact_name:"客户", phone:"13800000000", tracking_number:"预览快递单号", customer_issue:"电源适配器是否寄回：是\n故障描述：打印效果异常", customer_address:"浙江省杭州市预览地址" } : null;
+      const previewProgressEvents = previewSubmission ? [0,1,2,3,4].map((step_index,index) => ({ submission_id:previewSubmission.id, step_index, occurred_at:new Date(Date.now() - (4 - index) * 3600000).toISOString(), detail_text:step_index === 4 ? "检测发现打印头积碳，清洁后打印测试正常，本次无需更换配件。" : "" })) : [];
       const modelRules = [["1009","GMX"],["10064","GMI"],["2003","GMT"],["10063","GMH"],["2009","GMX-5G"],["3003","GMT-5G"],["1002","DK110A"],["1007","DK110B"],["2002","DK110S"],["1003","DK80"],["7","新北洋110"],["9","芯烨80"]];
       let areaData = null;
+      let activeProgressSubmission = null;
+      let activeProgressRecord = null;
+      let activeProgressEvents = [];
+      let progressRefreshRunning = false;
+      let pendingPaymentButton = null;
+      let pendingNoRepairButton = null;
       const clean = (value) => String(value || "").trim();
+      const isNoRepairProgressEvent = (event) => clean(itemValue(event,"detail_text","detailText")).startsWith("__no_repair");
+      function hasNoRepairRequestMark(submission) {
+        return clean(itemValue(submission,"customer_issue","customerIssue"))
+          .split("\n")
+          .some((line) => clean(line) === NO_REPAIR_REQUEST_MARK);
+      }
+      function hasNoRepairRequest(submission, events = []) {
+        if (events.some(isNoRepairProgressEvent)) return true;
+        const hasRequestMark = hasNoRepairRequestMark(submission);
+        if (!hasRequestMark) return false;
+        const detectionEvent = events.find((item) => Number(item.step_index ?? item.stepIndex) === 4);
+        if (!detectionEvent) return true;
+        const requestTime = new Date(itemValue(submission,"updated_at","updatedAt")).getTime();
+        const paymentEvent = events.find((item) => Number(item.step_index ?? item.stepIndex) === 5);
+        const paymentTime = new Date(
+          itemValue(paymentEvent,"updated_at","updatedAt")
+          || itemValue(paymentEvent,"occurred_at","occurredAt")
+        ).getTime();
+        if (Number.isFinite(paymentTime) && (!Number.isFinite(requestTime) || paymentTime > requestTime)) return false;
+        const detectionTime = new Date(
+          itemValue(detectionEvent,"updated_at","updatedAt")
+          || itemValue(detectionEvent,"occurred_at","occurredAt")
+        ).getTime();
+        if (!Number.isFinite(requestTime) || !Number.isFinite(detectionTime)) return true;
+        return requestTime >= detectionTime;
+      }
       function inferModel(number) { const text = clean(number); return modelRules.find(([prefix]) => text.startsWith(prefix))?.[1] || ""; }
       function selectText(name) { return form.elements[name].selectedOptions[0]?.textContent || ""; }
-      function addressText() { return ["addressProvince","addressCity","addressDistrict"].map(selectText).concat(clean(form.elements.addressDetail.value)).filter(Boolean).join(""); }
+      function addressText() { return ["addressProvince","addressCity","addressDistrict","addressStreet"].map(selectText).concat(clean(form.elements.addressDetail.value)).filter(Boolean).join(""); }
       function saveDraft() { const data = {}; new FormData(form).forEach((value, key) => { data[key] = value; }); localStorage.setItem(DRAFT_KEY, JSON.stringify(data)); draftNote.hidden = false; }
       function restoreDraft() { try { const data = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); if (!data) return; Object.entries(data).forEach(([key,value]) => { if (form.elements[key]) form.elements[key].value = value; }); draftNote.hidden = false; } catch {} }
       function fillSelect(select, items, placeholder) { select.replaceChildren(new Option(placeholder, "")); Object.entries(items || {}).forEach(([code,name]) => select.append(new Option(name, code))); }
-      function updateCities() { fillSelect(form.elements.addressCity, areaData?.[form.elements.addressProvince.value], "市"); fillSelect(form.elements.addressDistrict, {}, "区 / 县"); saveDraft(); }
-      function updateDistricts() { fillSelect(form.elements.addressDistrict, areaData?.[form.elements.addressCity.value], "区 / 县"); saveDraft(); }
-      async function loadAreas() { try { if (window.CHINA_AREA_DATA) { areaData = window.CHINA_AREA_DATA; } else { const response = await fetch("area-data.json"); if (!response.ok) throw new Error(); areaData = await response.json(); } fillSelect(form.elements.addressProvince, areaData["86"], "省"); fillSelect(form.elements.addressCity, {}, "市"); fillSelect(form.elements.addressDistrict, {}, "区 / 县"); restoreDraft(); const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); if (draft) { form.elements.addressProvince.value = draft.addressProvince || ""; updateCities(); form.elements.addressCity.value = draft.addressCity || ""; updateDistricts(); form.elements.addressDistrict.value = draft.addressDistrict || ""; } } catch { errorBox.textContent = "省市区资料加载失败，请刷新页面重试"; } }
+      function streetItems(districtCode) { const items = window.CHINA_STREET_DATA?.[districtCode] || {}; return Object.keys(items).length || !districtCode ? items : { __other__:"其他 / 未列出" }; }
+      function updateCities() { fillSelect(form.elements.addressCity, areaData?.[form.elements.addressProvince.value], "市"); fillSelect(form.elements.addressDistrict, {}, "区 / 县"); fillSelect(form.elements.addressStreet, {}, "街道 / 乡镇"); saveDraft(); }
+      function updateDistricts() { fillSelect(form.elements.addressDistrict, areaData?.[form.elements.addressCity.value], "区 / 县"); fillSelect(form.elements.addressStreet, {}, "街道 / 乡镇"); saveDraft(); }
+      function updateStreets() { const districtCode = form.elements.addressDistrict.value; fillSelect(form.elements.addressStreet, streetItems(districtCode), districtCode ? "街道 / 乡镇" : "请先选择区 / 县"); saveDraft(); }
+      async function loadAreas() { try { if (window.CHINA_AREA_DATA) { areaData = window.CHINA_AREA_DATA; } else { const response = await fetch("area-data.json"); if (!response.ok) throw new Error(); areaData = await response.json(); } fillSelect(form.elements.addressProvince, areaData["86"], "省"); fillSelect(form.elements.addressCity, {}, "市"); fillSelect(form.elements.addressDistrict, {}, "区 / 县"); fillSelect(form.elements.addressStreet, {}, "街道 / 乡镇"); restoreDraft(); const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); if (draft) { form.elements.addressProvince.value = draft.addressProvince || ""; updateCities(); form.elements.addressCity.value = draft.addressCity || ""; updateDistricts(); form.elements.addressDistrict.value = draft.addressDistrict || ""; updateStreets(); form.elements.addressStreet.value = draft.addressStreet || ""; } } catch { errorBox.textContent = "省市区街道资料加载失败，请刷新页面重试"; } }
       function validate() { const number = clean(form.elements.deviceNumber.value); const phone = clean(form.elements.phone.value); if (!/^\d{10}$/.test(number)) return "打印机编号要填写10位数字"; if (!/^\d{11}$/.test(phone)) return "手机号码要填写11位数字"; if (!areaData) return "省市区资料还没加载完，请稍等"; return ""; }
-      function showCachedSuccess(item) { if (!item) return; const value = (snake, camel = snake) => item[snake] || item[camel] || ""; const issue = value("customer_issue", "customerIssue"); const power = value("power_adapter_returned", "powerAdapterReturned") || (issue.match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1]; const created = value("created_time", "createdTime"); const address = value("customer_address", "customerAddress"); document.querySelector("#successDetail").innerHTML = `<dl><div><dt>提交时间</dt><dd>${escapeHtml(created)}</dd></div><div><dt>寄出单号</dt><dd>${escapeHtml(value("tracking_number", "trackingNumber"))}</dd></div><div><dt>打印机编号</dt><dd>${escapeHtml(value("device_number", "deviceNumber"))}</dd></div><div><dt>型号</dt><dd>${escapeHtml(value("model"))}</dd></div><div><dt>电源适配器是否寄回</dt><dd>${escapeHtml(power)}</dd></div><div><dt>公司名</dt><dd>${escapeHtml(value("company_name", "companyName"))}</dd></div><div><dt>故障原因</dt><dd>${escapeHtml(issue.replace(/^电源适配器是否寄回：[^\n]+\n?/, ""))}</dd></div><div><dt>收件信息</dt><dd>${escapeHtml([value("contact_name", "contactName"), value("phone"), address].filter(Boolean).join(" "))}</dd></div></dl>`; form.hidden = true; success.hidden = false; }
+      function showCachedSuccess(item) { if (!item) return; const value = (snake, camel = snake) => item[snake] || item[camel] || ""; const issue = value("customer_issue", "customerIssue"); const visibleIssue = issue.split("\n").filter((line) => clean(line) !== NO_REPAIR_REQUEST_MARK).join("\n"); const power = value("power_adapter_returned", "powerAdapterReturned") || (issue.match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1]; const created = value("created_time", "createdTime"); const address = value("customer_address", "customerAddress"); const submissionNumber = value("submission_number", "submissionNumber"); document.querySelector("#successDetail").innerHTML = `<dl><div><dt>登记编号</dt><dd>${escapeHtml(submissionNumber ? `B${submissionNumber}` : "-")}</dd></div><div><dt>提交时间</dt><dd>${escapeHtml(created)}</dd></div><div><dt>寄出单号</dt><dd>${escapeHtml(value("tracking_number", "trackingNumber"))}</dd></div><div><dt>打印机编号</dt><dd>${escapeHtml(value("device_number", "deviceNumber"))}</dd></div><div><dt>型号</dt><dd>${escapeHtml(value("model"))}</dd></div><div><dt>电源适配器是否寄回</dt><dd>${escapeHtml(power)}</dd></div><div><dt>公司名</dt><dd>${escapeHtml(value("company_name", "companyName"))}</dd></div><div><dt>故障原因</dt><dd>${escapeHtml(visibleIssue.replace(/^电源适配器是否寄回：[^\n]+\n?/, ""))}</dd></div><div><dt>收件信息</dt><dd>${escapeHtml([value("contact_name", "contactName"), value("phone"), address].filter(Boolean).join(" "))}</dd></div></dl>`; form.hidden = true; success.hidden = false; }
       function escapeHtml(value) { return String(value || "").replace(/[&<>\"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[char])); }
+      function itemValue(item, snake, camel = snake) { return item?.[snake] || item?.[camel] || ""; }
+      function parseDetectionDetail(value) {
+        const lines = clean(value).split(/\r?\n/);
+        let accessoryParts = [];
+        let customPartPrice = "";
+        let customPartName = "";
+        let repairSuggestion = "";
+        const visibleLines = lines.filter((line) => {
+          if (!line.startsWith(PROGRESS_ACCESSORY_STORAGE_PREFIX)) return true;
+          try {
+            const stored = JSON.parse(line.slice(PROGRESS_ACCESSORY_STORAGE_PREFIX.length));
+            accessoryParts = Array.isArray(stored?.parts)
+              ? [...new Set(stored.parts.map(clean).filter(Boolean))]
+              : [];
+            const rawAmount = String(stored?.customPartPrice ?? "").replace(/[￥¥元,\s]/g,"");
+            const amount = Number(rawAmount);
+            customPartPrice = rawAmount !== "" && Number.isFinite(amount) && amount >= 0 ? amount : "";
+            customPartName = clean(stored?.customPartName).replace(/\s+/g," ").slice(0,30);
+            repairSuggestion = clean(stored?.repairSuggestion).replace(/\s+/g," ").slice(0,200);
+          } catch {
+            accessoryParts = [];
+            customPartPrice = "";
+            customPartName = "";
+            repairSuggestion = "";
+          }
+          return false;
+        });
+        const text = visibleLines.join("\n").trim();
+        const match = text.match(/^【(在保|未过保|已过保|保内|过保)】(?:\r?\n)?/);
+        const warrantyType = ["保内","未过保"].includes(match?.[1]) ? "在保" : match?.[1] === "过保" ? "已过保" : match?.[1] || "";
+        return { warrantyType, detailText:match ? text.slice(match[0].length).trimStart() : text, accessoryParts, customPartPrice, customPartName, repairSuggestion };
+      }
+      function formatProgressTime(value) { const date = new Date(value); if (!value || Number.isNaN(date.getTime())) return ""; return new Intl.DateTimeFormat("zh-CN", { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false }).format(date); }
+      function legacyProgressPosition(record) {
+        if (!record) return { completedThrough:0, currentIndex:1 };
+        const positions = {
+          "测试中":{ completedThrough:2, currentIndex:3 },
+          "返厂中":{ completedThrough:2, currentIndex:3 },
+          "已修未付费":{ completedThrough:3, currentIndex:4 },
+          "维修中":{ completedThrough:5, currentIndex:6 },
+          "今天需要寄":{ completedThrough:6, currentIndex:7 },
+          "已寄出":{ completedThrough:8, currentIndex:8 },
+          "邮寄并结束":{ completedThrough:8, currentIndex:8 }
+        };
+        return positions[itemValue(record,"final_status","finalStatus")] || { completedThrough:2, currentIndex:3 };
+      }
+      function withAutomaticDetection(record, events, now = Date.now()) {
+        const validEvents = (events || []).filter((item) => Number(item.step_index ?? item.stepIndex) >= 0).sort((a,b) => Number(a.step_index ?? a.stepIndex) - Number(b.step_index ?? b.stepIndex));
+        if (!record || !validEvents.length) return validEvents;
+        const latest = Math.max(...validEvents.map((item) => Number(item.step_index ?? item.stepIndex)));
+        if (latest !== 2) return validEvents;
+        const receivedEvent = validEvents.find((item) => Number(item.step_index ?? item.stepIndex) === 2);
+        const receivedAt = new Date(itemValue(receivedEvent,"occurred_at","occurredAt")).getTime();
+        if (!Number.isFinite(receivedAt) || receivedAt + AUTO_START_DETECTION_AFTER_MS > now) return validEvents;
+        return validEvents.concat({
+          submission_id:itemValue(receivedEvent,"submission_id","submissionId"),
+          step_index:3,
+          occurred_at:new Date(receivedAt + AUTO_START_DETECTION_AFTER_MS).toISOString(),
+          detail_text:""
+        });
+      }
+      function withNoRepairRequestFallback(submission, events) {
+        if (!hasNoRepairRequestMark(submission) || events.some(isNoRepairProgressEvent)) return events;
+        const repairHasStarted = events.some((item) => {
+          const stepIndex = Number(item.step_index ?? item.stepIndex);
+          return [6,7].includes(stepIndex) && !isNoRepairProgressEvent(item);
+        });
+        if (repairHasStarted) return events;
+        const occurredAt = itemValue(submission,"updated_at","updatedAt") || new Date().toISOString();
+        return events.filter((item) => ![5,6,7].includes(Number(item.step_index ?? item.stepIndex))).concat([
+          { submission_id:itemValue(submission,"id"), step_index:5, occurred_at:occurredAt, detail_text:NO_REPAIR_CUSTOMER_PROGRESS_MARK, updated_at:occurredAt },
+          { submission_id:itemValue(submission,"id"), step_index:6, occurred_at:occurredAt, detail_text:NO_REPAIR_PROGRESS_MARK, updated_at:occurredAt },
+          { submission_id:itemValue(submission,"id"), step_index:7, occurred_at:occurredAt, detail_text:NO_REPAIR_PROGRESS_MARK, updated_at:occurredAt }
+        ]).sort((a,b) => Number(a.step_index ?? a.stepIndex) - Number(b.step_index ?? b.stepIndex));
+      }
+      function progressState(record, events, submission) {
+        const validEvents = withNoRepairRequestFallback(submission,withAutomaticDetection(record,events));
+        const resetToWaiting = validEvents.some((item) => Number(item.step_index ?? item.stepIndex) === 1 && itemValue(item,"detail_text","detailText") === WAITING_RECEIPT_RESET_MARK);
+        const explicit = resetToWaiting || validEvents.some((item) => Number(item.step_index ?? item.stepIndex) >= 2);
+        if (!explicit) return { ...legacyProgressPosition(record), events:validEvents, explicit:false };
+        const latest = Math.max(...validEvents.map((item) => Number(item.step_index ?? item.stepIndex)));
+        if (latest === 4 && hasNoRepairRequest(submission,validEvents)) return { completedThrough:5, currentIndex:5, events:validEvents, explicit:true };
+        if (latest === 4) return { completedThrough:4, currentIndex:5, events:validEvents, explicit:true };
+        return { completedThrough:latest === progressSteps.length - 1 ? latest : latest - 1, currentIndex:latest, events:validEvents, explicit:true };
+      }
+      function progressNote(index, submission, record, state) {
+        const progressEvent = state.events.find((item) => Number(item.step_index ?? item.stepIndex) === index);
+        const detailText = itemValue(progressEvent,"detail_text","detailText");
+        if (isNoRepairProgressEvent(progressEvent)) {
+          if (index === 5) return "用户放弃维修，并支付寄回运费";
+          if (index === 6) return "无需维修";
+          if (index === 7) return "原设备即将寄回";
+        }
+        if (index === 4 && detailText) {
+          const detectionText = parseDetectionDetail(detailText).detailText;
+          return /^经检测[:：]/.test(detectionText) ? detectionText : `经检测：${detectionText}`;
+        }
+        if (index === 5 && hasNoRepairRequest(submission,state.events)) return "用户放弃维修，原设备即将寄回";
+        if (index === 6 && hasNoRepairRequest(submission,state.events)) return "无需维修";
+        if (index === 5 && !progressEvent) return "";
+        const notes = [
+          "工单已提交成功",
+          itemValue(submission,"tracking_number","trackingNumber") ? `用户寄出单号：${itemValue(submission,"tracking_number","trackingNumber")}` : "等待机器送达维修中心",
+          "服务中心已收到快递，等待拆包检测",
+          "维修人员正在检测设备",
+          "检测结果已确认，维修人员会与您联系",
+          "用户已付款",
+          "机器正在维修处理中",
+          "机器已进入发货安排",
+          itemValue(record,"return_tracking_number","returnTrackingNumber") ? `寄回单号：${itemValue(record,"return_tracking_number","returnTrackingNumber")}` : "机器已寄回"
+        ];
+        return notes[index] || "";
+      }
+      function progressTime(index, submission, record, state) {
+        const event = state.events.find((item) => Number(item.step_index ?? item.stepIndex) === index);
+        const eventTime = itemValue(event,"occurred_at","occurredAt");
+        if (eventTime) return eventTime;
+        if (state.explicit) return "";
+        if (index <= 1) return itemValue(submission,"created_time","createdTime");
+        if (!record) return "";
+        if (index <= 3) return itemValue(record,"created_time","createdTime") || itemValue(record,"updated_at","updatedAt");
+        if (index >= 7) return itemValue(record,"return_time","returnTime") || itemValue(record,"updated_at","updatedAt");
+        return itemValue(record,"updated_at","updatedAt") || itemValue(record,"created_time","createdTime");
+      }
+      function formatRepairAmount(value) {
+        return Number(value).toLocaleString("zh-CN",{ minimumFractionDigits:2, maximumFractionDigits:2 });
+      }
+      function formatAccessoryUnitPrice(value) {
+        return `单价：${Number(value).toFixed(2)}`;
+      }
+      function getReturnShippingPrice(submission) {
+        const address = clean(itemValue(submission,"customer_address","customerAddress"));
+        const province = Object.keys(SHIPPING_PRICES).find((name) => address.includes(name));
+        return province ? SHIPPING_PRICES[province] : null;
+      }
+      function updateNoRepairConfirmText(submission) {
+        const shippingPrice = getReturnShippingPrice(submission);
+        const priceText = shippingPrice === null ? "金额待确认" : `寄回运费${Number(shippingPrice).toFixed(2)}元`;
+        noRepairConfirmText.textContent = `由于设备过保，并放弃维修，需您承担${priceText}（可在管理端-商城支付差价）`;
+      }
+      function progressAccessoryItems(submission, detectionDetail) {
+        const parts = detectionDetail?.accessoryParts || [];
+        if (!parts.length) return [];
+        const deviceNumber = itemValue(submission,"device_number","deviceNumber");
+        const model = clean(itemValue(submission,"model")) || inferModel(deviceNumber);
+        const address = itemValue(submission,"customer_address","customerAddress");
+        return parts.map((part) => {
+          if (part === "无费用") return { part, amount:0 };
+          if (part === PROGRESS_CUSTOM_ACCESSORY_PART) {
+            return {
+              part:detectionDetail.customPartName || PROGRESS_CUSTOM_ACCESSORY_PART,
+              amount:detectionDetail.customPartPrice === "" ? null : Number(detectionDetail.customPartPrice)
+            };
+          }
+          if (part === CUSTOM_PRICE_ACCESSORY_PART) {
+            return { part, amount:detectionDetail.customPartPrice === "" ? null : Number(detectionDetail.customPartPrice) };
+          }
+          if (part === "快递费") {
+            const province = Object.keys(SHIPPING_PRICES).find((name) => address.includes(name));
+            return { part, amount:province ? SHIPPING_PRICES[province] : null };
+          }
+          const amount = ACCESSORY_PRICES[model]?.[part];
+          return { part, amount:Number.isFinite(Number(amount)) ? Number(amount) : null };
+        }).filter(Boolean);
+      }
+      function renderRepairQuote(submission, detectionDetail, expanded = false) {
+        const items = progressAccessoryItems(submission,detectionDetail);
+        if (!items.length) return "";
+        const hasPendingAmount = items.some((item) => item.amount === null);
+        const total = items.reduce((sum,item) => sum + (item.amount ?? 0),0);
+        const quote = hasPendingAmount ? "待定" : formatRepairAmount(total);
+        return `<p class="progress-quote">维修总价：${escapeHtml(quote)}</p><details class="progress-accessories"${expanded ? " open" : ""}><summary>配件使用清单</summary><ul>${items.map((item) => `<li><span>${escapeHtml(item.part)}</span><span>${item.amount === null ? "单价：待定" : escapeHtml(formatAccessoryUnitPrice(item.amount))}</span></li>`).join("")}</ul></details>`;
+      }
+      function renderProgress(submission, record, events = []) {
+        const accessoriesExpanded = Boolean(progressTimeline.querySelector(".progress-accessories[open]"));
+        const position = progressState(record,events,submission);
+        activeProgressSubmission = submission;
+        activeProgressRecord = record;
+        activeProgressEvents = position.events;
+        const deviceNumber = itemValue(submission,"device_number","deviceNumber");
+        const model = itemValue(submission,"model") || inferModel(deviceNumber) || "型号未知";
+        const submissionNumber = itemValue(submission,"submission_number","submissionNumber");
+        progressSummary.innerHTML = `<div><span>登记编号 ${escapeHtml(submissionNumber ? `B${submissionNumber}` : "-")} · 打印机编号</span><strong>${escapeHtml(deviceNumber || "-")}</strong></div><small>${escapeHtml(model)}</small>`;
+        progressTimeline.innerHTML = progressSteps.map((label,index) => {
+          const isComplete = index <= position.completedThrough;
+          const isCurrent = index === position.currentIndex && position.completedThrough < index;
+          const isHalfComplete = index === 5 && isCurrent && !position.events.some((item) => Number(item.step_index ?? item.stepIndex) === 5);
+          const state = `${isComplete ? "is-complete" : isCurrent ? "is-current" : "is-pending"}${isHalfComplete ? " is-half-complete" : ""}`;
+          const time = isComplete || isCurrent ? formatProgressTime(progressTime(index,submission,record,position)) : "";
+          const note = isComplete || isCurrent ? progressNote(index,submission,record,position) : "";
+          const detectionEvent = index === 4 ? position.events.find((item) => Number(item.step_index ?? item.stepIndex) === index) : null;
+          const detectionDetail = parseDetectionDetail(itemValue(detectionEvent,"detail_text","detailText"));
+          const warrantyType = isComplete || isCurrent ? detectionDetail.warrantyType : "";
+          const repairQuote = index === 4 && (isComplete || isCurrent) ? renderRepairQuote(submission,detectionDetail,accessoriesExpanded) : "";
+          const repairSuggestion = index === 4 && (isComplete || isCurrent) && detectionDetail.repairSuggestion ? `<p class="progress-repair-suggestion"><strong>维修建议：</strong>${escapeHtml(detectionDetail.repairSuggestion)}</p>` : "";
+          const canConfirmPayment = index === 5 && position.explicit && position.events.some((item) => Number(item.step_index ?? item.stepIndex) === 4) && !position.events.some((item) => Number(item.step_index ?? item.stepIndex) === 6);
+          const noRepairRequested = hasNoRepairRequest(submission,position.events);
+          const paymentConfirm = canConfirmPayment && !noRepairRequested ? `<p class="payment-guide"><span>*若无异议，请在「管理端-更多-商城」里支付维修费用</span><span>*有异议可返回页面「扫码添加微信」咨询</span><span>已付款请点击「确认付款」；不修请点击「放弃维修」</span></p><div class="payment-actions"><button class="payment-confirm" type="button" data-payment-confirm>确认付款</button><button class="payment-no-repair" type="button" data-no-repair>放弃维修</button></div>` : "";
+          return `<li class="progress-step ${state}"><span class="progress-marker" aria-hidden="true"></span><h3>${escapeHtml(label)}${isCurrent && !isHalfComplete ? '<span class="progress-current-label">当前进度</span>' : ""}</h3>${time ? `<p class="progress-time">${escapeHtml(time)}</p>` : ""}${warrantyType ? `<p class="progress-warranty">保修期状态：<strong>${escapeHtml(warrantyType)}</strong></p>` : ""}${note ? `<p class="progress-note">${escapeHtml(note)}</p>` : ""}${repairQuote}${repairSuggestion}${paymentConfirm}</li>`;
+        }).join("");
+      }
+      async function loadRepairRecord(submission) {
+        const submissionId = itemValue(submission,"id");
+        if (!submissionId) return null;
+        const params = new URLSearchParams({ select:"id,created_time,final_status,return_time,return_tracking_number,updated_at,accessory_parts,model,region,customer_address", submission_id:`eq.${submissionId}`, limit:"1" });
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/repair_records?${params}`, { headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}` } });
+        if (!response.ok) throw new Error("progress unavailable");
+        const records = await response.json();
+        return records[0] || null;
+      }
+      async function loadSubmission(submission) {
+        const submissionId = itemValue(submission,"id");
+        if (!submissionId || (previewSubmission && submissionId === previewSubmission.id)) return submission;
+        const params = new URLSearchParams({ select:"*", id:`eq.${submissionId}`, limit:"1" });
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/customer_repair_submissions?${params}`, { headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}` } });
+        if (!response.ok) throw new Error("submission unavailable");
+        const submissions = await response.json();
+        return submissions[0] || submission;
+      }
+      async function loadProgressEvents(submission) {
+        const submissionId = itemValue(submission,"id");
+        if (!submissionId) return [];
+        if (previewSubmission && submissionId === previewSubmission.id) return previewProgressEvents;
+        const params = new URLSearchParams({ select:"step_index,occurred_at,detail_text,updated_at", submission_id:`eq.${submissionId}`, order:"step_index.asc" });
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/repair_progress_events?${params}`, { headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}` } });
+        if (!response.ok) throw new Error("progress events unavailable");
+        return await response.json();
+      }
+      async function saveNoRepairRequest(submission) {
+        const currentIssue = clean(itemValue(submission,"customer_issue","customerIssue"));
+        const customerIssue = [
+          ...currentIssue.split("\n").filter((line) => clean(line) !== NO_REPAIR_REQUEST_MARK),
+          NO_REPAIR_REQUEST_MARK
+        ].filter(Boolean).join("\n");
+        const updatedAt = new Date().toISOString();
+        const params = new URLSearchParams({ id:`eq.${itemValue(submission,"id")}` });
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/customer_repair_submissions?${params}`, {
+          method:"PATCH",
+          headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}`, "Content-Type":"application/json", Prefer:"return=representation" },
+          body:JSON.stringify({ customer_issue:customerIssue, updated_at:updatedAt })
+        });
+        const rows = await response.json().catch(() => []);
+        if (!response.ok || !rows[0]) throw new Error("no repair request was not saved");
+        return rows[0];
+      }
+      async function restoreSubmissionIssue(submission, customerIssue) {
+        const updatedAt = new Date().toISOString();
+        const params = new URLSearchParams({ id:`eq.${itemValue(submission,"id")}` });
+        await fetch(`${SUPABASE_URL}/rest/v1/customer_repair_submissions?${params}`, {
+          method:"PATCH",
+          headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}`, "Content-Type":"application/json" },
+          body:JSON.stringify({ customer_issue:customerIssue, updated_at:updatedAt })
+        });
+      }
+      async function refreshOpenProgress({ showLoading = false } = {}) {
+        if (!activeProgressSubmission || progressPage.hidden || progressRefreshRunning) return;
+        progressRefreshRunning = true;
+        if (showLoading) {
+          progressLoading.textContent = "正在读取最新进度...";
+          progressLoading.hidden = false;
+        }
+        try {
+          const [submissionResult,recordResult,eventResult] = await Promise.allSettled([loadSubmission(activeProgressSubmission),loadRepairRecord(activeProgressSubmission),loadProgressEvents(activeProgressSubmission)]);
+          if (submissionResult.status === "fulfilled") {
+            activeProgressSubmission = submissionResult.value;
+            localStorage.setItem(LAST_SUBMISSION_KEY,JSON.stringify(activeProgressSubmission));
+          }
+          if (recordResult.status === "fulfilled") activeProgressRecord = recordResult.value;
+          if (eventResult.status === "fulfilled") activeProgressEvents = eventResult.value;
+          renderProgress(activeProgressSubmission,activeProgressRecord,activeProgressEvents);
+        } finally {
+          progressRefreshRunning = false;
+          if (showLoading) progressLoading.hidden = true;
+        }
+      }
+      async function confirmPayment(button) {
+        if (!activeProgressSubmission) return;
+        if (button.dataset.paymentConfirmed !== "1") {
+          pendingPaymentButton = button;
+          paymentConfirmDialog.showModal();
+          return;
+        }
+        delete button.dataset.paymentConfirmed;
+        button.disabled = true;
+        progressLoading.textContent = "正在确认付款...";
+        progressLoading.hidden = false;
+        try {
+          if (previewSubmission && itemValue(activeProgressSubmission,"id") === previewSubmission.id) {
+            const now = new Date().toISOString();
+            activeProgressEvents = activeProgressEvents.filter((item) => ![5,6].includes(Number(item.step_index ?? item.stepIndex))).concat([
+              { submission_id:previewSubmission.id, step_index:5, occurred_at:now, detail_text:"" },
+              { submission_id:previewSubmission.id, step_index:6, occurred_at:now, detail_text:"" }
+            ]);
+          } else {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/confirm_repair_payment`, { method:"POST", headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}`, "Content-Type":"application/json" }, body:JSON.stringify({ p_submission_id:itemValue(activeProgressSubmission,"id") }) });
+            if (!response.ok) throw new Error("payment confirmation failed");
+            activeProgressEvents = await loadProgressEvents(activeProgressSubmission);
+          }
+          renderProgress(activeProgressSubmission,activeProgressRecord,activeProgressEvents);
+          progressLoading.hidden = true;
+        } catch {
+          button.disabled = false;
+          progressLoading.textContent = "确认失败，请检查网络后重试";
+          window.setTimeout(() => { progressLoading.hidden = true; progressLoading.textContent = "正在读取最新进度..."; },2600);
+          }
+      }
+      async function requestNoRepair(button) {
+        if (!activeProgressSubmission) return;
+        if (button.dataset.noRepairConfirmed !== "1") {
+          pendingNoRepairButton = button;
+          updateNoRepairConfirmText(activeProgressSubmission);
+          noRepairConfirmDialog.showModal();
+          return;
+        }
+        delete button.dataset.noRepairConfirmed;
+        button.disabled = true;
+        progressLoading.textContent = "正在提交无需维修...";
+        progressLoading.hidden = false;
+        try {
+          const originalIssue = clean(itemValue(activeProgressSubmission,"customer_issue","customerIssue"));
+          if (previewSubmission && itemValue(activeProgressSubmission,"id") === previewSubmission.id) {
+            const now = new Date().toISOString();
+            activeProgressSubmission = { ...activeProgressSubmission, customer_issue:`${clean(itemValue(activeProgressSubmission,"customer_issue","customerIssue"))}\n${NO_REPAIR_REQUEST_MARK}`, updated_at:now };
+            activeProgressEvents = activeProgressEvents.filter((item) => ![5,6,7].includes(Number(item.step_index ?? item.stepIndex))).concat([
+              { submission_id:previewSubmission.id, step_index:5, occurred_at:now, detail_text:NO_REPAIR_CUSTOMER_PROGRESS_MARK, updated_at:now },
+              { submission_id:previewSubmission.id, step_index:6, occurred_at:now, detail_text:NO_REPAIR_PROGRESS_MARK, updated_at:now },
+              { submission_id:previewSubmission.id, step_index:7, occurred_at:now, detail_text:NO_REPAIR_PROGRESS_MARK, updated_at:now }
+            ]);
+          } else {
+            activeProgressSubmission = await saveNoRepairRequest(activeProgressSubmission);
+            localStorage.setItem(LAST_SUBMISSION_KEY,JSON.stringify(activeProgressSubmission));
+            let response = null;
+            let result = {};
+            try {
+              response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/skip_repair`, { method:"POST", headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}`, "Content-Type":"application/json" }, body:JSON.stringify({ p_submission_id:itemValue(activeProgressSubmission,"id") }) });
+              result = await response.json().catch(() => ({}));
+              activeProgressEvents = await loadProgressEvents(activeProgressSubmission);
+            } catch (error) {
+              console.error(error);
+            }
+            const repairHasStarted = activeProgressEvents.some((item) => [6,7].includes(Number(item.step_index ?? item.stepIndex)) && !isNoRepairProgressEvent(item));
+            if (response && !response.ok && repairHasStarted) {
+              await restoreSubmissionIssue(activeProgressSubmission,originalIssue);
+              activeProgressSubmission = { ...activeProgressSubmission, customer_issue:originalIssue };
+              localStorage.setItem(LAST_SUBMISSION_KEY,JSON.stringify(activeProgressSubmission));
+              throw new Error(result?.message || "repair progress has already continued");
+            }
+          }
+          renderProgress(activeProgressSubmission,activeProgressRecord,activeProgressEvents);
+          progressLoading.textContent = "已放弃维修，当前进度已进入等待发货";
+          window.setTimeout(() => { progressLoading.hidden = true; progressLoading.textContent = "正在读取最新进度..."; },2600);
+        } catch (error) {
+          console.error(error);
+          button.disabled = false;
+          progressLoading.textContent = error?.message === "repair progress has already continued"
+            ? "设备已经开始维修，不能再放弃维修"
+            : "提交失败，请检查网络后重试";
+          window.setTimeout(() => { progressLoading.hidden = true; progressLoading.textContent = "正在读取最新进度..."; },2600);
+        }
+      }
+      async function openProgress() {
+        const submission = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null") || previewSubmission;
+        if (!submission) return;
+        const openAccessories = progressTimeline.querySelector(".progress-accessories[open]");
+        if (openAccessories) openAccessories.open = false;
+        renderProgress(submission,null);
+        progressPage.hidden = false;
+        document.body.classList.add("progress-open");
+        document.querySelector("#closeProgressBtn").focus();
+        await refreshOpenProgress({ showLoading:true });
+      }
+      function closeProgress() { progressPage.hidden = true; document.body.classList.remove("progress-open"); document.querySelector("#viewProgressBtn").focus(); }
+      function cancelPaymentConfirm() { pendingPaymentButton = null; if (paymentConfirmDialog.open) paymentConfirmDialog.close(); }
+      function acceptPaymentConfirm() { const button = pendingPaymentButton; pendingPaymentButton = null; if (paymentConfirmDialog.open) paymentConfirmDialog.close(); if (!button) return; button.dataset.paymentConfirmed = "1"; confirmPayment(button); }
+      function cancelNoRepairConfirm() { pendingNoRepairButton = null; if (noRepairConfirmDialog.open) noRepairConfirmDialog.close(); }
+      function acceptNoRepairConfirm() { const button = pendingNoRepairButton; pendingNoRepairButton = null; if (noRepairConfirmDialog.open) noRepairConfirmDialog.close(); if (!button) return; button.dataset.noRepairConfirmed = "1"; requestNoRepair(button); }
+      if (REPAIR_PROGRESS_ENABLED) {
+        paymentPaidBtn.addEventListener("click", acceptPaymentConfirm);
+        paymentNotPaidBtn.addEventListener("click", cancelPaymentConfirm);
+        paymentConfirmDialog.addEventListener("cancel", cancelPaymentConfirm);
+        confirmNoRepairBtn.addEventListener("click", acceptNoRepairConfirm);
+        keepRepairBtn.addEventListener("click", cancelNoRepairConfirm);
+        noRepairConfirmDialog.addEventListener("cancel", cancelNoRepairConfirm);
+        progressTimeline.addEventListener("click", (event) => { const paymentButton = event.target.closest("button[data-payment-confirm]"); if (paymentButton) confirmPayment(paymentButton); const noRepairButton = event.target.closest("button[data-no-repair]"); if (noRepairButton) requestNoRepair(noRepairButton); });
+        window.setInterval(() => { if (activeProgressSubmission && !progressPage.hidden) refreshOpenProgress(); },5000);
+      }
       async function notifyNewSubmission(submissionId) {
         let lastError = new Error("企微推送失败");
         for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -156,10 +707,84 @@
         }
         throw lastError;
       }
-      async function submit(event) { event.preventDefault(); errorBox.textContent = ""; if (!form.reportValidity()) return; const message = validate(); if (message) { errorBox.textContent = message; return; } submitBtn.disabled = true; submitBtn.textContent = "正在提交"; const now = new Date().toISOString(); const data = { id: `customer-${Date.now()}-${Math.random().toString(16).slice(2)}`, created_time: now, device_number: clean(form.elements.deviceNumber.value), model: inferModel(form.elements.deviceNumber.value), company_name: clean(form.elements.companyName.value), contact_name: clean(form.elements.contactName.value), phone: clean(form.elements.phone.value), tracking_number: clean(form.elements.trackingNumber.value), customer_issue: `电源适配器是否寄回：${clean(form.elements.powerAdapterReturned.value)}\n故障描述：${clean(form.elements.customerIssue.value)}`, customer_address: addressText(), updated_at: now }; try { const response = await fetch(`${SUPABASE_URL}/rest/v1/customer_repair_submissions?on_conflict=id`, { method:"POST", headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}`, "Content-Type":"application/json", Prefer:"resolution=merge-duplicates,return=representation" }, body:JSON.stringify(data) }); if (!response.ok) throw new Error(); localStorage.removeItem(DRAFT_KEY); localStorage.setItem(LAST_SUBMISSION_KEY, JSON.stringify(data)); history.replaceState(null, "", `${location.pathname}?submitted=1`); showCachedSuccess(data); notifyNewSubmission(data.id).catch((error) => console.error("企微推送失败",error)); } catch { errorBox.textContent = "提交失败，信息还没有保存，请检查网络后重试"; } finally { submitBtn.disabled = false; submitBtn.textContent = "提交登记"; } }
+      async function submit(event) {
+        event.preventDefault();
+        errorBox.textContent = "";
+        if (!form.reportValidity()) return;
+        const message = validate();
+        if (message) { errorBox.textContent = message; return; }
+        submitBtn.disabled = true;
+        submitBtn.textContent = "正在提交";
+        const now = new Date().toISOString();
+        const data = { id:`customer-${Date.now()}-${Math.random().toString(16).slice(2)}`, created_time:now, device_number:clean(form.elements.deviceNumber.value), model:inferModel(form.elements.deviceNumber.value), company_name:clean(form.elements.companyName.value), contact_name:clean(form.elements.contactName.value), phone:clean(form.elements.phone.value), tracking_number:clean(form.elements.trackingNumber.value), customer_issue:`电源适配器是否寄回：${clean(form.elements.powerAdapterReturned.value)}\n故障描述：${clean(form.elements.customerIssue.value)}`, customer_address:addressText(), updated_at:now };
+        try {
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/customer_repair_submissions?on_conflict=id`, { method:"POST", headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}`, "Content-Type":"application/json", Prefer:"resolution=merge-duplicates,return=representation" }, body:JSON.stringify(data) });
+          const savedRows = await response.json().catch(() => []);
+          if (!response.ok || !savedRows[0]) throw new Error();
+          const savedData = savedRows[0];
+          localStorage.removeItem(DRAFT_KEY);
+          localStorage.setItem(LAST_SUBMISSION_KEY,JSON.stringify(savedData));
+          history.replaceState(null,"",`${location.pathname}?submitted=1`);
+          showCachedSuccess(savedData);
+          notifyNewSubmission(savedData.id).catch((error) => console.error("企微推送失败",error));
+        } catch {
+          errorBox.textContent = "提交失败，信息还没有保存，请检查网络后重试";
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "提交登记";
+        }
+      }
       function showForm() { success.hidden = true; form.hidden = false; errorBox.textContent = ""; }
       function restoreLastSubmissionView() { if (document.hidden || new URLSearchParams(location.search).get("entry") === "edit") return; try { showCachedSuccess(JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null")); } catch {} }
-      form.addEventListener("input", saveDraft); form.addEventListener("change", saveDraft); form.elements.deviceNumber.addEventListener("input", () => { form.elements.deviceNumber.value = form.elements.deviceNumber.value.replace(/\D/g, "").slice(0,10); }); form.elements.phone.addEventListener("input", () => { form.elements.phone.value = form.elements.phone.value.replace(/\D/g, "").slice(0,11); }); form.elements.addressProvince.addEventListener("change", updateCities); form.elements.addressCity.addEventListener("change", updateDistricts); form.addEventListener("submit", submit); document.querySelector("#newBtn").addEventListener("click", () => { form.reset(); draftNote.hidden = true; history.replaceState(null, "", location.pathname); showForm(); }); document.querySelector("#editBtn").addEventListener("click", () => { const item = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null"); if (item) { form.elements.deviceNumber.value = item.device_number || item.deviceNumber || ""; form.elements.companyName.value = item.company_name || item.companyName || ""; form.elements.contactName.value = item.contact_name || item.contactName || ""; form.elements.phone.value = item.phone || ""; form.elements.trackingNumber.value = item.tracking_number || item.trackingNumber || ""; form.elements.customerIssue.value = (item.customer_issue || item.customerIssue || "").replace(/^电源适配器是否寄回：[^\n]+\n?/, ""); form.elements.powerAdapterReturned.value = item.power_adapter_returned || item.powerAdapterReturned || ((item.customer_issue || "").match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1]; } history.replaceState(null, "", `${location.pathname}?entry=edit`); showForm(); }); document.addEventListener("visibilitychange", restoreLastSubmissionView); window.addEventListener("pageshow", restoreLastSubmissionView); try { showCachedSuccess(JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null")); } catch {} loadAreas();
+      form.addEventListener("input", saveDraft);
+      form.addEventListener("change", saveDraft);
+      form.elements.deviceNumber.addEventListener("input", () => {
+        form.elements.deviceNumber.value = form.elements.deviceNumber.value.replace(/\D/g, "").slice(0,10);
+      });
+      form.elements.phone.addEventListener("input", () => {
+        form.elements.phone.value = form.elements.phone.value.replace(/\D/g, "").slice(0,11);
+      });
+      form.elements.addressProvince.addEventListener("change", updateCities);
+      form.elements.addressCity.addEventListener("change", updateDistricts);
+      form.elements.addressDistrict.addEventListener("change", updateStreets);
+      form.addEventListener("submit", submit);
+      document.querySelector("#newBtn").addEventListener("click", () => {
+        form.reset();
+        draftNote.hidden = true;
+        history.replaceState(null, "", location.pathname);
+        showForm();
+      });
+      document.querySelector("#editBtn").addEventListener("click", () => {
+        const item = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null");
+        if (item) {
+          form.elements.deviceNumber.value = item.device_number || item.deviceNumber || "";
+          form.elements.companyName.value = item.company_name || item.companyName || "";
+          form.elements.contactName.value = item.contact_name || item.contactName || "";
+          form.elements.phone.value = item.phone || "";
+          form.elements.trackingNumber.value = item.tracking_number || item.trackingNumber || "";
+          form.elements.customerIssue.value = (item.customer_issue || item.customerIssue || "").replace(/^电源适配器是否寄回：[^\n]+\n?/, "");
+          form.elements.powerAdapterReturned.value = item.power_adapter_returned || item.powerAdapterReturned || ((item.customer_issue || "").match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1];
+        }
+        history.replaceState(null, "", `${location.pathname}?entry=edit`);
+        showForm();
+      });
+      if (REPAIR_PROGRESS_ENABLED) {
+        document.querySelector("#viewProgressBtn").addEventListener("click", openProgress);
+        document.querySelector("#closeProgressBtn").addEventListener("click", closeProgress);
+        progressTimeline.addEventListener("change", (event) => {
+          const checkbox = event.target.closest("input[data-payment-confirm]");
+          if (checkbox) confirmPayment(checkbox);
+        });
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && !progressPage.hidden) closeProgress();
+        });
+      }
+      document.addEventListener("visibilitychange", restoreLastSubmissionView);
+      window.addEventListener("pageshow", restoreLastSubmissionView);
+      try {
+        showCachedSuccess(JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null") || previewSubmission);
+      } catch {}
+      loadAreas();
     </script>
   </body>
 </html>

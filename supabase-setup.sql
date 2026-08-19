@@ -1,3 +1,5 @@
+-- 建好基础表后，如需 A/B 登记编号，再执行 record-id-link-setup.sql。
+
 create table if not exists public.repair_records (
   id text primary key,
   created_time text not null default '',

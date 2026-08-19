@@ -10,7 +10,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260730-return-fields-split">
+    <link rel="stylesheet" href="styles.css?v=20260812-no-repair-orange">
   </head>
   <body>
     <header class="app-header">
@@ -152,11 +152,12 @@
           <table>
             <thead>
               <tr>
+                <th class="record-id-col">ID</th>
                 <th>创建时间</th>
                 <th class="tracking-col">快递单号</th>
                 <th>地区 / 区域</th>
                 <th>编号 / 型号</th>
-                <th>电源</th>
+                <th class="power-col">电源</th>
                 <th class="company-col">公司名</th>
                 <th class="customer-issue-heading">客户描述问题</th>
                 <th class="customer-issue-heading">维修过程</th>
@@ -304,6 +305,10 @@
               </div>
             </div>
             <div class="recent-detail" id="customerRecentDetail"></div>
+            <button class="customer-progress-button" id="viewCustomerProgressBtn" type="button" hidden>
+              查看维修进度
+              <span aria-hidden="true">›</span>
+            </button>
           </section>
 
           <form class="customer-form" id="customerForm">
@@ -366,10 +371,15 @@
                   <select name="addressDistrict" required></select>
                   <button class="area-select-button is-placeholder" type="button" data-area-level="district">请先选择市</button>
                 </label>
+                <label>
+                  <span>街道</span>
+                  <select name="addressStreet" required></select>
+                  <button class="area-select-button is-placeholder" type="button" data-area-level="street">请先选择区 / 县</button>
+                </label>
               </div>
               <label class="wide">
                 <span>详细地址</span>
-                <textarea class="compact-textarea" name="addressDetail" rows="2" required placeholder="请输入街道、门牌号、档口号，避免影响派送时效"></textarea>
+                <textarea class="compact-textarea" name="addressDetail" rows="2" required placeholder="请输入门牌号、档口号等详细信息，避免影响派送时效"></textarea>
               </label>
             </div>
             <div class="dialog-actions">
@@ -392,6 +402,7 @@
           <table class="submissions-table">
             <thead>
               <tr>
+                <th class="record-id-col">ID</th>
                 <th>提交时间</th>
                 <th>寄出单号</th>
                 <th>编号 / 型号</th>
@@ -411,6 +422,19 @@
         </div>
       </section>
     </main>
+
+    <section class="customer-progress-page" id="customerProgressPage" aria-label="维修进度查询" hidden>
+      <header class="customer-progress-header">
+        <button class="customer-progress-close" id="closeCustomerProgressBtn" type="button" aria-label="关闭维修进度" title="关闭">×</button>
+        <h2>维修进度查询</h2>
+        <span class="customer-progress-header-spacer" aria-hidden="true"></span>
+      </header>
+      <div class="customer-progress-content">
+        <div class="customer-progress-summary" id="customerProgressSummary"></div>
+        <div class="customer-progress-loading" id="customerProgressLoading" hidden>正在读取最新进度...</div>
+        <ol class="customer-progress-timeline" id="customerProgressTimeline"></ol>
+      </div>
+    </section>
 
     <dialog id="recordDialog">
       <form method="dialog" id="recordForm">
@@ -518,10 +542,13 @@
             <span>打印机故障原因（客述）</span>
             <textarea class="readonly-field" name="customerIssue" rows="3" readonly required placeholder="匹配客户提交后自动显示"></textarea>
           </label>
-          <label class="wide">
-            <span>维修过程 <small class="field-note-danger">（不修需要清空本单所用配件）</small></span>
-            <textarea name="repairProcess" rows="4" required></textarea>
-          </label>
+          <div class="field wide repair-process-field">
+            <div class="repair-process-field-head">
+              <span class="repair-process-label">维修过程 <small class="field-note-danger">（不修需要清空本单所用配件）</small><b class="field-required-marker" aria-hidden="true">*</b></span>
+              <button class="secondary record-progress-button" id="recordProgressBtn" type="button" disabled hidden title="请先关联客户登记 B 编号">进度</button>
+            </div>
+            <textarea name="repairProcess" rows="4" required aria-label="维修过程"></textarea>
+          </div>
           <label class="wide">
             <span>客户地址</span>
             <textarea name="customerAddress" rows="3"></textarea>
@@ -558,6 +585,31 @@
 
         <div class="dialog-actions custom-price-actions">
           <button class="secondary" id="cancelCustomPartPriceBtn" type="button">取消</button>
+          <button class="primary" type="submit">确定</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="progressCustomPartPriceDialog">
+      <form method="dialog" id="progressCustomPartPriceForm">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">进度配件</p>
+            <h2>自定义配件价格</h2>
+          </div>
+          <button class="icon-btn" id="closeProgressCustomPartPriceDialogBtn" type="button" aria-label="关闭">×</button>
+        </div>
+
+        <label class="custom-price-field">
+          <span>金额</span>
+          <div class="money-input">
+            <span>¥</span>
+            <input id="progressCustomPartPriceInput" name="progressCustomPartPriceInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="请输入金额" required>
+          </div>
+        </label>
+
+        <div class="dialog-actions custom-price-actions">
+          <button class="secondary" id="cancelProgressCustomPartPriceBtn" type="button">取消</button>
           <button class="primary" type="submit">确定</button>
         </div>
       </form>
@@ -717,6 +769,56 @@
       </div>
     </dialog>
 
+    <dialog id="progressManageDialog" aria-labelledby="progressManageTitle">
+      <div class="progress-manage-dialog">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">维修进度</p>
+            <h2 id="progressManageTitle">逐项更新进度</h2>
+          </div>
+          <button class="icon-btn" id="closeProgressManageDialogBtn" type="button" aria-label="关闭">×</button>
+        </div>
+
+        <div class="progress-manage-summary" id="progressManageSummary"></div>
+        <ol class="progress-manage-list" id="progressManageList"></ol>
+
+        <div class="dialog-actions progress-manage-actions">
+          <button class="secondary" id="doneProgressManageBtn" type="button">关闭</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="receivedUndoConfirmDialog" aria-labelledby="receivedUndoConfirmTitle">
+      <div class="received-undo-confirm-dialog">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">收货状态</p>
+            <h2 id="receivedUndoConfirmTitle">更改当前进度</h2>
+          </div>
+          <button class="icon-btn" id="closeReceivedUndoConfirmBtn" type="button" aria-label="关闭">×</button>
+        </div>
+        <p class="received-undo-confirm-message" id="receivedUndoConfirmMessage"></p>
+        <div class="dialog-actions">
+          <button class="secondary" id="cancelReceivedUndoConfirmBtn" type="button">取消</button>
+          <button class="danger" id="confirmReceivedUndoBtn" type="button">确认更改</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="detectionReminderDialog" aria-labelledby="detectionReminderTitle">
+      <div class="detection-reminder-dialog">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">工单提醒</p>
+            <h2 id="detectionReminderTitle">已检测，记得同步进度</h2>
+          </div>
+        </div>
+        <div class="dialog-actions detection-reminder-actions">
+          <button class="primary" id="confirmDetectionReminderBtn" type="button">确定</button>
+        </div>
+      </div>
+    </dialog>
+
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
     <div class="address-popover" id="addressPopover" role="dialog" aria-label="完整客户地址" hidden></div>
     <div class="analysis-popover" id="analysisPopover" role="dialog" aria-label="分析明细" hidden></div>
@@ -724,6 +826,7 @@
     <div class="analysis-popover analysis-grandchild-popover" id="analysisGrandchildPopover" role="dialog" aria-label="分析下级明细" hidden></div>
 
     <script src="area-data.js"></script>
-    <script src="app.js?v=20260731-accessory-panel-open"></script>
+    <script src="street-data.js?v=20260807"></script>
+    <script src="app.js?v=20260813-pending-shipment-label"></script>
   </body>
 </html>

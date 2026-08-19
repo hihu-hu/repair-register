@@ -1,3 +1,5 @@
+-- 建好基础表后，如需 A/B 登记编号，再执行 record-id-link-setup.sql。
+
 create table if not exists public.customer_repair_submissions (
   id text primary key,
   created_time text not null default '',
@@ -9,8 +11,12 @@ create table if not exists public.customer_repair_submissions (
   tracking_number text not null default '',
   customer_issue text not null default '',
   customer_address text not null default '',
+  wecom_notified_at timestamptz,
   updated_at timestamptz not null default now()
 );
+
+alter table public.customer_repair_submissions
+  add column if not exists wecom_notified_at timestamptz;
 
 create index if not exists customer_repair_submissions_created_time_idx
   on public.customer_repair_submissions (created_time desc);

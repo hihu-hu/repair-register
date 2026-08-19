@@ -1,9 +1,10 @@
 const STORAGE_KEY = "printer_repair_records_v3";
 const CUSTOMER_SUBMISSIONS_STORAGE_KEY = "printer_customer_submissions_v1";
+const REPAIR_PROGRESS_STORAGE_KEY = "printer_repair_progress_events_v1";
+const REPAIR_PROGRESS_ENABLED = false;
 const LAST_CUSTOMER_SUBMISSION_KEY = "printer_last_customer_submission_v1";
 const PUBLIC_SHARE_BASE_URL = "https://hihu-hu.github.io/repair-register/";
 const CUSTOMER_REGISTER_URL = `${PUBLIC_SHARE_BASE_URL}customer.html`;
-const LOCAL_CUSTOMER_REGISTER_URL = "http://192.168.1.211:5173/customer.html";
 const ADMIN_ACCOUNTS = [
   {
     username: "QQQQ",
@@ -30,7 +31,33 @@ const CUSTOM_PRICE_ACCESSORY_PART = "塑料件/其他件";
 const ZERO_FEE_MARK = "{0元}";
 const WARRANTY_FEE_MARK = "{保修}";
 const WARRANTY_STATUS_STORAGE_PREFIX = "__warranty_status__:";
+const PROGRESS_ACCESSORY_STORAGE_PREFIX = "__progress_accessories__:";
+const PROGRESS_CUSTOM_ACCESSORY_PART = "自定义";
+const PROGRESS_HIDDEN_ACCESSORY_PARTS = new Set([CUSTOM_PRICE_ACCESSORY_PART, "快递费", "无费用"]);
+const PROGRESS_WARRANTY_OPTIONS = ["在保", "已过保"];
 const LOCKED_CUSTOMER_EDIT_STATUSES = ["已寄出", "邮寄并结束"];
+const RETURN_TIME_REQUIRED_STATUSES = ["今天需要寄", "邮寄并结束"];
+const CUSTOMER_PROGRESS_STEPS = [
+  "用户提交工单",
+  "等待收货",
+  "已收货",
+  "检测中",
+  "检测结果",
+  "报价付款",
+  "维修中",
+  "等待发货",
+  "已发货"
+];
+const AUTO_START_DETECTION_AFTER_MS = 14 * 60 * 60 * 1000;
+const AUTO_DETECTION_CHECK_INTERVAL_MS = 60 * 1000;
+const RECEIVED_UNDO_HOLD_MS = 3 * 1000;
+const WAITING_RECEIPT_RESET_MARK = "__waiting_receipt_reset__";
+const NO_REPAIR_PROGRESS_MARK = "__no_repair__";
+const NO_REPAIR_CUSTOMER_PROGRESS_MARK = "__no_repair_customer__";
+const NO_REPAIR_ADMIN_PROGRESS_MARK = "__no_repair_admin__";
+const PAYMENT_CUSTOMER_PROGRESS_MARK = "__payment_customer__";
+const PAYMENT_ADMIN_PROGRESS_MARK = "__payment_admin__";
+const NO_REPAIR_REQUEST_MARK = "客户选择：无需维修";
 const UNSAVED_RECORD_MESSAGE = "这条维修记录有改动，关闭后不会保存。确定关闭吗？";
 const EXPRESS_EXPORT_SENDER = {
   name: "服务中心-维修",
@@ -77,6 +104,10 @@ const faultCategoryAliases = {
 const finalStatusAliases = {
   待寄出: "已修未付费"
 };
+
+function displayFinalStatus(value = "") {
+  return value === "已寄出" ? "待寄出" : value;
+}
 
 const accessoryPartAliases = {
   "塑料件/小件": "塑料件/其他件"
@@ -282,6 +313,12 @@ const els = {
   customerRecentDetail: document.querySelector("#customerRecentDetail"),
   newCustomerSubmissionBtn: document.querySelector("#newCustomerSubmissionBtn"),
   editCustomerSubmissionBtn: document.querySelector("#editCustomerSubmissionBtn"),
+  viewCustomerProgressBtn: document.querySelector("#viewCustomerProgressBtn"),
+  customerProgressPage: document.querySelector("#customerProgressPage"),
+  customerProgressSummary: document.querySelector("#customerProgressSummary"),
+  customerProgressLoading: document.querySelector("#customerProgressLoading"),
+  customerProgressTimeline: document.querySelector("#customerProgressTimeline"),
+  closeCustomerProgressBtn: document.querySelector("#closeCustomerProgressBtn"),
   submissionsPage: document.querySelector("#submissionsPage"),
   customerQrImage: document.querySelector("#customerQrImage"),
   copyCustomerLinkBtn: document.querySelector("#copyCustomerLinkBtn"),
@@ -339,6 +376,7 @@ const els = {
   recordForm: document.querySelector("#recordForm"),
   recordId: document.querySelector("#recordId"),
   dialogTitle: document.querySelector("#dialogTitle"),
+  recordProgressBtn: document.querySelector("#recordProgressBtn"),
   deviceHistoryBtn: document.querySelector("#deviceHistoryBtn"),
   faultCategoryToggle: document.querySelector("#faultCategoryToggle"),
   faultCategoryMenu: document.querySelector("#faultCategoryMenu"),
@@ -352,6 +390,11 @@ const els = {
   customPartPriceInput: document.querySelector("#customPartPriceInput"),
   closeCustomPartPriceDialogBtn: document.querySelector("#closeCustomPartPriceDialogBtn"),
   cancelCustomPartPriceBtn: document.querySelector("#cancelCustomPartPriceBtn"),
+  progressCustomPartPriceDialog: document.querySelector("#progressCustomPartPriceDialog"),
+  progressCustomPartPriceForm: document.querySelector("#progressCustomPartPriceForm"),
+  progressCustomPartPriceInput: document.querySelector("#progressCustomPartPriceInput"),
+  closeProgressCustomPartPriceDialogBtn: document.querySelector("#closeProgressCustomPartPriceDialogBtn"),
+  cancelProgressCustomPartPriceBtn: document.querySelector("#cancelProgressCustomPartPriceBtn"),
   closeDialogBtn: document.querySelector("#closeDialogBtn"),
   cancelDialogBtn: document.querySelector("#cancelDialogBtn"),
   deleteRecordBtn: document.querySelector("#deleteRecordBtn"),
@@ -372,6 +415,18 @@ const els = {
   deviceHistoryList: document.querySelector("#deviceHistoryList"),
   closeDeviceHistoryDialogBtn: document.querySelector("#closeDeviceHistoryDialogBtn"),
   closeDeviceHistoryBtn: document.querySelector("#closeDeviceHistoryBtn"),
+  progressManageDialog: document.querySelector("#progressManageDialog"),
+  progressManageSummary: document.querySelector("#progressManageSummary"),
+  progressManageList: document.querySelector("#progressManageList"),
+  closeProgressManageDialogBtn: document.querySelector("#closeProgressManageDialogBtn"),
+  doneProgressManageBtn: document.querySelector("#doneProgressManageBtn"),
+  receivedUndoConfirmDialog: document.querySelector("#receivedUndoConfirmDialog"),
+  receivedUndoConfirmMessage: document.querySelector("#receivedUndoConfirmMessage"),
+  closeReceivedUndoConfirmBtn: document.querySelector("#closeReceivedUndoConfirmBtn"),
+  cancelReceivedUndoConfirmBtn: document.querySelector("#cancelReceivedUndoConfirmBtn"),
+  confirmReceivedUndoBtn: document.querySelector("#confirmReceivedUndoBtn"),
+  detectionReminderDialog: document.querySelector("#detectionReminderDialog"),
+  confirmDetectionReminderBtn: document.querySelector("#confirmDetectionReminderBtn"),
   modeNote: document.querySelector("#modeNote"),
   toast: document.querySelector("#toast"),
   addressPopover: document.querySelector("#addressPopover"),
@@ -391,15 +446,38 @@ let forceReadonlyMode = false;
 let supabaseClient = null;
 let inventorySupabaseClient = null;
 const sharedData = readSharedData();
+const linkingPreviewMode = ["localhost", "127.0.0.1"].includes(location.hostname)
+  && new URLSearchParams(location.search).get("preview") === "linking";
 const shouldUseLocalStartupData = !SUPABASE_URL || location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1";
 let records = sharedData ? sharedData.records : shouldUseLocalStartupData ? loadRecords() : [];
 let filteredRecords = [];
 let customerSubmissions = sharedData ? sharedData.submissions : shouldUseLocalStartupData ? loadCustomerSubmissions() : [];
+let repairProgressEvents = shouldUseLocalStartupData ? loadRepairProgressEvents() : [];
+if (linkingPreviewMode) {
+  customerSubmissions = [
+    normalizeCustomerSubmission({ id: "preview-b1", submissionNumber: 1, createdTime: "2026-08-01T09:00", deviceNumber: "1007555555", companyName: "第一条已关联登记", contactName: "张先生", phone: "13800000001", trackingNumber: "SF100000001", customerIssue: "故障描述：打印不清楚", customerAddress: "浙江省杭州市预览地址 1 号" }),
+    normalizeCustomerSubmission({ id: "preview-b2", submissionNumber: 2, createdTime: "2026-08-03T10:30", deviceNumber: "1007555555", companyName: "第二条待选择登记", contactName: "李女士", phone: "13800000002", trackingNumber: "YT100000002", customerIssue: "故障描述：无法连接网络", customerAddress: "上海市预览地址 2 号" }),
+    normalizeCustomerSubmission({ id: "preview-b3", submissionNumber: 3, createdTime: "2026-08-04T14:20", deviceNumber: "1007555555", companyName: "第三条待选择登记", contactName: "王先生", phone: "13800000003", trackingNumber: "JD100000003", customerIssue: "故障描述：机器无法开机", customerAddress: "江苏省苏州市预览地址 3 号" })
+  ];
+  records = [normalizeRecord({ id: "preview-a1", recordNumber: 1, submissionId: "preview-b1", createdTime: "2026-08-02T11:00", trackingNumber: "SF100000001", region: "浙江", deviceNumber: "1007555555", hasPower: "有", companyName: "第一条已关联登记", customerIssue: "打印不清楚", repairProcess: "清洁打印头后测试正常", finalStatus: "已寄出", returnTrackingNumber: "SF200000001", faultOwnership: "非硬件", faultCategory: "未复现", accessoryParts: "无费用", warrantyStatus: "保修", customerAddress: "浙江省杭州市预览地址 1 号", model: "DK110B" })];
+  repairProgressEvents = [
+    { submissionId: "preview-b1", stepIndex: 0, occurredAt: "2026-08-01T09:00:12+08:00", updatedAt: "2026-08-01T09:00:12+08:00" },
+    { submissionId: "preview-b1", stepIndex: 1, occurredAt: "2026-08-01T09:00:12+08:00", updatedAt: "2026-08-01T09:00:12+08:00" },
+    { submissionId: "preview-b1", stepIndex: 2, occurredAt: "2026-08-02T11:03:26+08:00", updatedAt: "2026-08-02T11:03:26+08:00" },
+    { submissionId: "preview-b1", stepIndex: 3, occurredAt: "2026-08-02T11:20:08+08:00", updatedAt: "2026-08-02T11:20:08+08:00" },
+    { submissionId: "preview-b1", stepIndex: 4, occurredAt: "2026-08-02T12:06:41+08:00", detailText: "检测发现打印头积碳，清洁后打印测试正常，本次无需更换配件。", updatedAt: "2026-08-02T12:06:41+08:00" },
+    { submissionId: "preview-b2", stepIndex: 0, occurredAt: "2026-08-03T10:30:18+08:00", updatedAt: "2026-08-03T10:30:18+08:00" },
+    { submissionId: "preview-b2", stepIndex: 1, occurredAt: "2026-08-03T10:30:18+08:00", updatedAt: "2026-08-03T10:30:18+08:00" },
+    { submissionId: "preview-b3", stepIndex: 0, occurredAt: "2026-08-04T14:20:33+08:00", updatedAt: "2026-08-04T14:20:33+08:00" },
+    { submissionId: "preview-b3", stepIndex: 1, occurredAt: "2026-08-04T14:20:33+08:00", updatedAt: "2026-08-04T14:20:33+08:00" }
+  ].map(normalizeProgressEvent);
+}
 let currentView = "repair";
 let submissionStatusFilter = "";
 let areaData = null;
 let appliedSubmissionSnapshot = null;
 let appliedSubmissionId = "";
+let matchingSubmissionChoices = [];
 let isCustomerSubmitting = false;
 let editingCustomerSubmissionId = "";
 let lastCustomerSubmitFingerprint = "";
@@ -408,6 +486,27 @@ let analysisPopoverState = null;
 let dialogScrollLockY = 0;
 let dialogScrollLockObserver = null;
 let recordDialogInitialSnapshot = "";
+let recordDialogProgressSnapshots = new Map();
+let managingProgressSubmissionId = "";
+let progressManageRefreshTimer = null;
+let progressManageRefreshRunning = false;
+let confirmingProgressUndoStep = -1;
+let editingProgressCustomPartStep = -1;
+let autoDetectionCheckTimer = null;
+let autoDetectionCheckRunning = false;
+let receivedUndoHoldTimer = null;
+let receivedUndoHoldButton = null;
+let receivedUndoHoldPointerId = null;
+let pendingReceivedUndoSubmissionId = "";
+let pendingReceivedUndoButton = null;
+
+const initialIdentityChanged = prepareRecordIdentities({
+  migrateLegacyLinks: false
+});
+if (shouldUseLocalStartupData && initialIdentityChanged) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  localStorage.setItem(CUSTOMER_SUBMISSIONS_STORAGE_KEY, JSON.stringify(customerSubmissions));
+}
 
 function loadRecords() {
   try {
@@ -422,6 +521,132 @@ function loadCustomerSubmissions() {
   try {
     const raw = localStorage.getItem(CUSTOMER_SUBMISSIONS_STORAGE_KEY);
     return raw ? JSON.parse(raw).map(normalizeCustomerSubmission) : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeProgressEvent(item = {}) {
+  const stepIndex = Number(item.stepIndex ?? item.step_index);
+  return {
+    submissionId: String(item.submissionId || item.submission_id || "").trim(),
+    stepIndex: Number.isInteger(stepIndex) ? stepIndex : -1,
+    occurredAt: String(item.occurredAt || item.occurred_at || "").trim(),
+    detailText: String(item.detailText || item.detail_text || "").trim(),
+    updatedAt: String(item.updatedAt || item.updated_at || new Date().toISOString()).trim()
+  };
+}
+
+function isNoRepairProgressEvent(event) {
+  return String(event?.detailText || "").startsWith("__no_repair");
+}
+
+function getAdminProgressOperationText(stepIndex, event) {
+  if (stepIndex !== 5 || !event) return "";
+  const operationLabels = {
+    [PAYMENT_CUSTOMER_PROGRESS_MARK]: "客户确认付款",
+    [PAYMENT_ADMIN_PROGRESS_MARK]: "管理员确认已付款",
+    [NO_REPAIR_CUSTOMER_PROGRESS_MARK]: "客户放弃维修",
+    [NO_REPAIR_ADMIN_PROGRESS_MARK]: "管理员设为无需维修"
+  };
+  if (operationLabels[event.detailText]) return operationLabels[event.detailText];
+  return isNoRepairProgressEvent(event)
+    ? "已设为无需维修（旧记录未保存操作人）"
+    : "已确认付款（旧记录未保存操作人）";
+}
+
+function getAdminPaymentProgressStatus(event) {
+  if (!event) return "";
+  return isNoRepairProgressEvent(event) ? "已放弃维修" : "已付款";
+}
+
+function removeNoRepairRequestMark(value = "") {
+  return String(value || "")
+    .split("\n")
+    .filter((line) => line.trim() !== NO_REPAIR_REQUEST_MARK)
+    .join("\n")
+    .trim();
+}
+
+function addNoRepairRequestMark(value = "") {
+  return [
+    ...removeNoRepairRequestMark(value).split("\n"),
+    NO_REPAIR_REQUEST_MARK
+  ].filter(Boolean).join("\n");
+}
+
+function hasNoRepairRequestMark(submission) {
+  return String(submission?.customerIssue || "")
+    .split("\n")
+    .some((line) => line.trim() === NO_REPAIR_REQUEST_MARK);
+}
+
+function normalizeProgressWarrantyType(value = "") {
+  const text = String(value || "").trim();
+  if (text === "保内" || text === "未过保") return "在保";
+  if (text === "过保") return "已过保";
+  return PROGRESS_WARRANTY_OPTIONS.includes(text) ? text : "";
+}
+
+function normalizeProgressRepairSuggestion(value = "") {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, 200);
+}
+
+function parseProgressDetectionDetail(value = "") {
+  const lines = String(value || "").trim().split(/\r?\n/);
+  let accessoryParts = [];
+  let customPartPrice = "";
+  let customPartName = "";
+  let repairSuggestion = "";
+  const visibleLines = lines.filter((line) => {
+    if (!line.startsWith(PROGRESS_ACCESSORY_STORAGE_PREFIX)) return true;
+    try {
+      const stored = JSON.parse(line.slice(PROGRESS_ACCESSORY_STORAGE_PREFIX.length));
+      accessoryParts = normalizeProgressAccessoryParts(stored?.parts);
+      customPartPrice = normalizeMoneyValue(stored?.customPartPrice);
+      customPartName = normalizeProgressCustomPartName(stored?.customPartName);
+      repairSuggestion = normalizeProgressRepairSuggestion(stored?.repairSuggestion);
+    } catch {
+      accessoryParts = [];
+      customPartPrice = "";
+      customPartName = "";
+      repairSuggestion = "";
+    }
+    return false;
+  });
+  const text = visibleLines.join("\n").trim();
+  const match = text.match(/^【(在保|未过保|已过保|保内|过保)】(?:\r?\n)?/);
+  return {
+    warrantyType: normalizeProgressWarrantyType(match?.[1]),
+    detailText: match ? text.slice(match[0].length).trimStart() : text,
+    accessoryParts,
+    customPartPrice,
+    customPartName,
+    repairSuggestion
+  };
+}
+
+function serializeProgressDetectionDetail(warrantyType, detailText, accessoryParts = [], customPartPrice = "", customPartName = "", repairSuggestion = "") {
+  const normalizedWarrantyType = normalizeProgressWarrantyType(warrantyType);
+  const normalizedDetailText = String(detailText || "").trim();
+  const visibleText = normalizedWarrantyType
+    ? `【${normalizedWarrantyType}】\n${normalizedDetailText}`
+    : normalizedDetailText;
+  const accessoryData = JSON.stringify({
+    parts: normalizeProgressAccessoryParts(accessoryParts),
+    customPartPrice: normalizeMoneyValue(customPartPrice),
+    customPartName: normalizeProgressCustomPartName(customPartName),
+    repairSuggestion: normalizeProgressRepairSuggestion(repairSuggestion)
+  });
+  return `${visibleText}\n${PROGRESS_ACCESSORY_STORAGE_PREFIX}${accessoryData}`;
+}
+
+function loadRepairProgressEvents() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(REPAIR_PROGRESS_STORAGE_KEY) || "[]");
+    return Array.isArray(raw)
+      ? raw.map(normalizeProgressEvent).filter((item) => item.submissionId && item.stepIndex >= 0 && item.stepIndex < CUSTOMER_PROGRESS_STEPS.length)
+      : [];
   } catch {
     return [];
   }
@@ -444,6 +669,13 @@ function readSharedData() {
 
 function applyHashRoute() {
   if (applyViewFromHash()) return;
+
+  if (linkingPreviewMode) {
+    setReadonlyMode(false);
+    setView("repair");
+    render();
+    return;
+  }
 
   const hashSharedData = readSharedData();
   if (hashSharedData) {
@@ -468,7 +700,7 @@ function applyHashRoute() {
 
 function closeOpenDialogs() {
   if (els.recordDialog.open && !closeRecordDialogWithGuard()) return false;
-  [els.shareDialog, els.deviceHistoryDialog].forEach((dialog) => {
+  [els.shareDialog, els.deviceHistoryDialog, els.progressManageDialog].forEach((dialog) => {
     if (dialog.open) dialog.close();
   });
   return true;
@@ -586,11 +818,76 @@ function clearRecordDialogSnapshot() {
   recordDialogInitialSnapshot = "";
 }
 
+function progressEventsMatch(first, second) {
+  return first.stepIndex === second.stepIndex
+    && new Date(first.occurredAt).getTime() === new Date(second.occurredAt).getTime()
+    && String(first.detailText || "") === String(second.detailText || "");
+}
+
+function captureNewRecordProgressSnapshot(submissionId) {
+  const id = String(submissionId || "").trim();
+  if (els.recordId.value || !id || recordDialogProgressSnapshots.has(id)) return;
+  recordDialogProgressSnapshots.set(id, getStoredProgressEvents(id).map((item) => ({ ...item })));
+}
+
+function hasNewRecordProgressChanges() {
+  return Array.from(recordDialogProgressSnapshots.entries()).some(([submissionId, initialEvents]) => {
+    const currentEvents = getStoredProgressEvents(submissionId);
+    if (initialEvents.length !== currentEvents.length) return true;
+    return initialEvents.some((item) => !currentEvents.some((current) => progressEventsMatch(item, current)));
+  });
+}
+
+async function restoreUnsavedRecordProgress({ keepSubmissionId = "" } = {}) {
+  const snapshots = Array.from(recordDialogProgressSnapshots.entries());
+  recordDialogProgressSnapshots = new Map();
+  let restored = false;
+
+  for (const [submissionId, initialEvents] of snapshots) {
+    if (submissionId === keepSubmissionId) continue;
+    const currentEvents = getStoredProgressEvents(submissionId);
+    const initialManaged = initialEvents.filter((item) => item.stepIndex >= 2);
+    const currentManaged = currentEvents.filter((item) => item.stepIndex >= 2);
+    const initialByStep = new Map(initialManaged.map((item) => [item.stepIndex, item]));
+    const currentByStep = new Map(currentManaged.map((item) => [item.stepIndex, item]));
+    const changed = initialManaged.length !== currentManaged.length
+      || initialManaged.some((item) => !progressEventsMatch(item, currentByStep.get(item.stepIndex) || {}));
+    if (!changed) continue;
+
+    try {
+      if (cloudMode) {
+        for (const item of currentManaged) {
+          if (!initialByStep.has(item.stepIndex)) await deleteCloudProgressEvent(submissionId, item.stepIndex);
+        }
+        for (const item of initialManaged) {
+          const current = currentByStep.get(item.stepIndex);
+          if (!current || !progressEventsMatch(item, current)) await saveCloudProgressEvent(item);
+        }
+      }
+      repairProgressEvents = repairProgressEvents.filter((item) => !(
+        item.submissionId === submissionId && item.stepIndex >= 2
+      ));
+      repairProgressEvents.push(...initialManaged.map((item) => ({ ...item })));
+      if (!cloudMode) saveRepairProgressEvents();
+      restored = true;
+    } catch (error) {
+      console.error("恢复未保存工单的进度失败", error);
+      showToast("工单没有保存，但客户进度恢复失败，请手动撤销", "error");
+    }
+  }
+
+  if (restored) {
+    renderTable();
+    renderSubmissions();
+    showToast("工单未保存，客户进度已恢复");
+  }
+}
+
 function isRecordDialogDirty() {
   return Boolean(
     els.recordDialog.open &&
-    recordDialogInitialSnapshot &&
-    getRecordFormSnapshot() !== recordDialogInitialSnapshot
+    ((recordDialogInitialSnapshot && getRecordFormSnapshot() !== recordDialogInitialSnapshot)
+      || hasNewRecordProgressChanges())
   );
 }
 
@@ -606,6 +903,7 @@ function closeRecordDialogWithGuard() {
 }
 
 function openRecordDialogAndTrackChanges() {
+  recordDialogProgressSnapshots = new Map();
   els.recordDialog.showModal();
   markRecordDialogClean();
 }
@@ -630,7 +928,8 @@ function normalizeCustomerSubmission(item = {}) {
   const customerIssue = String(item.customerIssue || item.customer_issue || "").trim();
   return {
     id: String(item.id || createCustomerSubmissionId()),
-    createdTime: normalizeDateTime(item.createdTime || item.created_at || new Date()),
+    submissionNumber: normalizeDisplayNumber(item.submissionNumber ?? item.submission_number),
+    createdTime: normalizePreciseDateTime(item.createdTime || item.created_at || new Date()),
     deviceNumber,
     model: inferredModel || normalizeOption(item.model, optionSets.model, "GMX"),
     companyName: String(item.companyName || item.company_name || "").trim(),
@@ -646,6 +945,16 @@ function normalizeCustomerSubmission(item = {}) {
   };
 }
 
+function normalizePreciseDateTime(value) {
+  if (!value) return "";
+  if (value instanceof Date) return value.toISOString();
+  const text = String(value).trim();
+  if (!text) return "";
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
+  return /(?:Z|[+-]\d{2}:?\d{2})$/i.test(text) ? text : text.slice(0, 19);
+}
+
 function normalizeRecord(record = {}) {
   const region = String(record.region || "");
   const deviceNumber = String(record.deviceNumber || record.printerId || "");
@@ -656,6 +965,7 @@ function normalizeRecord(record = {}) {
   const rawWarrantyStatus = record.warrantyStatus ?? record.warranty_status ?? extractWarrantyStatusFromAccessoryParts(rawAccessoryParts);
   return {
     id: String(record.id || createId()),
+    recordNumber: normalizeDisplayNumber(record.recordNumber ?? record.record_number),
     submissionId: String(record.submissionId || record.submission_id || "").trim(),
     createdTime: normalizeDateTime(record.createdTime || record.createdAt || record.repairDate),
     trackingNumber: String(record.trackingNumber || record.inboundTracking || ""),
@@ -730,6 +1040,22 @@ function normalizeAccessoryParts(value) {
   return unique;
 }
 
+function normalizeProgressAccessoryParts(value) {
+  const rawItems = Array.isArray(value)
+    ? value
+    : String(value || "")
+      .replaceAll(CUSTOM_PRICE_ACCESSORY_PART, "__CUSTOM_PRICE_ACCESSORY_PART__")
+      .split(/[、,，;；/|]/)
+      .map((item) => item.replaceAll("__CUSTOM_PRICE_ACCESSORY_PART__", CUSTOM_PRICE_ACCESSORY_PART));
+  const standardParts = normalizeAccessoryParts(rawItems);
+  const hasCustomPart = rawItems.some((item) => stripAccessoryPartPrice(item) === PROGRESS_CUSTOM_ACCESSORY_PART);
+  return hasCustomPart ? [...standardParts, PROGRESS_CUSTOM_ACCESSORY_PART] : standardParts;
+}
+
+function normalizeProgressCustomPartName(value = "") {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, 30);
+}
+
 function getAccessoryPartsForModel(model = "") {
   const modelPrices = accessoryPartPricesByModel[model] || null;
   if (!modelPrices) return optionSets.accessoryParts;
@@ -738,6 +1064,14 @@ function getAccessoryPartsForModel(model = "") {
   return [
     ...pricedParts,
     ...["快递费", "无费用"].filter((part) => optionSets.accessoryParts.includes(part))
+  ];
+}
+
+function getProgressAccessoryPartsForModel(model = "") {
+  return [
+    ...getAccessoryPartsForModel(model)
+      .filter((part) => !PROGRESS_HIDDEN_ACCESSORY_PARTS.has(part)),
+    PROGRESS_CUSTOM_ACCESSORY_PART
   ];
 }
 
@@ -1087,6 +1421,42 @@ function getRecordRepairFeeText(record = {}) {
   return hasPendingAmount ? "待定" : `${formatPlainAmount(total)}元`;
 }
 
+function getProgressAccessoryPricingRecord(submission, record, customPartPrice = null) {
+  const resolvedCustomPartPrice = customPartPrice === null
+    ? ""
+    : customPartPrice;
+  return {
+    model: submission?.model || "",
+    region: "",
+    customerAddress: submission?.customerAddress || "",
+    customPartPrice: normalizeMoneyValue(resolvedCustomPartPrice),
+    zeroFeeParts: ""
+  };
+}
+
+function getProgressCustomPartPrice(stepIndex) {
+  const input = els.progressManageList.querySelector(`[data-progress-custom-part-price="${stepIndex}"]`);
+  return normalizeMoneyValue(input?.value);
+}
+
+function getAccessorySelectionPrice(record, selectedParts = []) {
+  let total = 0;
+  let hasPendingAmount = false;
+  selectedParts.forEach((part) => {
+    const amount = getRecordAccessoryPartAmount(record, part);
+    if (amount.hasAmount) {
+      total += amount.amount;
+    } else {
+      hasPendingAmount = true;
+    }
+  });
+  return {
+    total,
+    hasPendingAmount,
+    text: hasPendingAmount ? "待定" : formatRepairFee(total)
+  };
+}
+
 function updateRepairFeeDetails(selectedParts = getMultiSelectValues(els.recordForm.elements.accessoryParts)) {
   if (!els.repairFeeBox) return;
   if (selectedParts.length === 0) {
@@ -1305,6 +1675,74 @@ function sortCustomerSubmissionsNewestFirst(items) {
   });
 }
 
+function compareItemsOldestFirst(a, b) {
+  const timeDiff = parseRecordTime(a.createdTime) - parseRecordTime(b.createdTime);
+  if (timeDiff !== 0) return timeDiff;
+  return String(a.updatedAt || "").localeCompare(String(b.updatedAt || ""));
+}
+
+function normalizeDisplayNumber(value) {
+  const number = Number.parseInt(String(value ?? ""), 10);
+  return Number.isSafeInteger(number) && number > 0 ? number : 0;
+}
+
+function assignMissingDisplayNumbers(items, key) {
+  let nextNumber = items.reduce((highest, item) => Math.max(highest, normalizeDisplayNumber(item[key])), 0) + 1;
+  let changed = false;
+  [...items].sort(compareItemsOldestFirst).forEach((item) => {
+    if (normalizeDisplayNumber(item[key])) return;
+    item[key] = nextNumber;
+    nextNumber += 1;
+    changed = true;
+  });
+  return changed;
+}
+
+function migrateLegacySubmissionLinks() {
+  const linkedSubmissionIds = new Set(records.map((record) => record.submissionId).filter(Boolean));
+  const submissionsByDevice = new Map();
+  customerSubmissions.forEach((submission) => {
+    const deviceKey = String(submission.deviceNumber || "").trim().toLowerCase();
+    if (!deviceKey) return;
+    if (!submissionsByDevice.has(deviceKey)) submissionsByDevice.set(deviceKey, []);
+    submissionsByDevice.get(deviceKey).push(submission);
+  });
+  submissionsByDevice.forEach((items) => items.sort(compareItemsOldestFirst));
+
+  const recordCountsByDevice = new Map();
+  let changed = false;
+  [...records].sort(compareItemsOldestFirst).forEach((record) => {
+    const deviceKey = String(record.deviceNumber || "").trim().toLowerCase();
+    if (!deviceKey) return;
+    const recordCount = recordCountsByDevice.get(deviceKey) || 0;
+    recordCountsByDevice.set(deviceKey, recordCount + 1);
+    if (record.submissionId) return;
+    const submission = submissionsByDevice.get(deviceKey)?.[recordCount];
+    if (!submission || linkedSubmissionIds.has(submission.id)) return;
+    record.submissionId = submission.id;
+    linkedSubmissionIds.add(submission.id);
+    changed = true;
+  });
+  return changed;
+}
+
+function prepareRecordIdentities({ migrateLegacyLinks = false } = {}) {
+  const recordNumbersChanged = assignMissingDisplayNumbers(records, "recordNumber");
+  const submissionNumbersChanged = assignMissingDisplayNumbers(customerSubmissions, "submissionNumber");
+  const linksChanged = migrateLegacyLinks ? migrateLegacySubmissionLinks() : false;
+  return recordNumbersChanged || submissionNumbersChanged || linksChanged;
+}
+
+function formatRepairRecordId(record) {
+  const number = normalizeDisplayNumber(record?.recordNumber);
+  return number ? `A${number}` : "A-";
+}
+
+function formatSubmissionId(submission) {
+  const number = normalizeDisplayNumber(submission?.submissionNumber);
+  return number ? `B${number}` : "B-";
+}
+
 function getReviewedSubmissionIds() {
   return new Set(getSubmissionRepairMatches().keys());
 }
@@ -1312,9 +1750,7 @@ function getReviewedSubmissionIds() {
 function getSubmissionRepairMatches() {
   const matches = new Map();
   records.forEach((record) => {
-    if (record.submissionId) {
-      matches.set(record.submissionId, record);
-    }
+    if (record.submissionId) matches.set(record.submissionId, record);
   });
 
   return matches;
@@ -1323,6 +1759,27 @@ function getSubmissionRepairMatches() {
 function toInputDateTime(date) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 16);
+}
+
+function toInputDateTimeSeconds(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value || "").slice(0, 19);
+  const beijing = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  return beijing.toISOString().slice(0, 19);
+}
+
+function fromBeijingInputDateTime(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return new Date(value);
+  const [, year, month, day, hour, minute, second = "0"] = match;
+  return new Date(Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour) - 8,
+    Number(minute),
+    Number(second)
+  ));
 }
 
 function toInputDate(date) {
@@ -1339,6 +1796,12 @@ function saveRecords() {
 function saveCustomerSubmissions() {
   sortCustomerSubmissionsNewestFirst(customerSubmissions);
   localStorage.setItem(CUSTOMER_SUBMISSIONS_STORAGE_KEY, JSON.stringify(customerSubmissions));
+}
+
+function saveRepairProgressEvents() {
+  if (readonlyMode) return;
+  repairProgressEvents.sort((a, b) => a.submissionId.localeCompare(b.submissionId) || a.stepIndex - b.stepIndex);
+  localStorage.setItem(REPAIR_PROGRESS_STORAGE_KEY, JSON.stringify(repairProgressEvents));
 }
 
 function setReadonlyMode(value) {
@@ -1534,6 +1997,7 @@ function fromDatabaseRecord(record) {
   const rawAccessoryParts = record.accessory_parts;
   return normalizeRecord({
     id: record.id,
+    recordNumber: record.record_number,
     submissionId: record.submission_id,
     createdTime: record.created_time,
     trackingNumber: record.tracking_number,
@@ -1578,6 +2042,7 @@ function toDatabaseSubmission(item) {
 function fromDatabaseSubmission(item) {
   return normalizeCustomerSubmission({
     id: item.id,
+    submissionNumber: item.submission_number,
     createdTime: item.created_time,
     deviceNumber: item.device_number,
     model: item.model,
@@ -1592,6 +2057,20 @@ function fromDatabaseSubmission(item) {
   });
 }
 
+function toDatabaseProgressEvent(item) {
+  return {
+    submission_id: item.submissionId,
+    step_index: item.stepIndex,
+    occurred_at: item.occurredAt,
+    detail_text: item.detailText || "",
+    updated_at: item.updatedAt || new Date().toISOString()
+  };
+}
+
+function fromDatabaseProgressEvent(item) {
+  return normalizeProgressEvent(item);
+}
+
 async function initializeCloud() {
   if ((forceReadonlyMode && location.hash.includes("view=")) || !(await ensureSupabaseLoaded())) return;
 
@@ -1604,6 +2083,7 @@ async function initializeCloud() {
   refreshAccessMode();
   await loadCloudRecords();
   await loadCloudSubmissions();
+  if (REPAIR_PROGRESS_ENABLED) await loadCloudProgressEvents();
 
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     const sessionEmail = session?.user?.email || "";
@@ -1611,6 +2091,7 @@ async function initializeCloud() {
     refreshAccessMode();
     loadCloudRecords();
     loadCloudSubmissions();
+    if (REPAIR_PROGRESS_ENABLED) loadCloudProgressEvents();
   });
 }
 
@@ -1629,22 +2110,28 @@ async function loadCloudRecords() {
   }
 
   records = sortRecordsNewestFirst(data.map(fromDatabaseRecord));
+  prepareRecordIdentities();
   render();
   updateCustomerEditButton();
 }
 
 async function saveCloudRecord(record) {
-  const { error } = await supabaseClient
+  const { data, error } = await supabaseClient
     .from("repair_records")
-    .upsert(toDatabaseRecord(record), { onConflict: "id" });
+    .upsert(toDatabaseRecord(record), { onConflict: "id" })
+    .select("*")
+    .single();
   if (error) throw error;
+  return fromDatabaseRecord(data);
 }
 
 async function saveCloudRecords(items) {
-  const { error } = await supabaseClient
+  const { data, error } = await supabaseClient
     .from("repair_records")
-    .upsert(items.map(toDatabaseRecord), { onConflict: "id" });
+    .upsert(items.map(toDatabaseRecord), { onConflict: "id" })
+    .select("*");
   if (error) throw error;
+  return data.map(fromDatabaseRecord);
 }
 
 async function deleteCloudRecord(id) {
@@ -1668,6 +2155,8 @@ async function loadCloudSubmissions() {
   }
 
   customerSubmissions = sortCustomerSubmissionsNewestFirst(data.map(fromDatabaseSubmission));
+  prepareRecordIdentities();
+  renderTable();
   renderSubmissions();
 }
 
@@ -1696,11 +2185,288 @@ async function saveCustomerSubmissionReliably(item) {
     error.code = result?.code || String(response.status);
     throw error;
   }
+  return fromDatabaseSubmission(result[0]);
 }
 
 async function deleteCloudSubmission(id) {
   const { error } = await supabaseClient.from("customer_repair_submissions").delete().eq("id", id);
   if (error) throw error;
+}
+
+async function loadCloudProgressEvents(skipAutoDetection = false) {
+  if (!REPAIR_PROGRESS_ENABLED || !cloudMode || !supabaseClient) return;
+
+  const { data, error } = await supabaseClient
+    .from("repair_progress_events")
+    .select("*")
+    .order("occurred_at", { ascending: true });
+
+  if (error) {
+    console.error(error);
+    showToast("进度读取失败，请确认数据库已更新");
+    return;
+  }
+
+  repairProgressEvents = data.map(fromDatabaseProgressEvent);
+  if (!skipAutoDetection) await autoStartOverdueDetections();
+  renderTable();
+  if (managingProgressSubmissionId) renderProgressManageDialog();
+  const lastSubmission = getLastCustomerSubmission();
+  if (lastSubmission && !els.customerProgressPage.hidden) {
+    renderCustomerProgress(lastSubmission, getCustomerSubmissionRepairRecord(lastSubmission));
+  }
+}
+
+async function saveCloudProgressEvent(item) {
+  const { data, error } = await supabaseClient
+    .from("repair_progress_events")
+    .upsert(toDatabaseProgressEvent(item), { onConflict: "submission_id,step_index" })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return fromDatabaseProgressEvent(data);
+}
+
+async function deleteCloudProgressEvent(submissionId, stepIndex) {
+  const { error } = await supabaseClient
+    .from("repair_progress_events")
+    .delete()
+    .eq("submission_id", submissionId)
+    .eq("step_index", stepIndex);
+  if (error) throw error;
+}
+
+async function deleteCloudProgressEventsFromStep(submissionId, stepIndex) {
+  const { error } = await supabaseClient
+    .from("repair_progress_events")
+    .delete()
+    .eq("submission_id", submissionId)
+    .gte("step_index", stepIndex);
+  if (error) throw error;
+}
+
+async function createCloudProgressEventIfMissing(item) {
+  const { data, error } = await supabaseClient
+    .from("repair_progress_events")
+    .upsert(toDatabaseProgressEvent(item), {
+      onConflict: "submission_id,step_index",
+      ignoreDuplicates: true
+    })
+    .select("*");
+  if (error) throw error;
+  return data?.[0] ? fromDatabaseProgressEvent(data[0]) : null;
+}
+
+function getOverdueDetectionEvents(now = Date.now()) {
+  const linkedSubmissionIds = new Set(records.map((record) => record.submissionId).filter(Boolean));
+  const eventsBySubmission = new Map();
+  repairProgressEvents.forEach((item) => {
+    if (!item.submissionId || item.stepIndex < 0) return;
+    if (!eventsBySubmission.has(item.submissionId)) eventsBySubmission.set(item.submissionId, []);
+    eventsBySubmission.get(item.submissionId).push(item);
+  });
+
+  const dueEvents = [];
+  eventsBySubmission.forEach((events, submissionId) => {
+    if (!linkedSubmissionIds.has(submissionId)) return;
+    const latestIndex = Math.max(...events.map((item) => item.stepIndex));
+    if (latestIndex !== 2) return;
+    const receivedEvent = events.find((item) => item.stepIndex === 2);
+    const receivedAt = new Date(receivedEvent?.occurredAt).getTime();
+    if (!Number.isFinite(receivedAt)) return;
+    const detectionAt = receivedAt + AUTO_START_DETECTION_AFTER_MS;
+    if (detectionAt > now) return;
+    dueEvents.push(normalizeProgressEvent({
+      submissionId,
+      stepIndex: 3,
+      occurredAt: new Date(detectionAt).toISOString(),
+      updatedAt: new Date(now).toISOString()
+    }));
+  });
+  return dueEvents;
+}
+
+async function autoStartOverdueDetections() {
+  if (!REPAIR_PROGRESS_ENABLED || autoDetectionCheckRunning || linkingPreviewMode) return 0;
+  if ((cloudMode && !adminMode) || (!cloudMode && readonlyMode)) return 0;
+  const dueEvents = getOverdueDetectionEvents();
+  if (!dueEvents.length) return 0;
+
+  autoDetectionCheckRunning = true;
+  let startedCount = 0;
+  let shouldRefreshCloudEvents = false;
+  try {
+    for (const dueEvent of dueEvents) {
+      try {
+        const saved = cloudMode
+          ? await createCloudProgressEventIfMissing(dueEvent)
+          : dueEvent;
+        if (!saved) {
+          shouldRefreshCloudEvents = true;
+          continue;
+        }
+        repairProgressEvents = repairProgressEvents.filter((item) => !(
+          item.submissionId === saved.submissionId && item.stepIndex === saved.stepIndex
+        ));
+        repairProgressEvents.push(saved);
+        startedCount += 1;
+      } catch (error) {
+        console.error("自动开始检测失败", error);
+      }
+    }
+
+    if (cloudMode && shouldRefreshCloudEvents) {
+      await loadCloudProgressEvents(true);
+    } else if (!cloudMode && startedCount) {
+      saveRepairProgressEvents();
+    }
+
+    if (startedCount) {
+      renderTable();
+      if (managingProgressSubmissionId) renderProgressManageDialog();
+      const lastSubmission = getLastCustomerSubmission();
+      if (lastSubmission && !els.customerProgressPage.hidden) {
+        renderCustomerProgress(lastSubmission, getCustomerSubmissionRepairRecord(lastSubmission));
+      }
+      showToast(startedCount === 1 ? "已自动进入检测中" : `${startedCount} 条工单已自动进入检测中`);
+    }
+    return startedCount;
+  } finally {
+    autoDetectionCheckRunning = false;
+  }
+}
+
+async function startDetectionForNewRecord(record) {
+  if (!REPAIR_PROGRESS_ENABLED) return false;
+  const submissionId = String(record?.submissionId || "").trim();
+  if (!submissionId) return false;
+
+  const storedEvents = getStoredProgressEvents(submissionId);
+  const latestStep = storedEvents.length ? Math.max(...storedEvents.map((item) => item.stepIndex)) : -1;
+  if (latestStep >= 3) return false;
+
+  const existingSteps = new Set(storedEvents.map((item) => item.stepIndex));
+  const now = new Date();
+  const progressEvents = [
+    normalizeProgressEvent({ submissionId, stepIndex: 3, occurredAt: now.toISOString(), updatedAt: now.toISOString() })
+  ].filter((item) => !existingSteps.has(item.stepIndex));
+
+  try {
+    for (const progressEvent of progressEvents) {
+      const saved = cloudMode
+        ? await createCloudProgressEventIfMissing(progressEvent)
+        : progressEvent;
+      if (!saved) continue;
+      repairProgressEvents = repairProgressEvents.filter((item) => !(
+        item.submissionId === saved.submissionId && item.stepIndex === saved.stepIndex
+      ));
+      repairProgressEvents.push(saved);
+    }
+
+    if (cloudMode) {
+      await loadCloudProgressEvents(true);
+    } else {
+      saveRepairProgressEvents();
+    }
+    renderTable();
+    showToast("工单已保存，已自动进入检测中");
+    return true;
+  } catch (error) {
+    console.error("新工单自动进入检测中失败", error);
+    showToast("工单已保存，但自动进入检测中失败，请在进度中手动更新", "error");
+    return false;
+  }
+}
+
+function startAutoDetectionChecks() {
+  if (!REPAIR_PROGRESS_ENABLED || linkingPreviewMode) return;
+  if (autoDetectionCheckTimer) window.clearInterval(autoDetectionCheckTimer);
+  autoStartOverdueDetections().catch((error) => console.error("自动检测检查失败", error));
+  autoDetectionCheckTimer = window.setInterval(() => {
+    autoStartOverdueDetections().catch((error) => console.error("自动检测检查失败", error));
+  }, AUTO_DETECTION_CHECK_INTERVAL_MS);
+}
+
+async function requestPaymentConfirmation(submissionId, occurredAt = "") {
+  const body = { p_submission_id: submissionId };
+  if (occurredAt) body.p_occurred_at = occurredAt;
+  let accessToken = SUPABASE_ANON_KEY;
+  if (occurredAt && adminMode && supabaseClient) {
+    const { data } = await supabaseClient.auth.getSession();
+    accessToken = data.session?.access_token || SUPABASE_ANON_KEY;
+  }
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/confirm_repair_payment`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result?.message || "付款确认失败");
+  return result || {};
+}
+
+async function requestNoRepair(submissionId, occurredAt = "") {
+  const body = { p_submission_id: submissionId };
+  if (occurredAt) body.p_occurred_at = occurredAt;
+  let accessToken = SUPABASE_ANON_KEY;
+  if (occurredAt && adminMode && supabaseClient) {
+    const { data } = await supabaseClient.auth.getSession();
+    accessToken = data.session?.access_token || SUPABASE_ANON_KEY;
+  }
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/skip_repair`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result?.message || "无需维修保存失败");
+  return result || {};
+}
+
+function applyNoRepairLocally(submissionId, result = {}, fallbackTime = new Date().toISOString(), source = "customer") {
+  const skippedAt = result.skipped_at || fallbackTime;
+  const skippedEvents = [5, 6, 7].map((stepIndex) => normalizeProgressEvent({
+    submissionId,
+    stepIndex,
+    occurredAt: skippedAt,
+    detailText: stepIndex === 5
+      ? (source === "admin" ? NO_REPAIR_ADMIN_PROGRESS_MARK : NO_REPAIR_CUSTOMER_PROGRESS_MARK)
+      : NO_REPAIR_PROGRESS_MARK,
+    updatedAt: new Date().toISOString()
+  }));
+  repairProgressEvents = repairProgressEvents.filter((item) => !(
+    item.submissionId === submissionId && item.stepIndex >= 5
+  ));
+  repairProgressEvents.push(...skippedEvents);
+}
+
+function applyPaymentConfirmationLocally(submissionId, result = {}, fallbackTime = new Date().toISOString(), source = "customer") {
+  const existingPaid = repairProgressEvents.find((item) => item.submissionId === submissionId && item.stepIndex === 5);
+  const paidAt = result.paid_at || existingPaid?.occurredAt || fallbackTime;
+  const nextAt = result.next_at || fallbackTime;
+  [
+    normalizeProgressEvent({
+      submissionId,
+      stepIndex: 5,
+      occurredAt: paidAt,
+      detailText: source === "admin" ? PAYMENT_ADMIN_PROGRESS_MARK : PAYMENT_CUSTOMER_PROGRESS_MARK,
+      updatedAt: new Date().toISOString()
+    }),
+    normalizeProgressEvent({ submissionId, stepIndex: 6, occurredAt: nextAt, updatedAt: new Date().toISOString() })
+  ].forEach((progressEvent) => {
+    repairProgressEvents = repairProgressEvents.filter((item) => !(
+      item.submissionId === progressEvent.submissionId && item.stepIndex === progressEvent.stepIndex
+    ));
+    repairProgressEvents.push(progressEvent);
+  });
 }
 
 function createId() {
@@ -1715,6 +2481,12 @@ function fillSelect(select, values, includeAll = false) {
   select.replaceChildren();
   if (includeAll) select.append(new Option("全部", ""));
   values.forEach((value) => select.append(new Option(value, value)));
+}
+
+function fillFinalStatusSelect(select, includeAll = false) {
+  select.replaceChildren();
+  if (includeAll) select.append(new Option("全部", ""));
+  optionSets.finalStatus.forEach((value) => select.append(new Option(displayFinalStatus(value), value)));
 }
 
 function fillRequiredSelect(select, values) {
@@ -1748,7 +2520,7 @@ function fillAccessoryPartsPicker() {
 }
 
 function fillStaticOptions() {
-  fillSelect(els.statusFilter, optionSets.finalStatus, true);
+  fillFinalStatusSelect(els.statusFilter, true);
   fillSelect(els.warrantyFilter, optionSets.warrantyStatus, true);
   fillSelect(els.ownershipFilter, optionSets.faultOwnership, true);
   fillCategoryFilterPicker();
@@ -1759,7 +2531,7 @@ function fillStaticOptions() {
   fillRequiredSelect(els.submissionForm.elements.model, optionSets.model);
   fillRequiredSelect(els.recordForm.elements.hasPower, optionSets.hasPower);
   fillRequiredSelect(els.recordForm.elements.warrantyStatus, optionSets.warrantyStatus);
-  fillSelect(els.recordForm.elements.finalStatus, optionSets.finalStatus);
+  fillFinalStatusSelect(els.recordForm.elements.finalStatus);
   fillRequiredSelect(els.recordForm.elements.faultOwnership, optionSets.faultOwnership);
   fillFaultCategoryPicker();
   fillAccessoryPartsPicker();
@@ -1768,10 +2540,11 @@ function fillStaticOptions() {
 
 function fillAddressSelects() {
   const form = els.customerForm.elements;
-  if (!form.addressProvince || !form.addressCity || !form.addressDistrict) return;
+  if (!form.addressProvince || !form.addressCity || !form.addressDistrict || !form.addressStreet) return;
   fillRequiredSelect(form.addressProvince, []);
   fillRequiredSelect(form.addressCity, []);
   fillRequiredSelect(form.addressDistrict, []);
+  fillRequiredSelect(form.addressStreet, []);
 }
 
 function fillAreaSelect(select, items, placeholder = "请选择") {
@@ -1790,12 +2563,20 @@ function setAreaButton(level, text, isPlaceholder = false) {
 
 function syncAreaButtons() {
   const form = els.customerForm.elements;
-  const province = selectedOptionText(form.addressProvince);
-  const city = selectedOptionText(form.addressCity);
-  const district = selectedOptionText(form.addressDistrict);
+  const province = form.addressProvince.value ? selectedOptionText(form.addressProvince) : "";
+  const city = form.addressCity.value ? selectedOptionText(form.addressCity) : "";
+  const district = form.addressDistrict.value ? selectedOptionText(form.addressDistrict) : "";
+  const street = form.addressStreet.value ? selectedOptionText(form.addressStreet) : "";
   setAreaButton("province", province || "请选择省", !province);
   setAreaButton("city", city || (form.addressProvince.value ? "请选择市" : "请先选择省"), !city);
   setAreaButton("district", district || (form.addressCity.value ? "请选择区 / 县" : "请先选择市"), !district);
+  setAreaButton("street", street || (form.addressDistrict.value ? "请选择街道" : "请先选择区 / 县"), !street);
+}
+
+function getStreetItems(districtCode) {
+  const items = window.CHINA_STREET_DATA?.[districtCode] || {};
+  if (Object.keys(items).length || !districtCode) return items;
+  return { __other__: "其他 / 未列出" };
 }
 
 function syncSimpleSelectButton(selectName) {
@@ -1852,11 +2633,19 @@ function getAreaPickerConfig(level) {
       emptyText: form.addressProvince.value ? "暂无城市数据" : "请先选择省"
     };
   }
+  if (level === "district") {
+    return {
+      title: "选择区 / 县",
+      select: form.addressDistrict,
+      items: areaData?.[form.addressCity.value] || {},
+      emptyText: form.addressCity.value ? "暂无区县数据" : "请先选择市"
+    };
+  }
   return {
-    title: "选择区 / 县",
-    select: form.addressDistrict,
-    items: areaData?.[form.addressCity.value] || {},
-    emptyText: form.addressCity.value ? "暂无区县数据" : "请先选择市"
+    title: "选择街道",
+    select: form.addressStreet,
+    items: getStreetItems(form.addressDistrict.value),
+    emptyText: form.addressDistrict.value ? "暂无街道数据" : "请先选择区 / 县"
   };
 }
 
@@ -1893,7 +2682,8 @@ function chooseAreaOption(level, code) {
   config.select.value = code;
   if (level === "province") updateAddressCities();
   if (level === "city") updateAddressDistricts();
-  if (level === "district") syncAreaButtons();
+  if (level === "district") updateAddressStreets();
+  if (level === "street") syncAreaButtons();
   els.areaPickerDialog.close();
 }
 
@@ -1912,6 +2702,7 @@ async function loadAreaData() {
     fillAreaSelect(form.addressProvince, areaData["86"], "请选择省");
     fillAreaSelect(form.addressCity, {}, "请先选择省");
     fillAreaSelect(form.addressDistrict, {}, "请先选择市");
+    fillAreaSelect(form.addressStreet, {}, "请先选择区 / 县");
     syncAreaButtons();
   } catch (error) {
     console.error(error);
@@ -1924,6 +2715,7 @@ function updateAddressCities() {
   const provinceCode = form.addressProvince.value;
   fillAreaSelect(form.addressCity, areaData?.[provinceCode], provinceCode ? "请选择市" : "请先选择省");
   fillAreaSelect(form.addressDistrict, {}, "请先选择市");
+  fillAreaSelect(form.addressStreet, {}, "请先选择区 / 县");
   syncAreaButtons();
 }
 
@@ -1931,6 +2723,14 @@ function updateAddressDistricts() {
   const form = els.customerForm.elements;
   const cityCode = form.addressCity.value;
   fillAreaSelect(form.addressDistrict, areaData?.[cityCode], cityCode ? "请选择区 / 县" : "请先选择市");
+  fillAreaSelect(form.addressStreet, {}, "请先选择区 / 县");
+  syncAreaButtons();
+}
+
+function updateAddressStreets() {
+  const form = els.customerForm.elements;
+  const districtCode = form.addressDistrict.value;
+  fillAreaSelect(form.addressStreet, getStreetItems(districtCode), districtCode ? "请选择街道" : "请先选择区 / 县");
   syncAreaButtons();
 }
 
@@ -1943,8 +2743,9 @@ function getCustomerAddressFromForm() {
   const province = selectedOptionText(form.addressProvince);
   const city = selectedOptionText(form.addressCity);
   const district = selectedOptionText(form.addressDistrict);
+  const street = selectedOptionText(form.addressStreet);
   const detail = String(form.addressDetail.value || "").trim();
-  return [province, city, district, detail].filter(Boolean).join("");
+  return [province, city, district, street, detail].filter(Boolean).join("");
 }
 
 function findAreaCodeByName(items, text) {
@@ -1957,6 +2758,7 @@ function findAreaCodeByName(items, text) {
 function fillCustomerAddressFields(address) {
   const form = els.customerForm.elements;
   const text = String(address || "").trim();
+  form.addressStreet.value = "";
   form.addressDetail.value = text;
   if (!areaData || !text) {
     syncAreaButtons();
@@ -1989,8 +2791,16 @@ function fillCustomerAddressFields(address) {
     const districtName = areaData[cityCode][districtCode] || "";
     form.addressDistrict.value = districtCode;
     rest = rest.slice(districtName.length);
+    updateAddressStreets();
   }
-  form.addressDetail.value = rest || "";
+  const streetItems = getStreetItems(districtCode);
+  const streetCode = findAreaCodeByName(streetItems, rest);
+  if (streetCode) {
+    const streetName = streetItems[streetCode] || "";
+    form.addressStreet.value = streetCode;
+    rest = rest.slice(streetName.length);
+  }
+  form.addressDetail.value = rest;
   syncAreaButtons();
 }
 
@@ -2018,9 +2828,6 @@ function getCustomerSubmissionFingerprint(submission) {
 }
 
 function getCustomerRegisterUrl() {
-  if (["localhost", "127.0.0.1"].includes(location.hostname)) {
-    return LOCAL_CUSTOMER_REGISTER_URL;
-  }
   return CUSTOMER_REGISTER_URL;
 }
 
@@ -2032,7 +2839,10 @@ function updateCustomerQrCode() {
 function getLastCustomerSubmission() {
   try {
     const raw = localStorage.getItem(LAST_CUSTOMER_SUBMISSION_KEY);
-    return raw ? normalizeCustomerSubmission(JSON.parse(raw)) : null;
+    if (!raw) return null;
+    const cachedSubmission = normalizeCustomerSubmission(JSON.parse(raw));
+    const cloudSubmission = customerSubmissions.find((item) => item.id === cachedSubmission.id);
+    return cloudSubmission ? { ...cachedSubmission, submissionNumber: cloudSubmission.submissionNumber } : cachedSubmission;
   } catch {
     return null;
   }
@@ -2138,6 +2948,7 @@ function showCustomerPortal() {
       </div>
     </div>
     <dl>
+      <div><dt>登记编号</dt><dd>${compact(formatSubmissionId(lastSubmission))}</dd></div>
       <div><dt>提交时间</dt><dd>${compact(formatDateTime(lastSubmission.createdTime))}</dd></div>
       <div><dt>寄出单号</dt><dd>${compact(lastSubmission.trackingNumber)}</dd></div>
       <div><dt>打印机编号</dt><dd>${compact(lastSubmission.deviceNumber)}</dd></div>
@@ -2148,6 +2959,1089 @@ function showCustomerPortal() {
       <div><dt>收件信息</dt><dd>${compact(recipientInfo)}</dd></div>
     </dl>
   `;
+}
+
+function formatCustomerProgressTime(value) {
+  const timestamp = parseRecordTime(value);
+  if (!timestamp) return "";
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).format(new Date(timestamp));
+}
+
+function getLegacyCustomerProgressPosition(record) {
+  if (!record) return { completedThrough: 0, currentIndex: 1 };
+
+  const positions = {
+    测试中: { completedThrough: 2, currentIndex: 3 },
+    返厂中: { completedThrough: 2, currentIndex: 3 },
+    已修未付费: { completedThrough: 3, currentIndex: 4 },
+    维修中: { completedThrough: 5, currentIndex: 6 },
+    今天需要寄: { completedThrough: 6, currentIndex: 7 },
+    已寄出: { completedThrough: 8, currentIndex: 8 },
+    邮寄并结束: { completedThrough: 8, currentIndex: 8 }
+  };
+
+  return positions[record.finalStatus] || { completedThrough: 2, currentIndex: 3 };
+}
+
+function getStoredProgressEvents(submissionId) {
+  return repairProgressEvents
+    .filter((item) => item.submissionId === submissionId && item.stepIndex >= 0 && item.stepIndex < CUSTOMER_PROGRESS_STEPS.length)
+    .sort((a, b) => a.stepIndex - b.stepIndex);
+}
+
+function getEffectiveProgressEvents(submission) {
+  if (!submission) return [];
+  const stored = getStoredProgressEvents(submission.id);
+  const byStep = new Map(stored.map((item) => [item.stepIndex, item]));
+  const submittedAt = submission.createdTime || new Date().toISOString();
+  [0, 1].forEach((stepIndex) => {
+    if (!byStep.has(stepIndex)) {
+      byStep.set(stepIndex, normalizeProgressEvent({
+        submissionId: submission.id,
+        stepIndex,
+        occurredAt: submittedAt,
+        updatedAt: submittedAt
+      }));
+    }
+  });
+  const hasNoRepairEvent = Array.from(byStep.values()).some(isNoRepairProgressEvent);
+  const repairHasStarted = Array.from(byStep.values()).some((item) => (
+    [6, 7].includes(item.stepIndex) && !isNoRepairProgressEvent(item)
+  ));
+  if (hasNoRepairRequestMark(submission) && !hasNoRepairEvent && !repairHasStarted) {
+    const occurredAt = submission.updatedAt || new Date().toISOString();
+    [5, 6, 7].forEach((stepIndex) => {
+      byStep.set(stepIndex, normalizeProgressEvent({
+        submissionId: submission.id,
+        stepIndex,
+        occurredAt,
+        detailText: stepIndex === 5 ? NO_REPAIR_CUSTOMER_PROGRESS_MARK : NO_REPAIR_PROGRESS_MARK,
+        updatedAt: occurredAt
+      }));
+    });
+  }
+  return Array.from(byStep.values()).sort((a, b) => a.stepIndex - b.stepIndex);
+}
+
+function getCustomerProgressState(submission, record) {
+  const events = getEffectiveProgressEvents(submission);
+  const resetToWaiting = events.some((item) => (
+    item.stepIndex === 1 && item.detailText === WAITING_RECEIPT_RESET_MARK
+  ));
+  const explicitProgress = resetToWaiting || events.some((item) => item.stepIndex >= 2);
+  if (!explicitProgress) {
+    return { ...getLegacyCustomerProgressPosition(record), events, explicitProgress: false };
+  }
+
+  const latestIndex = Math.max(...events.map((item) => item.stepIndex));
+  return {
+    completedThrough: latestIndex === CUSTOMER_PROGRESS_STEPS.length - 1 ? latestIndex : latestIndex - 1,
+    currentIndex: latestIndex,
+    events,
+    explicitProgress: true
+  };
+}
+
+function getCustomerProgressNote(index, submission, record, progressState) {
+  const progressEvent = progressState?.events?.find((item) => item.stepIndex === index);
+  if (isNoRepairProgressEvent(progressEvent)) {
+    if (index === 5) return "无需付款";
+    if (index === 6) return "无需维修";
+    if (index === 7) return "机器无需维修，等待安排发货";
+  }
+  if (index === 4 && progressEvent?.detailText) {
+    return parseProgressDetectionDetail(progressEvent.detailText).detailText;
+  }
+  const notes = [
+    "工单已提交成功",
+    submission?.trackingNumber ? `用户寄出单号：${submission.trackingNumber}` : "等待机器送达维修中心",
+    "服务中心已收到快递，等待拆包检测",
+    "维修人员正在检测打印机",
+    "检测结果已确认，维修人员会与您联系",
+    "维修费用已确认",
+    "机器正在维修处理中",
+    "机器已进入发货安排",
+    record?.returnTrackingNumber ? `寄回单号：${record.returnTrackingNumber}` : "机器已寄回"
+  ];
+  return notes[index] || "";
+}
+
+function getCustomerProgressTime(index, submission, record, progressState) {
+  const event = progressState?.events?.find((item) => item.stepIndex === index);
+  if (event?.occurredAt) return event.occurredAt;
+  if (progressState?.explicitProgress) return "";
+  if (index <= 1) return submission?.createdTime || "";
+  if (!record) return "";
+  if (index <= 3) return record.createdTime || record.updatedAt || "";
+  if (index >= 7) return record.returnTime || record.updatedAt || "";
+  return record.updatedAt || record.createdTime || "";
+}
+
+function renderCustomerProgressAccessories(submission, detectionDetail) {
+  const selectedParts = normalizeProgressAccessoryParts(detectionDetail?.accessoryParts)
+    .filter((part) => !PROGRESS_HIDDEN_ACCESSORY_PARTS.has(part));
+  if (selectedParts.length === 0) return "";
+  const pricingRecord = getProgressAccessoryPricingRecord(
+    submission,
+    null,
+    detectionDetail?.customPartPrice || ""
+  );
+  const priceSummary = getAccessorySelectionPrice(pricingRecord, selectedParts);
+  return `
+    <div class="customer-progress-accessories">
+      <strong class="customer-progress-accessories-title">配件使用清单</strong>
+      <ul>
+        ${selectedParts.map((part) => {
+          const amount = getRecordAccessoryPartAmount(pricingRecord, part);
+          const partName = part === PROGRESS_CUSTOM_ACCESSORY_PART
+            ? detectionDetail?.customPartName || PROGRESS_CUSTOM_ACCESSORY_PART
+            : part;
+          return `<li><span>${escapeHtml(partName)}</span><strong>${amount.hasAmount ? escapeHtml(formatRepairFee(amount.amount)) : "待定"}</strong></li>`;
+        }).join("")}
+      </ul>
+      <p><span>合计</span><strong>${escapeHtml(priceSummary.text)}</strong></p>
+    </div>
+  `;
+}
+
+function renderCustomerProgress(submission, record) {
+  if (!submission || !els.customerProgressTimeline) return;
+  const position = getCustomerProgressState(submission, record);
+  const currentStatus = CUSTOMER_PROGRESS_STEPS[position.currentIndex];
+  els.customerProgressSummary.innerHTML = `
+    <div>
+      <span>登记编号 ${escapeHtml(formatSubmissionId(submission))} · 打印机编号</span>
+      <strong>${compact(submission.deviceNumber)}</strong>
+    </div>
+    <small>${escapeHtml(submission.model || "型号未知")}</small>
+  `;
+  els.customerProgressTimeline.innerHTML = CUSTOMER_PROGRESS_STEPS.map((label, index) => {
+    const isComplete = index <= position.completedThrough;
+    const isCurrent = index === position.currentIndex && position.completedThrough < index;
+    const stateClass = isComplete ? "is-complete" : isCurrent ? "is-current" : "is-pending";
+    const progressEvent = position.events.find((item) => item.stepIndex === index);
+    const isSkippedForNoRepair = [5, 6].includes(index) && isNoRepairProgressEvent(progressEvent);
+    const statusLabel = isSkippedForNoRepair
+      ? `<span class="customer-progress-current-label is-skipped">已跳过</span>`
+      : isCurrent
+        ? `<span class="customer-progress-current-label">当前进度</span>`
+        : "";
+    const time = isComplete || isCurrent ? formatCustomerProgressTime(getCustomerProgressTime(index, submission, record, position)) : "";
+    const note = isComplete || isCurrent ? getCustomerProgressNote(index, submission, record, position) : "";
+    const detectionEvent = index === 4
+      ? position.events.find((item) => item.stepIndex === index)
+      : null;
+    const warrantyType = isComplete || isCurrent
+      ? parseProgressDetectionDetail(detectionEvent?.detailText || "").warrantyType
+      : "";
+    const detectionDetail = parseProgressDetectionDetail(detectionEvent?.detailText || "");
+    const accessoryUsage = index === 4 && (isComplete || isCurrent)
+      ? renderCustomerProgressAccessories(submission, detectionDetail)
+      : "";
+    const repairSuggestion = index === 4 && (isComplete || isCurrent) && detectionDetail.repairSuggestion
+      ? `<p class="customer-progress-repair-suggestion"><strong>维修建议：</strong>${escapeHtml(detectionDetail.repairSuggestion)}</p>`
+      : "";
+    const canConfirmPayment = index === 5
+      && position.explicitProgress
+      && position.events.some((item) => item.stepIndex === 4)
+      && !position.events.some((item) => item.stepIndex === 6);
+    const paymentConfirm = canConfirmPayment
+      ? `<p class="customer-payment-guide">
+          <span>若无异议，请在「管理端-更多-商城」里支付维修费用</span>
+          <span>有异议可返回页面「扫码添加微信」咨询</span>
+        </p>
+        <div class="customer-payment-actions">
+          <button class="customer-payment-confirm" type="button" data-customer-payment-confirm>确认已支付</button>
+          <button class="customer-no-repair" type="button" data-customer-no-repair>无需维修</button>
+        </div>`
+      : "";
+    return `
+      <li class="customer-progress-step ${stateClass}">
+        <span class="customer-progress-marker" aria-hidden="true"></span>
+        <h3>${escapeHtml(label)}${statusLabel}</h3>
+        ${time ? `<p class="customer-progress-time">${escapeHtml(time)}</p>` : ""}
+        ${warrantyType ? `<p class="customer-progress-warranty">保修期状态：<strong>${escapeHtml(warrantyType)}</strong></p>` : ""}
+        ${note ? `<p class="customer-progress-note">${escapeHtml(note)}</p>` : ""}
+        ${accessoryUsage}
+        ${repairSuggestion}
+        ${paymentConfirm}
+      </li>
+    `;
+  }).join("");
+  els.customerProgressPage.setAttribute("data-current-status", currentStatus);
+}
+
+async function confirmCustomerPayment(button) {
+  const submission = getLastCustomerSubmission();
+  if (!submission) return;
+  button.disabled = true;
+  const confirmedAt = new Date().toISOString();
+  try {
+    const result = cloudMode
+      ? await requestPaymentConfirmation(submission.id)
+      : {};
+    applyPaymentConfirmationLocally(submission.id, result, confirmedAt);
+    if (cloudMode) {
+      await loadCloudProgressEvents();
+    } else {
+      saveRepairProgressEvents();
+    }
+    renderTable();
+    renderCustomerProgress(submission, getCustomerSubmissionRepairRecord(submission));
+    showToast("付款已确认，已进入维修中");
+  } catch (error) {
+    console.error(error);
+    button.disabled = false;
+    showToast("付款确认失败，请检查网络后重试");
+  }
+}
+
+async function skipRepairFromCustomerProgress(button) {
+  let submission = getLastCustomerSubmission();
+  if (!submission) return;
+  button.disabled = true;
+  const skippedAt = new Date().toISOString();
+  const originalSubmission = submission;
+  try {
+    submission = normalizeCustomerSubmission({
+      ...submission,
+      customerIssue: addNoRepairRequestMark(submission.customerIssue),
+      updatedAt: skippedAt
+    });
+    if (cloudMode) submission = await saveCustomerSubmissionReliably(submission);
+    customerSubmissions = customerSubmissions.map((item) => item.id === submission.id ? submission : item);
+    saveLastCustomerSubmission(submission);
+
+    let result = {};
+    let requestError = null;
+    if (cloudMode) {
+      try {
+        result = await requestNoRepair(submission.id);
+      } catch (error) {
+        requestError = error;
+      }
+    }
+    applyNoRepairLocally(submission.id, result, skippedAt);
+    if (cloudMode) {
+      await loadCloudProgressEvents(true);
+      const repairHasStarted = getStoredProgressEvents(submission.id).some((item) => (
+        [6, 7].includes(item.stepIndex) && !isNoRepairProgressEvent(item)
+      ));
+      if (requestError && repairHasStarted) {
+        submission = await saveCustomerSubmissionReliably(normalizeCustomerSubmission({
+          ...originalSubmission,
+          updatedAt: new Date().toISOString()
+        }));
+        customerSubmissions = customerSubmissions.map((item) => item.id === submission.id ? submission : item);
+        saveLastCustomerSubmission(submission);
+        throw requestError;
+      }
+    } else {
+      saveRepairProgressEvents();
+    }
+    renderTable();
+    renderCustomerProgress(submission, getCustomerSubmissionRepairRecord(submission));
+    showToast("已选择无需维修，等待安排发货");
+  } catch (error) {
+    console.error(error);
+    button.disabled = false;
+    showToast("无需维修保存失败，请检查网络后重试");
+  }
+}
+
+function openCustomerProgress() {
+  const submission = getLastCustomerSubmission();
+  if (!submission) {
+    showToast("请先提交维修登记");
+    return;
+  }
+  const record = getCustomerSubmissionRepairRecord(submission);
+  renderCustomerProgress(submission, record);
+  els.customerProgressLoading.hidden = true;
+  els.customerProgressPage.hidden = false;
+  document.body.classList.add("customer-progress-open");
+  els.closeCustomerProgressBtn.focus();
+}
+
+function closeCustomerProgress() {
+  els.customerProgressPage.hidden = true;
+  document.body.classList.remove("customer-progress-open");
+  els.viewCustomerProgressBtn.focus();
+}
+
+function openProgressManageDialog(submissionId) {
+  if (cloudMode && !adminMode) {
+    showToast("请先管理员登录");
+    return;
+  }
+  const submission = customerSubmissions.find((item) => item.id === submissionId);
+  if (!submission) {
+    showToast("没有找到这条客户登记");
+    return;
+  }
+  confirmingProgressUndoStep = -1;
+  managingProgressSubmissionId = submission.id;
+  renderProgressManageDialog();
+  els.progressManageDialog.showModal();
+  startProgressManageAutoRefresh();
+}
+
+function openProgressManageDialogForRecord(recordId) {
+  const record = records.find((item) => item.id === recordId);
+  if (!record?.submissionId) {
+    showToast("请先给这条维修记录关联 B 编号");
+    return;
+  }
+  openProgressManageDialog(record.submissionId);
+}
+
+function closeProgressManageDialog() {
+  stopProgressManageAutoRefresh();
+  confirmingProgressUndoStep = -1;
+  managingProgressSubmissionId = "";
+  els.progressManageDialog.close();
+}
+
+async function refreshOpenProgressManageDialog() {
+  if (
+    progressManageRefreshRunning
+    || !cloudMode
+    || !supabaseClient
+    || !managingProgressSubmissionId
+    || !els.progressManageDialog.open
+    || document.hidden
+  ) return;
+  progressManageRefreshRunning = true;
+  try {
+    const submissionId = managingProgressSubmissionId;
+    const { data, error } = await supabaseClient
+      .from("repair_progress_events")
+      .select("*")
+      .eq("submission_id", submissionId)
+      .order("step_index", { ascending: true });
+    if (error) throw error;
+    const incomingEvents = data.map(fromDatabaseProgressEvent);
+    const currentEvents = getStoredProgressEvents(submissionId);
+    const eventsChanged = incomingEvents.length !== currentEvents.length
+      || incomingEvents.some((item, index) => !progressEventsMatch(item, currentEvents[index] || {}));
+    if (!eventsChanged || managingProgressSubmissionId !== submissionId || !els.progressManageDialog.open) return;
+
+    repairProgressEvents = repairProgressEvents.filter((item) => item.submissionId !== submissionId);
+    repairProgressEvents.push(...incomingEvents);
+    renderTable();
+    renderProgressManageDialog();
+  } catch (error) {
+    console.error("进度自动刷新失败", error);
+  } finally {
+    progressManageRefreshRunning = false;
+  }
+}
+
+function startProgressManageAutoRefresh() {
+  stopProgressManageAutoRefresh();
+  if (!cloudMode || !supabaseClient) return;
+  refreshOpenProgressManageDialog();
+  progressManageRefreshTimer = window.setInterval(refreshOpenProgressManageDialog, 3000);
+}
+
+function stopProgressManageAutoRefresh() {
+  if (progressManageRefreshTimer) window.clearInterval(progressManageRefreshTimer);
+  progressManageRefreshTimer = null;
+  progressManageRefreshRunning = false;
+}
+
+function renderProgressAccessoryEditor(submission, detectionDetail, stepIndex, canEdit) {
+  const model = submission?.model || "";
+  const allowedParts = getProgressAccessoryPartsForModel(model);
+  const selectedParts = normalizeProgressAccessoryParts(detectionDetail?.accessoryParts)
+    .filter((part) => allowedParts.includes(part));
+  const selectedSet = new Set(selectedParts);
+  const customPartName = detectionDetail?.customPartName || PROGRESS_CUSTOM_ACCESSORY_PART;
+  const customPartPrice = normalizeMoneyValue(detectionDetail?.customPartPrice);
+  const pricingRecord = getProgressAccessoryPricingRecord(submission, null, customPartPrice);
+  const priceSummary = getAccessorySelectionPrice(pricingRecord, selectedParts);
+  return `
+    <div class="progress-accessory-field" data-progress-accessory-field="${stepIndex}">
+      <div class="progress-accessory-heading">
+        <strong>配件使用清单</strong>
+        <span>${escapeHtml(model || "型号未知")}</span>
+      </div>
+      <fieldset ${canEdit ? "" : "disabled"} aria-label="配件使用清单">
+        <input type="hidden" value="${escapeHtml(customPartPrice)}" data-progress-custom-part-price="${stepIndex}">
+        <div class="progress-accessory-options">
+          ${allowedParts.map((part) => {
+            const amount = getRecordAccessoryPartAmount(pricingRecord, part);
+            return `
+              <label class="progress-accessory-option ${selectedSet.has(part) ? "is-selected" : ""}">
+                <input type="checkbox" value="${escapeHtml(part)}" data-progress-accessory="${stepIndex}" ${selectedSet.has(part) ? "checked" : ""}>
+                ${part === PROGRESS_CUSTOM_ACCESSORY_PART
+                  ? `<span class="progress-custom-accessory-name" data-progress-custom-part-name="${stepIndex}" title="双击修改名称">${escapeHtml(customPartName)}</span>`
+                  : `<span>${escapeHtml(part)}</span>`}
+                <strong data-progress-accessory-price="${escapeHtml(part)}">${amount.hasAmount ? escapeHtml(formatRepairFee(amount.amount)) : "待定"}</strong>
+              </label>
+            `;
+          }).join("")}
+        </div>
+      </fieldset>
+      <div class="progress-accessory-total">
+        <span>合计</span>
+        <strong data-progress-accessory-total="${stepIndex}">${escapeHtml(priceSummary.text)}</strong>
+      </div>
+      <label class="progress-repair-suggestion-field">
+        <span>维修建议：</span>
+        <input type="text" maxlength="200" value="${escapeHtml(detectionDetail?.repairSuggestion || "")}" data-progress-repair-suggestion="${stepIndex}" placeholder="例如：建议更换主板后进行打印测试" ${canEdit ? "" : "disabled"}>
+      </label>
+    </div>
+  `;
+}
+
+function updateProgressAccessoryEditor(stepIndex) {
+  const submission = customerSubmissions.find((item) => item.id === managingProgressSubmissionId);
+  const field = els.progressManageList.querySelector(`[data-progress-accessory-field="${stepIndex}"]`);
+  if (!submission || !field) return;
+  const accessoryInputs = [...field.querySelectorAll(`[data-progress-accessory="${stepIndex}"]`)];
+  const selectedParts = accessoryInputs.filter((input) => input.checked).map((input) => input.value);
+  accessoryInputs.forEach((input) => input.closest("label")?.classList.toggle("is-selected", input.checked));
+
+  const pricingRecord = getProgressAccessoryPricingRecord(submission, null, getProgressCustomPartPrice(stepIndex));
+  field.querySelectorAll("[data-progress-accessory-price]").forEach((priceNode) => {
+    const part = priceNode.dataset.progressAccessoryPrice || "";
+    const amount = getRecordAccessoryPartAmount(pricingRecord, part);
+    priceNode.textContent = amount.hasAmount ? formatRepairFee(amount.amount) : "待定";
+  });
+  const totalNode = field.querySelector(`[data-progress-accessory-total="${stepIndex}"]`);
+  if (totalNode) totalNode.textContent = getAccessorySelectionPrice(pricingRecord, selectedParts).text;
+}
+
+function startProgressCustomPartNameEdit(label) {
+  if (!label || label.closest("fieldset")?.disabled) return;
+  const checkbox = label.closest(".progress-accessory-option")?.querySelector("input[data-progress-accessory]");
+  if (checkbox && !checkbox.checked) {
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  label.dataset.originalValue = normalizeProgressCustomPartName(label.textContent) || PROGRESS_CUSTOM_ACCESSORY_PART;
+  label.contentEditable = "true";
+  label.classList.add("is-editing");
+  label.focus();
+  const selection = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(label);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function finishProgressCustomPartNameEdit(label, restoreOriginal = false) {
+  if (!label) return;
+  const originalValue = label.dataset.originalValue || PROGRESS_CUSTOM_ACCESSORY_PART;
+  const nextValue = restoreOriginal
+    ? originalValue
+    : normalizeProgressCustomPartName(label.textContent) || PROGRESS_CUSTOM_ACCESSORY_PART;
+  label.textContent = nextValue;
+  label.contentEditable = "false";
+  label.classList.remove("is-editing");
+  delete label.dataset.originalValue;
+  if (!restoreOriginal) openProgressCustomPartPriceDialog(Number(label.dataset.progressCustomPartName));
+}
+
+function openProgressCustomPartPriceDialog(stepIndex) {
+  const field = els.progressManageList.querySelector(`[data-progress-accessory-field="${stepIndex}"]`);
+  const checkbox = field?.querySelector(`input[data-progress-accessory="${stepIndex}"][value="${PROGRESS_CUSTOM_ACCESSORY_PART}"]`);
+  if (!field || !checkbox || field.querySelector("fieldset")?.disabled) return;
+  if (!checkbox.checked) {
+    checkbox.checked = true;
+    updateProgressAccessoryEditor(stepIndex);
+  }
+  editingProgressCustomPartStep = stepIndex;
+  els.progressCustomPartPriceInput.value = getProgressCustomPartPrice(stepIndex);
+  if (!els.progressCustomPartPriceDialog.open) els.progressCustomPartPriceDialog.showModal();
+  setTimeout(() => {
+    els.progressCustomPartPriceInput.focus();
+    els.progressCustomPartPriceInput.select();
+  }, 0);
+}
+
+function closeProgressCustomPartPriceDialog() {
+  editingProgressCustomPartStep = -1;
+  if (els.progressCustomPartPriceDialog.open) els.progressCustomPartPriceDialog.close();
+}
+
+function saveProgressCustomPartPriceFromDialog() {
+  const price = normalizeMoneyValue(els.progressCustomPartPriceInput.value);
+  if (!price && price !== "0") {
+    showToast("请输入自定义配件金额");
+    els.progressCustomPartPriceInput.focus();
+    return false;
+  }
+  const stepIndex = editingProgressCustomPartStep;
+  const input = els.progressManageList.querySelector(`[data-progress-custom-part-price="${stepIndex}"]`);
+  if (input) input.value = price;
+  updateProgressAccessoryEditor(stepIndex);
+  closeProgressCustomPartPriceDialog();
+  return true;
+}
+
+function renderProgressManageDialog() {
+  const submission = customerSubmissions.find((item) => item.id === managingProgressSubmissionId);
+  if (!submission) return;
+  const record = getCustomerSubmissionRepairRecord(submission);
+  const events = getEffectiveProgressEvents(submission);
+  const eventByStep = new Map(events.map((item) => [item.stepIndex, item]));
+  const latestIndex = Math.max(...events.map((item) => item.stepIndex));
+  const nextIndex = latestIndex < CUSTOMER_PROGRESS_STEPS.length - 1 ? latestIndex + 1 : -1;
+  const currentLabel = CUSTOMER_PROGRESS_STEPS[latestIndex] || CUSTOMER_PROGRESS_STEPS[1];
+
+  els.progressManageSummary.innerHTML = `
+    <div>
+      <span>${escapeHtml(formatSubmissionId(submission))}${record ? ` · 关联 ${escapeHtml(formatRepairRecordId(record))}` : " · 暂未生成维修记录"}</span>
+      <strong>${compact(submission.deviceNumber)} · ${compact(submission.model)}</strong>
+    </div>
+    <div class="progress-manage-current">
+      <span>当前进度</span>
+      <strong>${escapeHtml(currentLabel)}</strong>
+    </div>
+  `;
+
+  els.progressManageList.innerHTML = CUSTOMER_PROGRESS_STEPS.map((label, stepIndex) => {
+    const event = eventByStep.get(stepIndex);
+    const isSystemStep = stepIndex <= 1;
+    const isNext = stepIndex === nextIndex;
+    const isCurrent = Boolean(event) && stepIndex === latestIndex && latestIndex < CUSTOMER_PROGRESS_STEPS.length - 1;
+    const isSkippedForNoRepair = [5, 6].includes(stepIndex) && isNoRepairProgressEvent(event);
+    const stateClass = isCurrent ? "is-current" : event ? "is-recorded" : isNext ? "is-next" : "is-pending";
+    const paymentStatusText = stepIndex === 5 ? getAdminPaymentProgressStatus(event) : "";
+    const statusText = paymentStatusText || (isSkippedForNoRepair
+      ? "已跳过"
+      : isCurrent
+        ? "当前进度"
+        : event
+          ? (isSystemStep ? "系统记录" : "已完成")
+          : isNext
+            ? "下一步"
+            : "未开始");
+    const inputValue = event?.occurredAt
+      ? toInputDateTimeSeconds(event.occurredAt)
+      : isNext
+        ? toInputDateTimeSeconds(new Date())
+        : "";
+    const isPaymentConfirmation = stepIndex === 5 && (event || isNext) && latestIndex <= 5;
+    const operationText = getAdminProgressOperationText(stepIndex, event);
+    const operationRecordClass = isNoRepairProgressEvent(event) ? " is-no-repair" : "";
+    const detectionDetail = parseProgressDetectionDetail(event?.detailText || "");
+    const canEditDetectionResult = isCurrent || isNext;
+    const detailField = stepIndex === 4
+      ? `<div class="progress-result-fields">
+          <fieldset class="progress-warranty-options" ${canEditDetectionResult ? "" : "disabled"}>
+            <legend class="sr-only">保修期状态</legend>
+            <div>
+              <span class="progress-warranty-label" aria-hidden="true">保修期状态：</span>
+              ${PROGRESS_WARRANTY_OPTIONS.map((option) => `
+                <label class="${detectionDetail.warrantyType === option ? "is-selected" : ""} ${option === "已过保" ? "is-expired" : ""}">
+                  <span>${option}</span>
+                  <input type="checkbox" value="${option}" data-progress-warranty="${stepIndex}" ${detectionDetail.warrantyType === option ? "checked" : ""}>
+                </label>
+              `).join("")}
+            </div>
+          </fieldset>
+          <label class="progress-result-field">
+            <span>发送给客户的检测结果</span>
+            <textarea rows="3" data-progress-detail="${stepIndex}" placeholder="例如：检测到打印头损坏，需要更换后测试" ${canEditDetectionResult ? "" : "disabled"}>${escapeHtml(detectionDetail.detailText)}</textarea>
+          </label>
+          ${renderProgressAccessoryEditor(submission, detectionDetail, stepIndex, canEditDetectionResult)}
+        </div>`
+      : "";
+    const returnTrackingField = stepIndex === 8 && (event || isNext)
+      ? `<label class="progress-return-tracking-field">
+          <span>寄回快递单号 <b>*</b></span>
+          <input type="text" value="${escapeHtml(record?.returnTrackingNumber || "")}" data-progress-return-tracking="${stepIndex}" placeholder="请输入寄回快递单号" ${event ? "disabled" : ""}>
+        </label>`
+      : "";
+    const undoControls = confirmingProgressUndoStep === stepIndex
+      ? `<button class="danger" type="button" data-progress-action="confirm-undo" data-step-index="${stepIndex}">确认撤销</button>
+         <button class="secondary" type="button" data-progress-action="cancel-undo" data-step-index="${stepIndex}">取消</button>`
+      : `<button class="danger" type="button" data-progress-action="undo" data-step-index="${stepIndex}">${stepIndex === 7 && isNoRepairProgressEvent(event) ? "撤销无需维修" : stepIndex === 5 ? "撤销付款" : "撤销此步"}</button>`;
+    const controls = isSystemStep
+      ? `<span class="progress-manage-system">提交时自动保存</span>`
+      : isPaymentConfirmation
+        ? `<button class="primary" type="button" data-progress-action="confirm-payment" data-step-index="${stepIndex}">确认已付款并进入维修</button>
+          ${!event && isNext ? `<button class="progress-no-repair-button" type="button" data-progress-action="no-repair" data-step-index="${stepIndex}">无需维修</button>` : ""}
+          ${event && stepIndex === latestIndex ? undoControls : ""}`
+      : isCurrent
+        ? `${stepIndex === 4 ? `<button class="secondary" type="button" data-progress-action="save" data-step-index="${stepIndex}">保存并发送</button>` : ""}
+           ${undoControls}`
+        : event
+          ? ""
+        : isNext
+          ? `<button class="primary" type="button" data-progress-action="save" data-step-index="${stepIndex}">${stepIndex === 2 ? "确认收货" : stepIndex === 3 ? "开始检测" : stepIndex === 4 ? "发送检测结果" : stepIndex === 7 ? "维修完毕" : "完成此步"}</button>`
+          : `<span class="progress-manage-wait">等待上一步</span>`;
+
+    return `
+      <li class="progress-manage-step ${stateClass}">
+        <span class="progress-manage-marker" aria-hidden="true">${stepIndex + 1}</span>
+        <div class="progress-manage-step-main">
+          <div class="progress-manage-step-head">
+            <h3>${escapeHtml(label)}</h3>
+            <span>${statusText}</span>
+          </div>
+          ${operationText ? `<p class="progress-operation-record${operationRecordClass}"><span>操作记录</span><strong>${escapeHtml(operationText)}</strong></p>` : ""}
+          <div class="progress-time-control">
+            <label>
+              <span class="sr-only">${escapeHtml(label)}时间</span>
+              <input type="datetime-local" step="1" value="${escapeHtml(inputValue)}" data-progress-time="${stepIndex}" ${event || !isNext ? "disabled" : ""}>
+            </label>
+            ${!event && isNext ? `<button class="secondary progress-now-button" type="button" data-progress-action="now" data-step-index="${stepIndex}">现在</button>` : ""}
+          </div>
+          ${detailField}
+          ${returnTrackingField}
+        </div>
+        <div class="progress-manage-step-actions">${controls}</div>
+      </li>
+    `;
+  }).join("");
+}
+
+async function saveProgressStepFromDialog(stepIndex) {
+  let submission = customerSubmissions.find((item) => item.id === managingProgressSubmissionId);
+  const input = els.progressManageList.querySelector(`[data-progress-time="${stepIndex}"]`);
+  const detailInput = els.progressManageList.querySelector(`[data-progress-detail="${stepIndex}"]`);
+  const warrantyInputs = els.progressManageList.querySelectorAll(`[data-progress-warranty="${stepIndex}"]`);
+  const warrantyInput = els.progressManageList.querySelector(`[data-progress-warranty="${stepIndex}"]:checked`);
+  const accessoryInputs = [...els.progressManageList.querySelectorAll(`[data-progress-accessory="${stepIndex}"]`)];
+  const repairSuggestionInput = els.progressManageList.querySelector(`[data-progress-repair-suggestion="${stepIndex}"]`);
+  const returnTrackingInput = els.progressManageList.querySelector(`[data-progress-return-tracking="${stepIndex}"]`);
+  if (!submission || !input?.value) {
+    showToast("请先选择时间");
+    input?.focus();
+    return;
+  }
+
+  const warrantyType = String(warrantyInput?.value || "").trim();
+  if (stepIndex === 4 && !warrantyType) {
+    showToast("请选择在保或已过保");
+    warrantyInputs[0]?.focus();
+    return;
+  }
+
+  const rawDetailText = String(detailInput?.value || "").trim();
+  if (stepIndex === 4 && !rawDetailText) {
+    showToast("请填写要发送给客户的检测结果");
+    detailInput.focus();
+    return;
+  }
+  const returnTrackingNumber = String(returnTrackingInput?.value || "").trim();
+  const repairRecord = stepIndex === 8 ? getCustomerSubmissionRepairRecord(submission) : null;
+  const selectedAccessoryParts = accessoryInputs
+    .filter((accessoryInput) => accessoryInput.checked)
+    .map((accessoryInput) => accessoryInput.value);
+  const customPartNameInput = els.progressManageList.querySelector(`[data-progress-custom-part-name="${stepIndex}"]`);
+  const customPartName = selectedAccessoryParts.includes(PROGRESS_CUSTOM_ACCESSORY_PART)
+    ? normalizeProgressCustomPartName(customPartNameInput?.textContent) || PROGRESS_CUSTOM_ACCESSORY_PART
+    : "";
+  const progressCustomPartPrice = selectedAccessoryParts.includes(PROGRESS_CUSTOM_ACCESSORY_PART)
+    ? getProgressCustomPartPrice(stepIndex)
+    : "";
+  const repairSuggestion = normalizeProgressRepairSuggestion(repairSuggestionInput?.value);
+  if (selectedAccessoryParts.includes(PROGRESS_CUSTOM_ACCESSORY_PART) && !progressCustomPartPrice && progressCustomPartPrice !== "0") {
+    showToast("请填写自定义配件金额");
+    openProgressCustomPartPriceDialog(stepIndex);
+    return;
+  }
+
+  const detailText = stepIndex === 4
+    ? serializeProgressDetectionDetail(
+        warrantyType,
+        rawDetailText,
+        selectedAccessoryParts,
+        progressCustomPartPrice,
+        customPartName,
+        repairSuggestion
+      )
+    : rawDetailText;
+  if (stepIndex === 8 && !repairRecord) {
+    showToast("请先生成维修记录，再填写寄回快递单号");
+    return;
+  }
+  if (stepIndex === 8 && !returnTrackingNumber) {
+    showToast("请填写寄回快递单号");
+    returnTrackingInput?.focus();
+    return;
+  }
+
+  const occurredAt = fromBeijingInputDateTime(input.value).toISOString();
+  const events = getEffectiveProgressEvents(submission);
+  const previous = events.find((item) => item.stepIndex === stepIndex - 1);
+  const next = events.find((item) => item.stepIndex === stepIndex + 1);
+  const occurredTime = new Date(occurredAt).getTime();
+  if (previous && occurredTime < new Date(previous.occurredAt).getTime()) {
+    showToast(`时间不能早于“${CUSTOMER_PROGRESS_STEPS[stepIndex - 1]}”`);
+    input.focus();
+    return;
+  }
+  if (next && occurredTime > new Date(next.occurredAt).getTime()) {
+    showToast(`时间不能晚于“${CUSTOMER_PROGRESS_STEPS[stepIndex + 1]}”`);
+    input.focus();
+    return;
+  }
+
+  const existed = repairProgressEvents.some((item) => item.submissionId === submission.id && item.stepIndex === stepIndex);
+  const progressEvent = normalizeProgressEvent({
+    submissionId: submission.id,
+    stepIndex,
+    occurredAt,
+    detailText,
+    updatedAt: new Date().toISOString()
+  });
+
+  const successMessage = stepIndex === 4
+    ? "检测结果已发送给客户"
+    : existed
+      ? "进度时间已更新"
+      : `已记录：${CUSTOMER_PROGRESS_STEPS[stepIndex]}`;
+  try {
+    if (repairRecord) {
+      const updatedRecord = normalizeRecord({
+        ...repairRecord,
+        returnTrackingNumber,
+        updatedAt: new Date().toISOString()
+      });
+      const savedRecord = cloudMode
+        ? await saveCloudRecord(updatedRecord)
+        : updatedRecord;
+      const recordIndex = records.findIndex((item) => item.id === savedRecord.id);
+      if (recordIndex >= 0) records[recordIndex] = { ...records[recordIndex], ...savedRecord };
+      if (!cloudMode) saveRecords();
+    }
+
+    const saved = cloudMode ? await saveCloudProgressEvent(progressEvent) : progressEvent;
+    repairProgressEvents = repairProgressEvents.filter((item) => !(
+      item.submissionId === saved.submissionId && item.stepIndex === saved.stepIndex
+    ));
+    repairProgressEvents.push(saved);
+    if (stepIndex === 4) {
+      const customerIssue = removeNoRepairRequestMark(submission.customerIssue);
+      if (customerIssue !== submission.customerIssue) {
+        submission = normalizeCustomerSubmission({
+          ...submission,
+          customerIssue,
+          updatedAt: new Date().toISOString()
+        });
+        if (cloudMode) await saveCloudSubmission(submission);
+        customerSubmissions = customerSubmissions.map((item) => (
+          item.id === submission.id ? submission : item
+        ));
+        if (!cloudMode) saveCustomerSubmissions();
+      }
+    }
+    if (!cloudMode) saveRepairProgressEvents();
+    renderTable();
+    renderProgressManageDialog();
+    renderCustomerProgress(submission, getCustomerSubmissionRepairRecord(submission));
+    showToast(successMessage);
+  } catch (error) {
+    console.error(error);
+    showToast("进度保存失败，请确认数据库已更新");
+  }
+}
+
+async function confirmPaymentFromAdminDialog(button) {
+  const submission = customerSubmissions.find((item) => item.id === managingProgressSubmissionId);
+  const input = els.progressManageList.querySelector('[data-progress-time="5"]');
+  if (!submission || !input?.value) return;
+
+  const confirmedAt = new Date(input.value).toISOString();
+  const detectionEvent = getEffectiveProgressEvents(submission).find((item) => item.stepIndex === 4);
+  if (!detectionEvent) {
+    showToast("请先发送检测结果");
+    return;
+  }
+  if (new Date(confirmedAt).getTime() < new Date(detectionEvent.occurredAt).getTime()) {
+    showToast("付款时间不能早于检测结果时间");
+    input.focus();
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    if (cloudMode) {
+      await requestPaymentConfirmation(submission.id, confirmedAt);
+      await loadCloudProgressEvents();
+    } else {
+      applyPaymentConfirmationLocally(submission.id, {}, confirmedAt, "admin");
+      saveRepairProgressEvents();
+    }
+    renderTable();
+    renderProgressManageDialog();
+    renderCustomerProgress(submission, getCustomerSubmissionRepairRecord(submission));
+    showToast("付款已确认，已自动进入维修中");
+  } catch (error) {
+    console.error(error);
+    showToast("付款确认失败，请确认数据库已更新");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function skipRepairFromAdminDialog(button) {
+  const submission = customerSubmissions.find((item) => item.id === managingProgressSubmissionId);
+  const input = els.progressManageList.querySelector('[data-progress-time="5"]');
+  if (!submission || !input?.value) return;
+
+  const skippedAt = new Date(input.value).toISOString();
+  const detectionEvent = getEffectiveProgressEvents(submission).find((item) => item.stepIndex === 4);
+  if (!detectionEvent) {
+    showToast("请先发送检测结果");
+    return;
+  }
+  if (new Date(skippedAt).getTime() < new Date(detectionEvent.occurredAt).getTime()) {
+    showToast("无需维修的确认时间不能早于检测结果时间");
+    input.focus();
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const result = cloudMode
+      ? await requestNoRepair(submission.id, skippedAt)
+      : {};
+    applyNoRepairLocally(submission.id, result, skippedAt, "admin");
+    if (cloudMode) {
+      await loadCloudProgressEvents(true);
+    } else {
+      saveRepairProgressEvents();
+    }
+    renderTable();
+    renderProgressManageDialog();
+    renderCustomerProgress(submission, getCustomerSubmissionRepairRecord(submission));
+    showToast("已设为无需维修，当前进度已进入等待发货");
+  } catch (error) {
+    console.error(error);
+    showToast("无需维修保存失败，请确认网络和登录状态");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function confirmSubmissionReceived(submissionId, button) {
+  const submission = customerSubmissions.find((item) => item.id === submissionId);
+  if (!submission) {
+    showToast("没有找到这条客户登记");
+    return;
+  }
+
+  const alreadyReceived = getEffectiveProgressEvents(submission).some((item) => item.stepIndex >= 2);
+  if (alreadyReceived) {
+    renderSubmissions();
+    showToast("这条工单已经确认收货");
+    return;
+  }
+
+  const occurredAt = new Date().toISOString();
+  const progressEvent = normalizeProgressEvent({
+    submissionId: submission.id,
+    stepIndex: 2,
+    occurredAt,
+    updatedAt: occurredAt
+  });
+
+  button.disabled = true;
+  try {
+    const saved = cloudMode ? await saveCloudProgressEvent(progressEvent) : progressEvent;
+    repairProgressEvents = repairProgressEvents.filter((item) => !(
+      item.submissionId === saved.submissionId && item.stepIndex === saved.stepIndex
+    ));
+    repairProgressEvents.push(saved);
+    if (!cloudMode) saveRepairProgressEvents();
+    renderTable();
+    renderSubmissions();
+    renderCustomerProgress(submission, getCustomerSubmissionRepairRecord(submission));
+    showToast("已确认收货，客户进度已更新");
+  } catch (error) {
+    console.error(error);
+    showToast("确认收货失败，请检查网络后重试");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function cancelReceivedUndoHold() {
+  if (receivedUndoHoldTimer) window.clearTimeout(receivedUndoHoldTimer);
+  receivedUndoHoldButton?.classList.remove("is-holding");
+  receivedUndoHoldButton?.removeAttribute("aria-busy");
+  receivedUndoHoldTimer = null;
+  receivedUndoHoldButton = null;
+  receivedUndoHoldPointerId = null;
+}
+
+function startReceivedUndoHold(button, pointerId = null) {
+  cancelReceivedUndoHold();
+  receivedUndoHoldButton = button;
+  receivedUndoHoldPointerId = pointerId;
+  button.classList.add("is-holding");
+  button.setAttribute("aria-busy", "true");
+  receivedUndoHoldTimer = window.setTimeout(() => {
+    const heldButton = receivedUndoHoldButton;
+    const submissionId = heldButton?.dataset.id || "";
+    cancelReceivedUndoHold();
+    if (heldButton && submissionId) requestUndoSubmissionReceived(submissionId, heldButton);
+  }, RECEIVED_UNDO_HOLD_MS);
+}
+
+function resetReceivedUndoConfirm() {
+  pendingReceivedUndoSubmissionId = "";
+  pendingReceivedUndoButton = null;
+}
+
+function closeReceivedUndoConfirm() {
+  if (els.receivedUndoConfirmDialog.open) els.receivedUndoConfirmDialog.close();
+  resetReceivedUndoConfirm();
+}
+
+function requestUndoSubmissionReceived(submissionId, button) {
+  const laterEvents = getStoredProgressEvents(submissionId).filter((item) => item.stepIndex >= 2);
+  const latestIndex = laterEvents.length ? Math.max(...laterEvents.map((item) => item.stepIndex)) : -1;
+  if (latestIndex === 2) {
+    undoSubmissionReceived(submissionId, button);
+    return;
+  }
+  if (latestIndex < 2) {
+    renderSubmissions();
+    showToast("这条工单还没有确认收货");
+    return;
+  }
+
+  pendingReceivedUndoSubmissionId = submissionId;
+  pendingReceivedUndoButton = button;
+  els.receivedUndoConfirmMessage.textContent = `当前进度在“${CUSTOMER_PROGRESS_STEPS[latestIndex]}”，是否更改？`;
+  els.receivedUndoConfirmDialog.showModal();
+}
+
+async function confirmReceivedUndoChange() {
+  const submissionId = pendingReceivedUndoSubmissionId;
+  const button = pendingReceivedUndoButton;
+  closeReceivedUndoConfirm();
+  if (submissionId && button) await undoSubmissionReceived(submissionId, button, true);
+}
+
+async function undoSubmissionReceived(submissionId, button, allowLaterProgress = false) {
+  const submission = customerSubmissions.find((item) => item.id === submissionId);
+  const laterEvents = getStoredProgressEvents(submissionId).filter((item) => item.stepIndex >= 2);
+  const latestIndex = laterEvents.length ? Math.max(...laterEvents.map((item) => item.stepIndex)) : -1;
+  if (!submission || latestIndex < 2) {
+    showToast("这条工单还没有确认收货");
+    renderSubmissions();
+    return;
+  }
+  if (latestIndex > 2 && !allowLaterProgress) {
+    requestUndoSubmissionReceived(submissionId, button);
+    return;
+  }
+
+  const waitingEvent = getEffectiveProgressEvents(submission).find((item) => item.stepIndex === 1);
+  const resetEvent = normalizeProgressEvent({
+    submissionId: submission.id,
+    stepIndex: 1,
+    occurredAt: waitingEvent?.occurredAt || submission.createdTime || new Date().toISOString(),
+    detailText: WAITING_RECEIPT_RESET_MARK,
+    updatedAt: new Date().toISOString()
+  });
+
+  button.disabled = true;
+  try {
+    const savedResetEvent = cloudMode ? await saveCloudProgressEvent(resetEvent) : resetEvent;
+    if (cloudMode) await deleteCloudProgressEventsFromStep(submission.id, 2);
+    repairProgressEvents = repairProgressEvents.filter((item) => !(
+      item.submissionId === submission.id && item.stepIndex >= 1
+    ));
+    repairProgressEvents.push(savedResetEvent);
+    if (!cloudMode) saveRepairProgressEvents();
+    renderTable();
+    renderSubmissions();
+    renderCustomerProgress(submission, getCustomerSubmissionRepairRecord(submission));
+    showToast("已取消收货，客户进度已回到等待收货");
+  } catch (error) {
+    console.error(error);
+    showToast("取消收货失败，请检查网络后重试");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function requestProgressStepUndo(stepIndex) {
+  const submission = customerSubmissions.find((item) => item.id === managingProgressSubmissionId);
+  const stored = getEffectiveProgressEvents(submission).filter((item) => item.stepIndex >= 2);
+  const latestIndex = stored.length ? Math.max(...stored.map((item) => item.stepIndex)) : -1;
+  if (!submission || stepIndex !== latestIndex) {
+    showToast("只能撤销当前这一步");
+    return;
+  }
+  confirmingProgressUndoStep = stepIndex;
+  renderProgressManageDialog();
+}
+
+function cancelProgressStepUndo() {
+  confirmingProgressUndoStep = -1;
+  renderProgressManageDialog();
+}
+
+async function undoLatestProgressStep(stepIndex, button) {
+  const submission = customerSubmissions.find((item) => item.id === managingProgressSubmissionId);
+  const stored = getEffectiveProgressEvents(submission).filter((item) => item.stepIndex >= 2);
+  const latestIndex = stored.length ? Math.max(...stored.map((item) => item.stepIndex)) : -1;
+  if (!submission || stepIndex !== latestIndex) {
+    confirmingProgressUndoStep = -1;
+    renderProgressManageDialog();
+    showToast("只能撤销当前这一步");
+    return;
+  }
+  const isUndoingNoRepair = stepIndex === 7 && stored.some((item) => (
+    item.stepIndex === 7 && isNoRepairProgressEvent(item)
+  ));
+  const deleteFromStep = isUndoingNoRepair ? 5 : stepIndex;
+  button.disabled = true;
+  try {
+    if (cloudMode) {
+      if (isUndoingNoRepair) {
+        await deleteCloudProgressEventsFromStep(submission.id, deleteFromStep);
+      } else {
+        await deleteCloudProgressEvent(submission.id, stepIndex);
+      }
+    }
+    repairProgressEvents = repairProgressEvents.filter((item) => !(
+      item.submissionId === submission.id && item.stepIndex >= deleteFromStep
+    ));
+    if (isUndoingNoRepair) {
+      const updatedSubmission = normalizeCustomerSubmission({
+        ...submission,
+        customerIssue: removeNoRepairRequestMark(submission.customerIssue),
+        updatedAt: new Date().toISOString()
+      });
+      if (cloudMode) await saveCloudSubmission(updatedSubmission);
+      customerSubmissions = customerSubmissions.map((item) => (
+        item.id === updatedSubmission.id ? updatedSubmission : item
+      ));
+      const lastSubmission = getLastCustomerSubmission();
+      if (lastSubmission?.id === updatedSubmission.id) saveLastCustomerSubmission(updatedSubmission);
+    }
+    if (!cloudMode) saveRepairProgressEvents();
+    confirmingProgressUndoStep = -1;
+    renderTable();
+    renderProgressManageDialog();
+    renderCustomerProgress(submission, getCustomerSubmissionRepairRecord(submission));
+    showToast(isUndoingNoRepair ? "已撤销：无需维修" : `已撤销：${CUSTOMER_PROGRESS_STEPS[stepIndex]}`);
+  } catch (error) {
+    console.error(error);
+    showToast("撤销失败，请稍后再试");
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function canViewAnalytics() {
@@ -2278,8 +4172,10 @@ function getFilters() {
 function applyFilters() {
   const filters = getFilters();
   filteredRecords = records.filter((record) => {
+    const linkedSubmission = customerSubmissions.find((item) => item.id === record.submissionId);
     const text = exportFields
       .map(([key]) => record[key])
+      .concat(formatRepairRecordId(record), linkedSubmission ? formatSubmissionId(linkedSubmission) : "")
       .join(" ")
       .toLowerCase();
     const date = recordDateKey(record.createdTime);
@@ -2465,6 +4361,14 @@ function getRecordAccessoryActualAmount(record = {}, part = "") {
   const zeroFeeSet = new Set(normalizeAccessoryParts(record.zeroFeeParts));
   if (isWarrantyAccessoryPart(part, zeroFeeSet) || part === "无费用") {
     return { shouldUseActualAmount: true, hasAmount: true, amount: 0 };
+  }
+  if (part === PROGRESS_CUSTOM_ACCESSORY_PART) {
+    const price = normalizeMoneyValue(record.customPartPrice);
+    return {
+      shouldUseActualAmount: true,
+      hasAmount: Boolean(price),
+      amount: Number(price) || 0
+    };
   }
   if (part === CUSTOM_PRICE_ACCESSORY_PART) {
     const price = normalizeMoneyValue(record.customPartPrice || extractCustomPartPriceFromAccessoryParts(record.accessoryParts));
@@ -3223,7 +5127,15 @@ function warrantyClass(warrantyStatus) {
 
 function formatDateTime(value) {
   if (!value) return "";
-  return String(value).replace("T", " ");
+  const text = String(value);
+  if (/(?:Z|[+-]\d{2}:?\d{2})$/i.test(text)) {
+    const date = new Date(text);
+    if (!Number.isNaN(date.getTime())) {
+      const pad = (part) => String(part).padStart(2, "0");
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    }
+  }
+  return text.replace("T", " ");
 }
 
 function formatMonthDay(value) {
@@ -3285,9 +5197,9 @@ function openInlineReturnTrackingEditor(cell, recordId) {
     });
 
     try {
-      if (cloudMode) await saveCloudRecord(updatedRecord);
-      const index = records.findIndex((item) => item.id === updatedRecord.id);
-      if (index >= 0) records[index] = { ...records[index], ...updatedRecord };
+      const savedRecord = cloudMode ? await saveCloudRecord(updatedRecord) : updatedRecord;
+      const index = records.findIndex((item) => item.id === savedRecord.id);
+      if (index >= 0) records[index] = { ...records[index], ...savedRecord };
       if (!cloudMode) saveRecords();
       render();
       showToast("寄回快递单号已保存");
@@ -3333,11 +5245,30 @@ function renderAddress(record) {
   `;
 }
 
+function renderRepairRecordIdCell(record) {
+  const submission = customerSubmissions.find((item) => item.id === record.submissionId);
+  const progressState = REPAIR_PROGRESS_ENABLED && submission ? getCustomerProgressState(submission, record) : null;
+  const progressLabel = progressState ? CUSTOMER_PROGRESS_STEPS[progressState.currentIndex] : "";
+  return `
+    <span class="record-id-badge repair-id">${escapeHtml(formatRepairRecordId(record))}</span>
+    ${submission ? `<span class="record-id-link">关联 ${escapeHtml(formatSubmissionId(submission))}</span>` : ""}
+    ${progressLabel ? `<span class="record-progress-state" title="当前进度：${escapeHtml(progressLabel)}">${escapeHtml(progressLabel)}</span>` : ""}
+  `;
+}
+
+function renderSubmissionIdCell(submission, linkedRecord) {
+  return `
+    <span class="record-id-badge submission-id">${escapeHtml(formatSubmissionId(submission))}</span>
+    ${linkedRecord ? `<span class="record-id-link">关联 ${escapeHtml(formatRepairRecordId(linkedRecord))}</span>` : ""}
+  `;
+}
+
 function renderTable() {
   els.recordsBody.innerHTML = filteredRecords
     .map(
       (record) => `
         <tr data-id="${escapeHtml(record.id)}">
+          <td class="record-id-col">${renderRepairRecordIdCell(record)}</td>
           <td>${compact(formatDateTime(record.createdTime))}</td>
           <td class="tracking-col"><span class="plain-cell tracking-cell">${compact(record.trackingNumber)}</span></td>
           <td>
@@ -3348,18 +5279,19 @@ function renderTable() {
             <span class="cell-main">${compact(record.deviceNumber)}</span>
             <span class="cell-sub">${compact(record.model)}</span>
           </td>
-          <td><span class="tag ${powerClass(record.hasPower)}">${compact(record.hasPower)}</span></td>
+          <td class="power-col"><span class="tag ${powerClass(record.hasPower)}">${compact(record.hasPower)}</span></td>
           <td class="company-col"><span class="plain-cell company-cell">${compact(record.companyName)}</span></td>
           <td class="text-cell">${compact(record.customerIssue)}</td>
           <td class="text-cell">${compact(record.repairProcess)}</td>
           <td class="warranty-fee-col">${renderWarrantyFeeCell(record)}</td>
           <td>${renderReturnTrackingCell(record)}</td>
-          <td><span class="tag ${statusClass(record.finalStatus)}">${compact(record.finalStatus)}</span></td>
+          <td><span class="tag ${statusClass(record.finalStatus)}">${compact(displayFinalStatus(record.finalStatus))}</span></td>
           <td><span class="tag ${ownershipClass(record.faultOwnership)}">${compact(record.faultOwnership)}</span></td>
           <td><div class="tag-list">${renderFaultCategoryTags(record)}</div></td>
           <td class="address-cell">${renderAddress(record)}</td>
           <td class="actions-col">
             <div class="row-actions">
+              ${REPAIR_PROGRESS_ENABLED ? `<button class="secondary" type="button" data-action="progress" data-id="${escapeHtml(record.id)}" ${record.submissionId ? "" : "disabled"} title="${record.submissionId ? "逐项更新维修进度" : "请先关联客户登记 B 编号"}">进度</button>` : ""}
               <button class="secondary" type="button" data-action="edit" data-id="${escapeHtml(record.id)}">编辑</button>
               <button class="danger" type="button" data-action="delete" data-id="${escapeHtml(record.id)}">删除</button>
             </div>
@@ -3423,7 +5355,8 @@ async function pushRepairStatsToWecom() {
 }
 
 function renderSubmissions() {
-  const reviewedSubmissionIds = getReviewedSubmissionIds();
+  const matchedRecordsBySubmission = getSubmissionRepairMatches();
+  const reviewedSubmissionIds = new Set(matchedRecordsBySubmission.keys());
   const statusFilteredSubmissions =
     submissionStatusFilter === "unreviewed"
       ? customerSubmissions.filter((item) => !reviewedSubmissionIds.has(item.id))
@@ -3448,10 +5381,14 @@ function renderSubmissions() {
   els.submissionsBody.innerHTML = visibleSubmissions
     .map((item) => {
       const isReviewed = reviewedSubmissionIds.has(item.id);
+      const linkedRecord = matchedRecordsBySubmission.get(item.id);
+      const hasReceived = REPAIR_PROGRESS_ENABLED
+        && getEffectiveProgressEvents(item).some((progressEvent) => progressEvent.stepIndex >= 2);
       const statusText = isReviewed ? "已检修" : "未检修";
       const statusClass = isReviewed ? "reviewed" : "unreviewed";
       return `
         <tr data-id="${escapeHtml(item.id)}">
+          <td class="record-id-col">${renderSubmissionIdCell(item, linkedRecord)}</td>
           <td>${compact(formatDateTime(item.createdTime))}</td>
           <td>${compact(item.trackingNumber)}</td>
           <td>
@@ -3469,10 +5406,15 @@ function renderSubmissions() {
             <span class="cell-sub">${compact(item.customerAddress)}</span>
           </td>
           ${
-            adminMode && !readonlyMode
+            (adminMode || linkingPreviewMode) && !readonlyMode
               ? `<td class="actions-col">
                   <div class="row-actions">
                     <button class="secondary ${isReviewed ? "reviewed" : ""}" type="button" data-action="use-submission" data-id="${escapeHtml(item.id)}" ${isReviewed ? "disabled" : ""}>${isReviewed ? "已检修" : "生成维修"}</button>
+                    ${REPAIR_PROGRESS_ENABLED
+                      ? hasReceived
+                        ? `<button class="secondary received" type="button" data-action="undo-received" data-id="${escapeHtml(item.id)}" title="按住 3 秒取消已收货" aria-label="已收货，按住 3 秒可取消">已收货</button>`
+                        : `<button class="secondary" type="button" data-action="confirm-received" data-id="${escapeHtml(item.id)}">确认收货</button>`
+                      : ""}
                     <button class="secondary" type="button" data-action="edit-submission" data-id="${escapeHtml(item.id)}">编辑</button>
                     <button class="danger" type="button" data-action="delete-submission" data-id="${escapeHtml(item.id)}">删除</button>
                   </div>
@@ -3490,6 +5432,7 @@ function renderSubmissions() {
 
 function getSubmissionSearchText(item = {}) {
   return [
+    formatSubmissionId(item),
     formatDateTime(item.createdTime),
     item.trackingNumber,
     item.deviceNumber,
@@ -3530,6 +5473,7 @@ function resetForm() {
   lockAutoField(els.recordForm.elements.customerIssue);
   els.recordForm.elements.customerPowerAdapter.value = "";
   updateAccessoryPartsRequirement();
+  updateReturnTimeRequirement();
   clearSubmissionMatchState();
   updateDeviceHistoryButton();
 }
@@ -3623,6 +5567,9 @@ function cleanCustomerIssueForRecord(submission) {
   return String(submission?.customerIssue || "")
     .replace(/^\s*电源适配器是否寄回[:：]\s*[^\n\r]*\s*\n?/m, "")
     .replace(/^\s*故障描述[:：]\s*/m, "")
+    .split("\n")
+    .filter((line) => line.trim() !== NO_REPAIR_REQUEST_MARK)
+    .join("\n")
     .trim();
 }
 
@@ -3658,6 +5605,7 @@ function applySubmissionToRecordForm(submission, { keepDeviceNumber = true } = {
   updateRepairFeeDetails();
   appliedSubmissionId = submission.id;
   form.submissionId.value = submission.id;
+  updateRecordProgressButton();
   showToast("已带入客户提交的信息");
 }
 
@@ -3674,6 +5622,7 @@ function undoSubmissionToRecordForm() {
   appliedSubmissionId = "";
   form.submissionId.value = "";
   updateRepairFeeDetails();
+  updateRecordProgressButton();
   showToast("已取消关联");
   renderSubmissionChoices(findAvailableSubmissionsByDeviceNumber(form.deviceNumber.value));
 }
@@ -3690,6 +5639,7 @@ function findAvailableSubmissionsByDeviceNumber(deviceNumber) {
 function hideMatchBox() {
   els.matchBox.hidden = true;
   els.matchBox.replaceChildren();
+  matchingSubmissionChoices = [];
 }
 
 function clearSubmissionMatchState() {
@@ -3697,11 +5647,12 @@ function clearSubmissionMatchState() {
   appliedSubmissionSnapshot = null;
   appliedSubmissionId = "";
   if (els.recordForm.elements.submissionId) els.recordForm.elements.submissionId.value = "";
+  updateRecordProgressButton();
 }
 
 function renderSubmissionChoiceDetails(submission) {
   return `
-    <span class="match-choice-tag">登记</span>
+    <span class="match-choice-id">${escapeHtml(formatSubmissionId(submission))}</span>
     <span class="match-choice-main">
       <strong>${compact(submission.companyName)}</strong>
       <small>${compact(formatDateTime(submission.createdTime))} · ${compact(submission.trackingNumber)}</small>
@@ -3711,6 +5662,7 @@ function renderSubmissionChoiceDetails(submission) {
 }
 
 function renderSubmissionChoices(submissions) {
+  matchingSubmissionChoices = submissions;
   const selectedSubmission = customerSubmissions.find((item) => item.id === appliedSubmissionId) || null;
   const otherChoices = submissions.filter((item) => item.id !== appliedSubmissionId);
   const deviceNumber = String(els.recordForm.elements.deviceNumber.value || "").trim();
@@ -3726,7 +5678,7 @@ function renderSubmissionChoices(submissions) {
       selectedSubmission
         ? `<label class="match-choice match-selected">
             ${renderSubmissionChoiceDetails(selectedSubmission)}
-            <input class="match-choice-checkbox" type="checkbox" data-match-action="unlink" data-submission-id="${escapeHtml(selectedSubmission.id)}" aria-label="取消关联客户登记" checked>
+            <input class="match-choice-checkbox" type="checkbox" data-match-action="unlink" data-submission-id="${escapeHtml(selectedSubmission.id)}" aria-label="取消关联 ${escapeHtml(formatSubmissionId(selectedSubmission))}" checked>
           </label>`
         : `<div class="match-choice-head">
             <strong>${otherChoices.length ? `找到 ${otherChoices.length} 条客户登记，请选择关联` : "没有找到可关联的客户登记"}</strong>
@@ -3739,7 +5691,7 @@ function renderSubmissionChoices(submissions) {
             ${otherChoices.map((submission) => `
               <label class="match-choice">
                 ${renderSubmissionChoiceDetails(submission)}
-                <input class="match-choice-checkbox" type="checkbox" data-match-action="choose" data-submission-id="${escapeHtml(submission.id)}" aria-label="关联客户登记">
+                <input class="match-choice-checkbox" type="checkbox" data-match-action="choose" data-submission-id="${escapeHtml(submission.id)}" aria-label="关联 ${escapeHtml(formatSubmissionId(submission))}">
               </label>
             `).join("")}
           </div>`
@@ -3777,6 +5729,25 @@ function updateDeviceHistoryButton() {
   els.deviceHistoryBtn.textContent = matches.length > 0 ? `历史(${matches.length})` : "历史";
 }
 
+function updateRecordProgressButton() {
+  els.recordProgressBtn.hidden = !REPAIR_PROGRESS_ENABLED;
+  if (!REPAIR_PROGRESS_ENABLED) return;
+  const submissionId = String(els.recordForm.elements.submissionId?.value || appliedSubmissionId || "").trim();
+  const canOpenProgress = customerSubmissions.some((item) => item.id === submissionId);
+  els.recordProgressBtn.disabled = !canOpenProgress;
+  els.recordProgressBtn.title = canOpenProgress ? "打开并修改维修进度" : "请先关联客户登记 B 编号";
+}
+
+function openRecordProgressDialog() {
+  const submissionId = String(els.recordForm.elements.submissionId?.value || appliedSubmissionId || "").trim();
+  if (!submissionId) {
+    showToast("请先关联客户登记 B 编号");
+    return;
+  }
+  captureNewRecordProgressSnapshot(submissionId);
+  openProgressManageDialog(submissionId);
+}
+
 function openDeviceHistoryDialog() {
   const deviceNumber = els.recordForm.elements.deviceNumber.value;
   const matches = getDeviceHistoryRecords(deviceNumber);
@@ -3790,7 +5761,7 @@ function openDeviceHistoryDialog() {
     .map((record) => `
       <article class="device-history-card">
         <div class="device-history-card-head">
-          <strong>${compact(formatDateTime(record.createdTime))}</strong>
+          <strong>${escapeHtml(formatRepairRecordId(record))} · ${compact(formatDateTime(record.createdTime))}</strong>
           <span>${compact(record.deviceNumber)}</span>
         </div>
         <dl>
@@ -3825,9 +5796,11 @@ function checkDeviceNumberMatch() {
   updateDeviceHistoryButton();
 }
 
-function updateReturnTimeFromStatus() {
+function updateReturnTimeRequirement() {
   const form = els.recordForm.elements;
-  if (!["今天需要寄", "邮寄并结束"].includes(form.finalStatus.value)) return;
+  const required = RETURN_TIME_REQUIRED_STATUSES.includes(form.finalStatus.value);
+  form.returnTime.required = required;
+  if (!required) return;
   if (form.returnTime.value) return;
   form.returnTime.value = toInputDate(new Date());
 }
@@ -3897,7 +5870,7 @@ function findSubmissionForRecord(record) {
 function fillForm(record) {
   clearSubmissionMatchState();
   els.recordId.value = record.id;
-  els.dialogTitle.textContent = "编辑记录";
+  els.dialogTitle.textContent = `编辑记录 ${formatRepairRecordId(record)}`;
   els.deleteRecordBtn.hidden = false;
   els.recordForm.elements.model.value = record.model || "";
 
@@ -3940,7 +5913,9 @@ function fillForm(record) {
   }
   renderSubmissionChoices(findAvailableSubmissionsByDeviceNumber(record.deviceNumber));
   updateAccessoryPartsRequirement();
+  updateReturnTimeRequirement();
   updateDeviceHistoryButton();
+  updateRecordProgressButton();
 }
 
 function openEditDialog(id) {
@@ -3954,14 +5929,19 @@ function openEditDialog(id) {
 function getFormRecord() {
   const formData = new FormData(els.recordForm);
   const id = els.recordId.value || createId();
+  const existingRecord = records.find((item) => item.id === id);
   const record = { id };
   exportFields.forEach(([key]) => {
     record[key] = ["faultCategory", "accessoryParts"].includes(key)
       ? formData.getAll(key).map((value) => String(value).trim()).filter(Boolean)
       : String(formData.get(key) || "").trim();
   });
-  record.submissionId = String(formData.get("submissionId") || appliedSubmissionId || "").trim();
   record.deviceNumber = record.deviceNumber.replace(/\D/g, "").slice(0, 10);
+  record.recordNumber = existingRecord?.recordNumber || records.reduce(
+    (highest, item) => Math.max(highest, normalizeDisplayNumber(item.recordNumber)),
+    0
+  ) + 1;
+  record.submissionId = String(formData.get("submissionId") || appliedSubmissionId || "").trim();
   if (!/^\d{10}$/.test(record.deviceNumber)) {
     showToast("编号必须填写 10 位数字");
     els.recordForm.elements.deviceNumber.focus();
@@ -3993,6 +5973,11 @@ function getFormRecord() {
     showAccessoryPartsRequired();
     return null;
   }
+  if (RETURN_TIME_REQUIRED_STATUSES.includes(record.finalStatus) && !record.returnTime) {
+    showToast("请选择寄回时间");
+    els.recordForm.elements.returnTime.focus();
+    return null;
+  }
   record.updatedAt = new Date().toISOString();
   return normalizeRecord(record);
 }
@@ -4004,20 +5989,21 @@ async function upsertRecord(record) {
     return false;
   }
 
+  let savedRecord = record;
   try {
-    if (cloudMode) await saveCloudRecord(record);
-    await syncRepairMaterialsToInventory(record);
+    if (cloudMode) savedRecord = await saveCloudRecord(record);
+    if (!linkingPreviewMode) await syncRepairMaterialsToInventory(savedRecord);
   } catch (error) {
     console.error(error);
     showToast(cloudMode ? "维修记录已保存，但同步到库存网页失败" : "同步到库存网页失败", "error");
     return false;
   }
 
-  const index = records.findIndex((item) => item.id === record.id);
+  const index = records.findIndex((item) => item.id === savedRecord.id);
   if (index >= 0) {
-    records[index] = { ...records[index], ...record };
+    records[index] = { ...records[index], ...savedRecord };
   } else {
-    records.unshift(record);
+    records.unshift(savedRecord);
   }
   sortRecordsNewestFirst(records);
   if (!cloudMode) saveRecords();
@@ -4060,7 +6046,7 @@ function getCustomerSubmissionFromForm() {
     : null;
   return normalizeCustomerSubmission({
     id: oldSubmission?.id || createCustomerSubmissionId(),
-    createdTime: oldSubmission?.createdTime || toInputDateTime(new Date()),
+    createdTime: oldSubmission?.createdTime || new Date().toISOString(),
     deviceNumber,
     model: inferModelFromDeviceNumber(deviceNumber),
     companyName: String(formData.get("companyName") || ""),
@@ -4077,7 +6063,7 @@ function getCustomerSubmissionFromForm() {
 async function submitCustomerForm() {
   if (isCustomerSubmitting) return;
 
-  const submission = getCustomerSubmissionFromForm();
+  let submission = getCustomerSubmissionFromForm();
   if (!submission) return;
 
   const fingerprint = getCustomerSubmissionFingerprint(submission);
@@ -4089,7 +6075,7 @@ async function submitCustomerForm() {
 
   setCustomerSubmitting(true);
   try {
-    await saveCustomerSubmissionReliably(submission);
+    submission = await saveCustomerSubmissionReliably(submission);
   } catch (error) {
     console.error(error);
     if (error?.code === "PGRST205" || String(error?.message || "").includes("customer_repair_submissions")) {
@@ -4210,7 +6196,11 @@ async function deleteSubmission(id) {
   }
 
   customerSubmissions = customerSubmissions.filter((item) => item.id !== id);
-  if (!cloudMode) saveCustomerSubmissions();
+  repairProgressEvents = repairProgressEvents.filter((item) => item.submissionId !== id);
+  if (!cloudMode) {
+    saveCustomerSubmissions();
+    saveRepairProgressEvents();
+  }
   renderSubmissions();
   showToast("已删除客户提交");
 }
@@ -4760,16 +6750,16 @@ function dateStamp() {
 }
 
 function chineseDateFileName(date = new Date()) {
-  return `${date.getMonth() + 1}月${date.getDate()}号.xlsx`;
+  return `维修${date.getMonth() + 1}月${date.getDate()}号.xlsx`;
 }
 
 async function loadSampleRecords() {
   if (readonlyMode) return;
   if (records.length > 0 && !confirm("当前已有记录，是否追加示例数据？")) return;
-  const incoming = sampleRecords();
+  let incoming = sampleRecords();
 
   try {
-    if (cloudMode) await saveCloudRecords(incoming);
+    if (cloudMode) incoming = await saveCloudRecords(incoming);
   } catch (error) {
     console.error(error);
     showToast("云端保存失败");
@@ -4853,8 +6843,8 @@ async function importExcelFile(file) {
     const incoming = rowsToRecords(rows);
     if (incoming.length === 0) throw new Error("empty workbook");
 
-    const normalized = sortRecordsNewestFirst(incoming.map(normalizeRecord));
-    if (cloudMode) await saveCloudRecords(normalized);
+    let normalized = sortRecordsNewestFirst(incoming.map(normalizeRecord));
+    if (cloudMode) normalized = await saveCloudRecords(normalized);
     records = sortRecordsNewestFirst(normalized.concat(records));
     if (!cloudMode) saveRecords();
     render();
@@ -5100,14 +7090,16 @@ function packSharedData() {
 }
 
 function packSharedRecords(items) {
+  const fields = ["id", "recordNumber", "submissionId", ...exportFields.map(([key]) => key)];
   return [
-    "r1",
-    items.map((record) => exportFields.map(([key]) => record[key] || ""))
+    "r2",
+    fields,
+    items.map((record) => fields.map((key) => record[key] || ""))
   ];
 }
 
 function packSharedSubmissions(items) {
-  const fields = ["id", "createdTime", "deviceNumber", "model", "companyName", "contactName", "phone", "trackingNumber", "customerIssue", "customerAddress", "updatedAt"];
+  const fields = ["id", "submissionNumber", "createdTime", "deviceNumber", "model", "companyName", "contactName", "phone", "trackingNumber", "customerIssue", "customerAddress", "updatedAt"];
   return [
     "s1",
     fields,
@@ -5131,6 +7123,16 @@ function unpackSharedData(payload) {
 
 function unpackSharedRecords(payload) {
   if (!Array.isArray(payload)) return [];
+  if (payload[0] === "r2") {
+    const fields = payload[1] || [];
+    return (payload[2] || []).map((row) => {
+      const record = {};
+      fields.forEach((key, index) => {
+        record[key] = row[index] || "";
+      });
+      return record;
+    });
+  }
   if (payload[0] !== "r1") return payload;
   return payload[1].map((row) => {
     const record = {};
@@ -5341,6 +7343,16 @@ function bindEvents() {
   });
   els.newCustomerSubmissionBtn.addEventListener("click", startNewCustomerSubmission);
   els.editCustomerSubmissionBtn.addEventListener("click", startEditCustomerSubmission);
+  if (REPAIR_PROGRESS_ENABLED) {
+    els.viewCustomerProgressBtn.addEventListener("click", openCustomerProgress);
+    els.closeCustomerProgressBtn.addEventListener("click", closeCustomerProgress);
+    els.customerProgressTimeline.addEventListener("click", (event) => {
+      const paymentButton = event.target.closest("button[data-customer-payment-confirm]");
+      if (paymentButton) confirmCustomerPayment(paymentButton);
+      const noRepairButton = event.target.closest("button[data-customer-no-repair]");
+      if (noRepairButton) skipRepairFromCustomerProgress(noRepairButton);
+    });
+  }
   els.authToggleBtn.addEventListener("click", openAuthDialog);
   els.closeAuthDialogBtn.addEventListener("click", () => els.authDialog.close());
   els.cancelAuthDialogBtn.addEventListener("click", () => els.authDialog.close());
@@ -5358,8 +7370,87 @@ function bindEvents() {
   els.closeExpressExportDialogBtn.addEventListener("click", () => els.expressExportDialog.close());
   els.cancelExpressExportBtn.addEventListener("click", () => els.expressExportDialog.close());
   els.deviceHistoryBtn.addEventListener("click", openDeviceHistoryDialog);
+  if (REPAIR_PROGRESS_ENABLED) {
+    els.recordProgressBtn.addEventListener("click", openRecordProgressDialog);
+  }
   els.closeDeviceHistoryDialogBtn.addEventListener("click", () => els.deviceHistoryDialog.close());
   els.closeDeviceHistoryBtn.addEventListener("click", () => els.deviceHistoryDialog.close());
+  if (REPAIR_PROGRESS_ENABLED) {
+  els.closeProgressManageDialogBtn.addEventListener("click", closeProgressManageDialog);
+  els.doneProgressManageBtn.addEventListener("click", closeProgressManageDialog);
+  els.closeReceivedUndoConfirmBtn.addEventListener("click", closeReceivedUndoConfirm);
+  els.cancelReceivedUndoConfirmBtn.addEventListener("click", closeReceivedUndoConfirm);
+  els.confirmReceivedUndoBtn.addEventListener("click", confirmReceivedUndoChange);
+  els.receivedUndoConfirmDialog.addEventListener("close", resetReceivedUndoConfirm);
+  els.confirmDetectionReminderBtn.addEventListener("click", () => els.detectionReminderDialog.close());
+  els.detectionReminderDialog.addEventListener("cancel", (event) => event.preventDefault());
+  els.recordForm.elements.repairProcess.addEventListener("blur", () => {
+    if (!els.detectionReminderDialog.open) els.detectionReminderDialog.showModal();
+  });
+  els.progressManageDialog.addEventListener("close", () => {
+    stopProgressManageAutoRefresh();
+    confirmingProgressUndoStep = -1;
+    managingProgressSubmissionId = "";
+  });
+  els.progressManageList.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-progress-action]");
+    if (!button) return;
+    const stepIndex = Number(button.dataset.stepIndex);
+    if (button.dataset.progressAction === "now") {
+      const input = els.progressManageList.querySelector(`[data-progress-time="${stepIndex}"]`);
+      if (input && !input.disabled) input.value = toInputDateTimeSeconds(new Date());
+      return;
+    }
+    if (button.dataset.progressAction === "save") saveProgressStepFromDialog(stepIndex);
+    if (button.dataset.progressAction === "confirm-payment") confirmPaymentFromAdminDialog(button);
+    if (button.dataset.progressAction === "no-repair") skipRepairFromAdminDialog(button);
+    if (button.dataset.progressAction === "undo") requestProgressStepUndo(stepIndex);
+    if (button.dataset.progressAction === "cancel-undo") cancelProgressStepUndo();
+    if (button.dataset.progressAction === "confirm-undo") undoLatestProgressStep(stepIndex, button);
+  });
+  els.progressManageList.addEventListener("change", (event) => {
+    const warrantyCheckbox = event.target.closest("input[data-progress-warranty]");
+    if (warrantyCheckbox) {
+      const checkboxes = els.progressManageList.querySelectorAll(`[data-progress-warranty="${warrantyCheckbox.dataset.progressWarranty}"]`);
+      checkboxes.forEach((item) => {
+        if (warrantyCheckbox.checked && item !== warrantyCheckbox) item.checked = false;
+        item.closest("label")?.classList.toggle("is-selected", item.checked);
+      });
+      return;
+    }
+    const accessoryCheckbox = event.target.closest("input[data-progress-accessory]");
+    if (accessoryCheckbox) updateProgressAccessoryEditor(Number(accessoryCheckbox.dataset.progressAccessory));
+  });
+  els.progressManageList.addEventListener("click", (event) => {
+    if (event.target.closest("[data-progress-custom-part-name]")) event.preventDefault();
+  });
+  els.progressManageList.addEventListener("dblclick", (event) => {
+    const label = event.target.closest("[data-progress-custom-part-name]");
+    if (!label) return;
+    event.preventDefault();
+    startProgressCustomPartNameEdit(label);
+  });
+  els.progressManageList.addEventListener("focusout", (event) => {
+    const label = event.target.closest("[data-progress-custom-part-name]");
+    if (label?.isContentEditable) finishProgressCustomPartNameEdit(label);
+  });
+  els.progressManageList.addEventListener("keydown", (event) => {
+    const label = event.target.closest("[data-progress-custom-part-name]");
+    if (!label?.isContentEditable) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      label.blur();
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      finishProgressCustomPartNameEdit(label, true);
+    }
+  });
+  els.progressManageList.addEventListener("input", (event) => {
+    const customPartPriceInput = event.target.closest("input[data-progress-custom-part-price]");
+    if (customPartPriceInput) updateProgressAccessoryEditor(Number(customPartPriceInput.dataset.progressCustomPartPrice));
+  });
+  }
   els.metricCards.forEach((card) => {
     card.addEventListener("click", () => applyMetricShortcut(card));
   });
@@ -5419,7 +7510,12 @@ function bindEvents() {
   els.closeDialogBtn.addEventListener("click", closeRecordDialogWithGuard);
   els.cancelDialogBtn.addEventListener("click", closeRecordDialogWithGuard);
   els.recordDialog.addEventListener("cancel", handleRecordDialogCancel);
-  els.recordDialog.addEventListener("close", clearRecordDialogSnapshot);
+  els.recordDialog.addEventListener("close", () => {
+    clearRecordDialogSnapshot();
+    if (REPAIR_PROGRESS_ENABLED) {
+      restoreUnsavedRecordProgress().catch((error) => console.error("恢复未保存工单的进度失败", error));
+    }
+  });
   window.addEventListener("beforeunload", handleRecordBeforeUnload);
   els.categoryFilterToggle.addEventListener("click", toggleCategoryFilterPicker);
   els.categoryFilterMenu.addEventListener("change", (event) => {
@@ -5461,6 +7557,13 @@ function bindEvents() {
   els.closeCustomPartPriceDialogBtn.addEventListener("click", closeCustomPartPriceDialog);
   els.cancelCustomPartPriceBtn.addEventListener("click", closeCustomPartPriceDialog);
   els.customPartPriceDialog.addEventListener("close", () => updateRepairFeeDetails());
+  els.progressCustomPartPriceForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveProgressCustomPartPriceFromDialog();
+  });
+  els.closeProgressCustomPartPriceDialogBtn.addEventListener("click", closeProgressCustomPartPriceDialog);
+  els.cancelProgressCustomPartPriceBtn.addEventListener("click", closeProgressCustomPartPriceDialog);
+  els.progressCustomPartPriceDialog.addEventListener("cancel", closeProgressCustomPartPriceDialog);
   els.repairFeeBox.addEventListener("click", (event) => {
     const button = event.target.closest(".repair-fee-row");
     if (!button || !els.repairFeeBox.contains(button)) return;
@@ -5491,10 +7594,13 @@ function bindEvents() {
 
   els.recordForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const isNewRecord = !els.recordId.value;
     const record = getFormRecord();
     if (!record) return;
     const saved = await upsertRecord(record);
     if (!saved) return;
+    if (REPAIR_PROGRESS_ENABLED && isNewRecord) await startDetectionForNewRecord(record);
+    if (REPAIR_PROGRESS_ENABLED) await restoreUnsavedRecordProgress({ keepSubmissionId: record.submissionId });
     clearRecordDialogSnapshot();
     els.recordDialog.close();
   });
@@ -5513,7 +7619,7 @@ function bindEvents() {
 
   els.recordForm.elements.finalStatus.addEventListener("change", () => {
     updateAccessoryPartsRequirement();
-    updateReturnTimeFromStatus();
+    updateReturnTimeRequirement();
   });
   els.recordForm.elements.deviceNumber.addEventListener("input", () => {
     const input = els.recordForm.elements.deviceNumber;
@@ -5549,6 +7655,7 @@ function bindEvents() {
   });
   els.customerForm.elements.addressProvince.addEventListener("change", updateAddressCities);
   els.customerForm.elements.addressCity.addEventListener("change", updateAddressDistricts);
+  els.customerForm.elements.addressDistrict.addEventListener("change", updateAddressStreets);
   els.customerForm.elements.powerAdapterReturned.addEventListener("change", () => {
     syncSimpleSelectButton("powerAdapterReturned");
   });
@@ -5606,6 +7713,7 @@ function bindEvents() {
       if (record?.customerAddress) showAddressPopover(record, button);
       return;
     }
+    if (REPAIR_PROGRESS_ENABLED && button.dataset.action === "progress") openProgressManageDialogForRecord(button.dataset.id);
     if (button.dataset.action === "edit") openEditDialog(button.dataset.id);
     if (button.dataset.action === "delete") deleteRecord(button.dataset.id);
   });
@@ -5630,8 +7738,47 @@ function bindEvents() {
     const button = event.target.closest("button[data-action]");
     if (!button) return;
     if (button.dataset.action === "use-submission") openNewDialogFromSubmission(button.dataset.id);
+    if (REPAIR_PROGRESS_ENABLED && button.dataset.action === "confirm-received") confirmSubmissionReceived(button.dataset.id, button);
     if (button.dataset.action === "edit-submission") openSubmissionEditDialog(button.dataset.id);
     if (button.dataset.action === "delete-submission") deleteSubmission(button.dataset.id);
+  });
+
+  els.submissionsBody.addEventListener("pointerdown", (event) => {
+    if (!REPAIR_PROGRESS_ENABLED) return;
+    const button = event.target.closest('button[data-action="undo-received"]');
+    if (!button || event.button !== 0) return;
+    event.preventDefault();
+    button.focus();
+    startReceivedUndoHold(button, event.pointerId);
+  });
+  document.addEventListener("pointermove", (event) => {
+    if (!receivedUndoHoldButton || event.pointerId !== receivedUndoHoldPointerId) return;
+    const rect = receivedUndoHoldButton.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) {
+      cancelReceivedUndoHold();
+    }
+  });
+  document.addEventListener("pointerup", (event) => {
+    if (event.pointerId === receivedUndoHoldPointerId) cancelReceivedUndoHold();
+  });
+  document.addEventListener("pointercancel", (event) => {
+    if (event.pointerId === receivedUndoHoldPointerId) cancelReceivedUndoHold();
+  });
+  els.submissionsBody.addEventListener("keydown", (event) => {
+    if (!REPAIR_PROGRESS_ENABLED) return;
+    const button = event.target.closest('button[data-action="undo-received"]');
+    if (!button || event.repeat || !["Enter", " "].includes(event.key)) return;
+    event.preventDefault();
+    startReceivedUndoHold(button);
+  });
+  els.submissionsBody.addEventListener("keyup", (event) => {
+    if (["Enter", " "].includes(event.key)) cancelReceivedUndoHold();
+  });
+  els.submissionsBody.addEventListener("focusout", (event) => {
+    if (event.target === receivedUndoHoldButton) cancelReceivedUndoHold();
+  });
+  els.submissionsBody.addEventListener("contextmenu", (event) => {
+    if (REPAIR_PROGRESS_ENABLED && event.target.closest('button[data-action="undo-received"]')) event.preventDefault();
   });
 
   document.addEventListener("click", (event) => {
@@ -5669,6 +7816,15 @@ function bindEvents() {
     if (!els.accessoryPartsMenu.hidden) positionAccessoryPartsMenu();
   });
   window.addEventListener("hashchange", applyHashRoute);
+  document.addEventListener("visibilitychange", () => {
+    if (REPAIR_PROGRESS_ENABLED && !document.hidden) {
+      autoStartOverdueDetections().catch((error) => console.error("自动检测检查失败", error));
+      refreshOpenProgressManageDialog();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (REPAIR_PROGRESS_ENABLED && event.key === "Escape" && !els.customerProgressPage.hidden) closeCustomerProgress();
+  });
 }
 
 fillStaticOptions();
@@ -5676,4 +7832,10 @@ bindEvents();
 setAnalysisDateToThisYear();
 applyHashRoute();
 loadAreaData();
-initializeCloud();
+if (linkingPreviewMode) {
+  render();
+} else {
+  initializeCloud().finally(() => {
+    if (REPAIR_PROGRESS_ENABLED) startAutoDetectionChecks();
+  });
+}
