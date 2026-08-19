@@ -735,7 +735,23 @@
         }
       }
       function showForm() { success.hidden = true; form.hidden = false; errorBox.textContent = ""; }
-      function restoreLastSubmissionView() { if (document.hidden || new URLSearchParams(location.search).get("entry") === "edit") return; try { showCachedSuccess(JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null")); } catch {} }
+      async function refreshCachedSubmission() {
+        try {
+          const cached = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null");
+          if (!cached) return;
+          const latest = await loadSubmission(cached);
+          if (!latest) return;
+          localStorage.setItem(LAST_SUBMISSION_KEY, JSON.stringify(latest));
+          showCachedSuccess(latest);
+        } catch {}
+      }
+      function restoreLastSubmissionView() {
+        if (document.hidden || new URLSearchParams(location.search).get("entry") === "edit") return;
+        try {
+          showCachedSuccess(JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null"));
+          refreshCachedSubmission();
+        } catch {}
+      }
       form.addEventListener("input", saveDraft);
       form.addEventListener("change", saveDraft);
       form.elements.deviceNumber.addEventListener("input", () => {
@@ -784,6 +800,7 @@
       try {
         showCachedSuccess(JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null") || previewSubmission);
       } catch {}
+      refreshCachedSubmission();
       loadAreas();
     </script>
   </body>
