@@ -1387,6 +1387,27 @@ function repairMaterialRows(record) {
   }));
 }
 
+async function existingInventoryMaterialRows(client, rows) {
+  if (!rows.length) return [];
+
+  const models = [...new Set(rows.map((row) => row.model).filter(Boolean))];
+  const items = [...new Set(rows.map((row) => row.item).filter(Boolean))];
+  if (!models.length || !items.length) return [];
+
+  const { data, error } = await client
+    .from("inventory_material_stock")
+    .select("warehouse,model,item")
+    .eq("warehouse", "总仓")
+    .in("model", models)
+    .in("item", items);
+  if (error) throw error;
+
+  const inventoryKeys = new Set(
+    (data || []).map((row) => `${row.warehouse}\u001f${row.model}\u001f${row.item}`)
+  );
+  return rows.filter((row) => inventoryKeys.has(`${row.warehouse}\u001f${row.model}\u001f${row.item}`));
+}
+
 async function syncRepairMaterialsToInventory(record) {
   const client = getInventorySupabaseClient();
   if (!client) throw new Error("库存管理云端连接未加载");
@@ -1396,7 +1417,7 @@ async function syncRepairMaterialsToInventory(record) {
     .eq("source_record_id", record.id);
   if (oldError) throw oldError;
 
-  const rows = repairMaterialRows(record);
+  const rows = await existingInventoryMaterialRows(client, repairMaterialRows(record));
   const newIds = new Set(rows.map((row) => row.id));
   const staleIds = (oldRows || []).map((row) => row.id).filter((id) => !newIds.has(id));
   if (staleIds.length) {
