@@ -55,6 +55,7 @@ const CUSTOMER_PROGRESS_STEPS = [
   "等待发货",
   "已发货"
 ];
+const AUTO_DETECTION_ENABLED = false;
 const AUTO_START_DETECTION_AFTER_MS = 14 * 60 * 60 * 1000;
 const AUTO_DETECTION_CHECK_INTERVAL_MS = 60 * 1000;
 const RECEIVED_UNDO_HOLD_MS = 3 * 1000;
@@ -2356,7 +2357,7 @@ function getOverdueDetectionEvents(now = Date.now()) {
 }
 
 async function autoStartOverdueDetections() {
-  if (autoDetectionCheckRunning || linkingPreviewMode) return 0;
+  if (!AUTO_DETECTION_ENABLED || autoDetectionCheckRunning || linkingPreviewMode) return 0;
   if ((cloudMode && !adminMode) || (!cloudMode && readonlyMode)) return 0;
   const dueEvents = getOverdueDetectionEvents();
   if (!dueEvents.length) return 0;
@@ -2447,7 +2448,7 @@ async function startDetectionForNewRecord(record) {
 }
 
 function startAutoDetectionChecks() {
-  if (linkingPreviewMode) return;
+  if (!AUTO_DETECTION_ENABLED || linkingPreviewMode) return;
   if (autoDetectionCheckTimer) window.clearInterval(autoDetectionCheckTimer);
   autoStartOverdueDetections().catch((error) => console.error("自动检测检查失败", error));
   autoDetectionCheckTimer = window.setInterval(() => {

@@ -229,6 +229,7 @@
       const confirmNoRepairBtn = document.querySelector("#confirmNoRepairBtn");
       const noRepairConfirmText = document.querySelector("#noRepairConfirmText");
       const progressSteps = ["用户提交工单","等待收货","已收货","检测中","检测结果","待付款","维修中","等待发货","已发货"];
+      const AUTO_DETECTION_ENABLED = false;
       const AUTO_START_DETECTION_AFTER_MS = 14 * 60 * 60 * 1000;
       const WAITING_RECEIPT_RESET_MARK = "__waiting_receipt_reset__";
       const NO_REPAIR_PROGRESS_MARK = "__no_repair__";
@@ -350,7 +351,7 @@
       }
       function withAutomaticDetection(record, events, now = Date.now()) {
         const validEvents = (events || []).filter((item) => Number(item.step_index ?? item.stepIndex) >= 0).sort((a,b) => Number(a.step_index ?? a.stepIndex) - Number(b.step_index ?? b.stepIndex));
-        if (!record || !validEvents.length) return validEvents;
+        if (!AUTO_DETECTION_ENABLED || !record || !validEvents.length) return validEvents;
         const latest = Math.max(...validEvents.map((item) => Number(item.step_index ?? item.stepIndex)));
         if (latest !== 2) return validEvents;
         const receivedEvent = validEvents.find((item) => Number(item.step_index ?? item.stepIndex) === 2);
