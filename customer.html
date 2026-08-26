@@ -82,7 +82,7 @@
       .progress-time, .progress-note { margin:7px 0 0; color:var(--muted); font-size:14px; line-height:1.6; }
       .progress-note { color:#34434d; white-space:pre-wrap; }
       .progress-repair-suggestion { margin:9px 0 0; color:#34434d; font-size:14px; line-height:1.6; white-space:pre-wrap; }
-      .progress-repair-suggestion strong { color:var(--accent-dark); }
+      .progress-repair-suggestion strong { color:#d4a017; }
       .progress-warranty { display:flex; align-items:baseline; gap:3px; margin:7px 0 0; color:#000; font-size:14px; line-height:1.6; }
       .progress-warranty strong { color:#000; font-weight:400; }
       .progress-quote { margin:7px 0 0; color:#34434d; font-size:14px; line-height:1.6; }
@@ -204,19 +204,19 @@
       </div>
     </dialog>
     <script src="area-data.js"></script>
-    <script src="street-data.js?v=20260819-registration-ids"></script>
+    <script src="street-data.js?v=20260807"></script>
     <script>
       const SUPABASE_URL = "https://olvkyqmlbpqzffypabzj.supabase.co";
       const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
       const NEW_SUBMISSION_PUSH_URL = `${SUPABASE_URL}/functions/v1/push-new-customer-submission`;
       const DRAFT_KEY = "printer_customer_draft_v1";
       const LAST_SUBMISSION_KEY = "printer_last_customer_submission_v2";
-      const REPAIR_PROGRESS_ENABLED = false;
       const form = document.querySelector("#customerForm");
       const errorBox = document.querySelector("#error");
       const draftNote = document.querySelector("#draftNote");
       const submitBtn = document.querySelector("#submitBtn");
       const success = document.querySelector("#success");
+      const viewProgressBtn = document.querySelector("#viewProgressBtn");
       const progressPage = document.querySelector("#progressPage");
       const progressSummary = document.querySelector("#progressSummary");
       const progressLoading = document.querySelector("#progressLoading");
@@ -250,7 +250,7 @@
         DK80:{打印头:240,主板:220,wifi模块:50,电源适配器:80,电源接口:60,"塑料件/其他件":1}
       };
       const SHIPPING_PRICES = {浙江:8,江苏:8,上海:8,安徽:8,北京:13,福建:13,河南:13,湖南:13,湖北:13,江西:13,山东:13,河北:16,天津:16,广东:16,广西:16,山西:16,陕西:16,四川:16,重庆:16,贵州:19,海南:19,黑龙江:19,吉林:19,云南:19,辽宁:19,甘肃:32,宁夏:32,青海:32,内蒙古:32,新疆:49};
-      const previewSubmission = REPAIR_PROGRESS_ENABLED && ["localhost","127.0.0.1"].includes(location.hostname) && new URLSearchParams(location.search).get("preview") === "1" ? { id:"customer-preview", submission_number:1, created_time:new Date(Date.now() - 4 * 3600000).toISOString(), device_number:"1002000000", model:"DK110A", company_name:"进度预览", contact_name:"客户", phone:"13800000000", tracking_number:"预览快递单号", customer_issue:"电源适配器是否寄回：是\n故障描述：打印效果异常", customer_address:"浙江省杭州市预览地址" } : null;
+      const previewSubmission = ["localhost","127.0.0.1"].includes(location.hostname) && new URLSearchParams(location.search).get("preview") === "1" ? { id:"customer-preview", submission_number:1, created_time:new Date(Date.now() - 4 * 3600000).toISOString(), device_number:"1002000000", model:"DK110A", company_name:"进度预览", contact_name:"客户", phone:"13800000000", tracking_number:"预览快递单号", customer_issue:"电源适配器是否寄回：是\n故障描述：打印效果异常", customer_address:"浙江省杭州市预览地址", progress_enabled:true } : null;
       const previewProgressEvents = previewSubmission ? [0,1,2,3,4].map((step_index,index) => ({ submission_id:previewSubmission.id, step_index, occurred_at:new Date(Date.now() - (4 - index) * 3600000).toISOString(), detail_text:step_index === 4 ? "检测发现打印头积碳，清洁后打印测试正常，本次无需更换配件。" : "" })) : [];
       const modelRules = [["1009","GMX"],["10064","GMI"],["2003","GMT"],["10063","GMH"],["2009","GMX-5G"],["3003","GMT-5G"],["1002","DK110A"],["1007","DK110B"],["2002","DK110S"],["1003","DK80"],["7","新北洋110"],["9","芯烨80"]];
       let areaData = null;
@@ -261,6 +261,7 @@
       let pendingPaymentButton = null;
       let pendingNoRepairButton = null;
       const clean = (value) => String(value || "").trim();
+      const isProgressEnabled = (submission) => (submission?.progress_enabled ?? submission?.progressEnabled) === true;
       const isNoRepairProgressEvent = (event) => clean(itemValue(event,"detail_text","detailText")).startsWith("__no_repair");
       function hasNoRepairRequestMark(submission) {
         return clean(itemValue(submission,"customer_issue","customerIssue"))
@@ -299,7 +300,7 @@
       function updateStreets() { const districtCode = form.elements.addressDistrict.value; fillSelect(form.elements.addressStreet, streetItems(districtCode), districtCode ? "街道 / 乡镇" : "请先选择区 / 县"); saveDraft(); }
       async function loadAreas() { try { if (window.CHINA_AREA_DATA) { areaData = window.CHINA_AREA_DATA; } else { const response = await fetch("area-data.json"); if (!response.ok) throw new Error(); areaData = await response.json(); } fillSelect(form.elements.addressProvince, areaData["86"], "省"); fillSelect(form.elements.addressCity, {}, "市"); fillSelect(form.elements.addressDistrict, {}, "区 / 县"); fillSelect(form.elements.addressStreet, {}, "街道 / 乡镇"); restoreDraft(); const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); if (draft) { form.elements.addressProvince.value = draft.addressProvince || ""; updateCities(); form.elements.addressCity.value = draft.addressCity || ""; updateDistricts(); form.elements.addressDistrict.value = draft.addressDistrict || ""; updateStreets(); form.elements.addressStreet.value = draft.addressStreet || ""; } } catch { errorBox.textContent = "省市区街道资料加载失败，请刷新页面重试"; } }
       function validate() { const number = clean(form.elements.deviceNumber.value); const phone = clean(form.elements.phone.value); if (!/^\d{10}$/.test(number)) return "打印机编号要填写10位数字"; if (!/^\d{11}$/.test(phone)) return "手机号码要填写11位数字"; if (!areaData) return "省市区资料还没加载完，请稍等"; return ""; }
-      function showCachedSuccess(item) { if (!item) return; const value = (snake, camel = snake) => item[snake] || item[camel] || ""; const issue = value("customer_issue", "customerIssue"); const visibleIssue = issue.split("\n").filter((line) => clean(line) !== NO_REPAIR_REQUEST_MARK).join("\n"); const power = value("power_adapter_returned", "powerAdapterReturned") || (issue.match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1]; const created = value("created_time", "createdTime"); const address = value("customer_address", "customerAddress"); const submissionNumber = value("submission_number", "submissionNumber"); document.querySelector("#successDetail").innerHTML = `<dl><div><dt>登记编号</dt><dd>${escapeHtml(submissionNumber ? `B${submissionNumber}` : "-")}</dd></div><div><dt>提交时间</dt><dd>${escapeHtml(created)}</dd></div><div><dt>寄出单号</dt><dd>${escapeHtml(value("tracking_number", "trackingNumber"))}</dd></div><div><dt>打印机编号</dt><dd>${escapeHtml(value("device_number", "deviceNumber"))}</dd></div><div><dt>型号</dt><dd>${escapeHtml(value("model"))}</dd></div><div><dt>电源适配器是否寄回</dt><dd>${escapeHtml(power)}</dd></div><div><dt>公司名</dt><dd>${escapeHtml(value("company_name", "companyName"))}</dd></div><div><dt>故障原因</dt><dd>${escapeHtml(visibleIssue.replace(/^电源适配器是否寄回：[^\n]+\n?/, ""))}</dd></div><div><dt>收件信息</dt><dd>${escapeHtml([value("contact_name", "contactName"), value("phone"), address].filter(Boolean).join(" "))}</dd></div></dl>`; form.hidden = true; success.hidden = false; }
+      function showCachedSuccess(item) { if (!item) return; const value = (snake, camel = snake) => item[snake] || item[camel] || ""; const issue = value("customer_issue", "customerIssue"); const visibleIssue = issue.split("\n").filter((line) => clean(line) !== NO_REPAIR_REQUEST_MARK).join("\n"); const power = value("power_adapter_returned", "powerAdapterReturned") || (issue.match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1]; const created = value("created_time", "createdTime"); const address = value("customer_address", "customerAddress"); const submissionNumber = value("submission_number", "submissionNumber"); document.querySelector("#successDetail").innerHTML = `<dl><div><dt>登记编号</dt><dd>${escapeHtml(submissionNumber ? `B${submissionNumber}` : "-")}</dd></div><div><dt>提交时间</dt><dd>${escapeHtml(created)}</dd></div><div><dt>寄出单号</dt><dd>${escapeHtml(value("tracking_number", "trackingNumber"))}</dd></div><div><dt>打印机编号</dt><dd>${escapeHtml(value("device_number", "deviceNumber"))}</dd></div><div><dt>型号</dt><dd>${escapeHtml(value("model"))}</dd></div><div><dt>电源适配器是否寄回</dt><dd>${escapeHtml(power)}</dd></div><div><dt>公司名</dt><dd>${escapeHtml(value("company_name", "companyName"))}</dd></div><div><dt>故障原因</dt><dd>${escapeHtml(visibleIssue.replace(/^电源适配器是否寄回：[^\n]+\n?/, ""))}</dd></div><div><dt>收件信息</dt><dd>${escapeHtml([value("contact_name", "contactName"), value("phone"), address].filter(Boolean).join(" "))}</dd></div></dl>`; viewProgressBtn.hidden = !isProgressEnabled(item); form.hidden = true; success.hidden = false; }
       function escapeHtml(value) { return String(value || "").replace(/[&<>\"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[char])); }
       function itemValue(item, snake, camel = snake) { return item?.[snake] || item?.[camel] || ""; }
       function parseDetectionDetail(value) {
@@ -392,13 +393,13 @@
         if (isNoRepairProgressEvent(progressEvent)) {
           if (index === 5) return "用户放弃维修，并支付寄回运费";
           if (index === 6) return "无需维修";
-          if (index === 7) return "原设备即将寄回";
+          if (index === 7) return "设备正在打包发货";
         }
         if (index === 4 && detailText) {
           const detectionText = parseDetectionDetail(detailText).detailText;
           return /^经检测[:：]/.test(detectionText) ? detectionText : `经检测：${detectionText}`;
         }
-        if (index === 5 && hasNoRepairRequest(submission,state.events)) return "用户放弃维修，原设备即将寄回";
+        if (index === 5 && hasNoRepairRequest(submission,state.events)) return "用户放弃维修，设备正在打包发货";
         if (index === 6 && hasNoRepairRequest(submission,state.events)) return "无需维修";
         if (index === 5 && !progressEvent) return "";
         const notes = [
@@ -409,7 +410,7 @@
           "检测结果已确认，维修人员会与您联系",
           "用户已付款",
           "机器正在维修处理中",
-          "机器已进入发货安排",
+          "设备正在打包发货",
           itemValue(record,"return_tracking_number","returnTrackingNumber") ? `寄回单号：${itemValue(record,"return_tracking_number","returnTrackingNumber")}` : "机器已寄回"
         ];
         return notes[index] || "";
@@ -570,6 +571,12 @@
           }
           if (recordResult.status === "fulfilled") activeProgressRecord = recordResult.value;
           if (eventResult.status === "fulfilled") activeProgressEvents = eventResult.value;
+          if (!isProgressEnabled(activeProgressSubmission)) {
+            viewProgressBtn.hidden = true;
+            progressPage.hidden = true;
+            document.body.classList.remove("progress-open");
+            return;
+          }
           renderProgress(activeProgressSubmission,activeProgressRecord,activeProgressEvents);
         } finally {
           progressRefreshRunning = false;
@@ -663,7 +670,7 @@
       }
       async function openProgress() {
         const submission = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null") || previewSubmission;
-        if (!submission) return;
+        if (!submission || !isProgressEnabled(submission)) return;
         const openAccessories = progressTimeline.querySelector(".progress-accessories[open]");
         if (openAccessories) openAccessories.open = false;
         renderProgress(submission,null);
@@ -672,21 +679,19 @@
         document.querySelector("#closeProgressBtn").focus();
         await refreshOpenProgress({ showLoading:true });
       }
-      function closeProgress() { progressPage.hidden = true; document.body.classList.remove("progress-open"); document.querySelector("#viewProgressBtn").focus(); }
+      function closeProgress() { progressPage.hidden = true; document.body.classList.remove("progress-open"); if (!viewProgressBtn.hidden) viewProgressBtn.focus(); }
       function cancelPaymentConfirm() { pendingPaymentButton = null; if (paymentConfirmDialog.open) paymentConfirmDialog.close(); }
       function acceptPaymentConfirm() { const button = pendingPaymentButton; pendingPaymentButton = null; if (paymentConfirmDialog.open) paymentConfirmDialog.close(); if (!button) return; button.dataset.paymentConfirmed = "1"; confirmPayment(button); }
       function cancelNoRepairConfirm() { pendingNoRepairButton = null; if (noRepairConfirmDialog.open) noRepairConfirmDialog.close(); }
       function acceptNoRepairConfirm() { const button = pendingNoRepairButton; pendingNoRepairButton = null; if (noRepairConfirmDialog.open) noRepairConfirmDialog.close(); if (!button) return; button.dataset.noRepairConfirmed = "1"; requestNoRepair(button); }
-      if (REPAIR_PROGRESS_ENABLED) {
-        paymentPaidBtn.addEventListener("click", acceptPaymentConfirm);
-        paymentNotPaidBtn.addEventListener("click", cancelPaymentConfirm);
-        paymentConfirmDialog.addEventListener("cancel", cancelPaymentConfirm);
-        confirmNoRepairBtn.addEventListener("click", acceptNoRepairConfirm);
-        keepRepairBtn.addEventListener("click", cancelNoRepairConfirm);
-        noRepairConfirmDialog.addEventListener("cancel", cancelNoRepairConfirm);
-        progressTimeline.addEventListener("click", (event) => { const paymentButton = event.target.closest("button[data-payment-confirm]"); if (paymentButton) confirmPayment(paymentButton); const noRepairButton = event.target.closest("button[data-no-repair]"); if (noRepairButton) requestNoRepair(noRepairButton); });
-        window.setInterval(() => { if (activeProgressSubmission && !progressPage.hidden) refreshOpenProgress(); },5000);
-      }
+      paymentPaidBtn.addEventListener("click", acceptPaymentConfirm);
+      paymentNotPaidBtn.addEventListener("click", cancelPaymentConfirm);
+      paymentConfirmDialog.addEventListener("cancel", cancelPaymentConfirm);
+      confirmNoRepairBtn.addEventListener("click", acceptNoRepairConfirm);
+      keepRepairBtn.addEventListener("click", cancelNoRepairConfirm);
+      noRepairConfirmDialog.addEventListener("cancel", cancelNoRepairConfirm);
+      progressTimeline.addEventListener("click", (event) => { const paymentButton = event.target.closest("button[data-payment-confirm]"); if (paymentButton) confirmPayment(paymentButton); const noRepairButton = event.target.closest("button[data-no-repair]"); if (noRepairButton) requestNoRepair(noRepairButton); });
+      window.setInterval(() => { if (activeProgressSubmission && !progressPage.hidden) refreshOpenProgress(); },5000);
       async function notifyNewSubmission(submissionId) {
         let lastError = new Error("企微推送失败");
         for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -735,73 +740,18 @@
         }
       }
       function showForm() { success.hidden = true; form.hidden = false; errorBox.textContent = ""; }
-      async function refreshCachedSubmission() {
+      async function restoreLastSubmissionView() {
+        if (previewSubmission || document.hidden || new URLSearchParams(location.search).get("entry") === "edit") return;
         try {
-          const cached = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null");
-          if (!cached) return;
-          const latest = await loadSubmission(cached);
-          if (!latest) return;
-          localStorage.setItem(LAST_SUBMISSION_KEY, JSON.stringify(latest));
-          showCachedSuccess(latest);
+          const cachedSubmission = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null");
+          if (!cachedSubmission) return;
+          showCachedSuccess(cachedSubmission);
+          const latestSubmission = await loadSubmission(cachedSubmission);
+          localStorage.setItem(LAST_SUBMISSION_KEY,JSON.stringify(latestSubmission));
+          showCachedSuccess(latestSubmission);
         } catch {}
       }
-      function restoreLastSubmissionView() {
-        if (document.hidden || new URLSearchParams(location.search).get("entry") === "edit") return;
-        try {
-          showCachedSuccess(JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null"));
-          refreshCachedSubmission();
-        } catch {}
-      }
-      form.addEventListener("input", saveDraft);
-      form.addEventListener("change", saveDraft);
-      form.elements.deviceNumber.addEventListener("input", () => {
-        form.elements.deviceNumber.value = form.elements.deviceNumber.value.replace(/\D/g, "").slice(0,10);
-      });
-      form.elements.phone.addEventListener("input", () => {
-        form.elements.phone.value = form.elements.phone.value.replace(/\D/g, "").slice(0,11);
-      });
-      form.elements.addressProvince.addEventListener("change", updateCities);
-      form.elements.addressCity.addEventListener("change", updateDistricts);
-      form.elements.addressDistrict.addEventListener("change", updateStreets);
-      form.addEventListener("submit", submit);
-      document.querySelector("#newBtn").addEventListener("click", () => {
-        form.reset();
-        draftNote.hidden = true;
-        history.replaceState(null, "", location.pathname);
-        showForm();
-      });
-      document.querySelector("#editBtn").addEventListener("click", () => {
-        const item = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null");
-        if (item) {
-          form.elements.deviceNumber.value = item.device_number || item.deviceNumber || "";
-          form.elements.companyName.value = item.company_name || item.companyName || "";
-          form.elements.contactName.value = item.contact_name || item.contactName || "";
-          form.elements.phone.value = item.phone || "";
-          form.elements.trackingNumber.value = item.tracking_number || item.trackingNumber || "";
-          form.elements.customerIssue.value = (item.customer_issue || item.customerIssue || "").replace(/^电源适配器是否寄回：[^\n]+\n?/, "");
-          form.elements.powerAdapterReturned.value = item.power_adapter_returned || item.powerAdapterReturned || ((item.customer_issue || "").match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1];
-        }
-        history.replaceState(null, "", `${location.pathname}?entry=edit`);
-        showForm();
-      });
-      if (REPAIR_PROGRESS_ENABLED) {
-        document.querySelector("#viewProgressBtn").addEventListener("click", openProgress);
-        document.querySelector("#closeProgressBtn").addEventListener("click", closeProgress);
-        progressTimeline.addEventListener("change", (event) => {
-          const checkbox = event.target.closest("input[data-payment-confirm]");
-          if (checkbox) confirmPayment(checkbox);
-        });
-        document.addEventListener("keydown", (event) => {
-          if (event.key === "Escape" && !progressPage.hidden) closeProgress();
-        });
-      }
-      document.addEventListener("visibilitychange", restoreLastSubmissionView);
-      window.addEventListener("pageshow", restoreLastSubmissionView);
-      try {
-        showCachedSuccess(JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null") || previewSubmission);
-      } catch {}
-      refreshCachedSubmission();
-      loadAreas();
+      form.addEventListener("input", saveDraft); form.addEventListener("change", saveDraft); form.elements.deviceNumber.addEventListener("input", () => { form.elements.deviceNumber.value = form.elements.deviceNumber.value.replace(/\D/g, "").slice(0,10); }); form.elements.phone.addEventListener("input", () => { form.elements.phone.value = form.elements.phone.value.replace(/\D/g, "").slice(0,11); }); form.elements.addressProvince.addEventListener("change", updateCities); form.elements.addressCity.addEventListener("change", updateDistricts); form.elements.addressDistrict.addEventListener("change", updateStreets); form.addEventListener("submit", submit); document.querySelector("#newBtn").addEventListener("click", () => { form.reset(); draftNote.hidden = true; history.replaceState(null, "", location.pathname); showForm(); }); document.querySelector("#editBtn").addEventListener("click", () => { const item = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null"); if (item) { form.elements.deviceNumber.value = item.device_number || item.deviceNumber || ""; form.elements.companyName.value = item.company_name || item.companyName || ""; form.elements.contactName.value = item.contact_name || item.contactName || ""; form.elements.phone.value = item.phone || ""; form.elements.trackingNumber.value = item.tracking_number || item.trackingNumber || ""; form.elements.customerIssue.value = (item.customer_issue || item.customerIssue || "").replace(/^电源适配器是否寄回：[^\n]+\n?/, ""); form.elements.powerAdapterReturned.value = item.power_adapter_returned || item.powerAdapterReturned || ((item.customer_issue || "").match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1]; } history.replaceState(null, "", `${location.pathname}?entry=edit`); showForm(); }); document.querySelector("#viewProgressBtn").addEventListener("click", openProgress); document.querySelector("#closeProgressBtn").addEventListener("click", closeProgress); progressTimeline.addEventListener("change", (event) => { const checkbox = event.target.closest("input[data-payment-confirm]"); if (checkbox) confirmPayment(checkbox); }); document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !progressPage.hidden) closeProgress(); }); document.addEventListener("visibilitychange", () => { restoreLastSubmissionView(); if (!document.hidden) refreshOpenProgress(); }); window.addEventListener("pageshow", () => { restoreLastSubmissionView(); refreshOpenProgress(); }); restoreLastSubmissionView(); try { showCachedSuccess(previewSubmission); } catch {} loadAreas();
     </script>
   </body>
 </html>

@@ -1,4 +1,4 @@
--- 建好基础表后，如需 A/B 登记编号，再执行 record-id-link-setup.sql。
+-- 建好基础表后，还要依次执行 record-id-link-setup.sql 和 repair-progress-setup.sql。
 
 create table if not exists public.repair_records (
   id text primary key,
@@ -75,8 +75,12 @@ create table if not exists public.customer_repair_submissions (
   tracking_number text not null default '',
   customer_issue text not null default '',
   customer_address text not null default '',
+  progress_enabled boolean not null default true,
   updated_at timestamptz not null default now()
 );
+
+alter table public.customer_repair_submissions
+  add column if not exists progress_enabled boolean;
 
 create index if not exists customer_repair_submissions_created_time_idx
   on public.customer_repair_submissions (created_time desc);

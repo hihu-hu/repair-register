@@ -288,6 +288,31 @@ body.submissions-view .submissions-header-tips {
   font-size: 30px;
 }
 
+@media (min-width: 761px) {
+  .stats-grid {
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .metric {
+    min-width: 0;
+    min-height: 76px;
+    padding: 10px 6px;
+  }
+
+  .metric span {
+    overflow: hidden;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .metric strong {
+    margin-top: 6px;
+    font-size: 26px;
+  }
+}
+
 .analytics-page {
   display: grid;
   gap: 14px;
@@ -349,10 +374,22 @@ body.submissions-view .submissions-header-tips {
   min-height: 36px;
 }
 
-.analytics-head > span {
+.analytics-meta {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.analytics-meta > span {
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
+}
+
+.analytics-meta .analytics-drilldown-hint {
+  color: var(--accent);
 }
 
 .analytics-accessory-toggle {
@@ -408,6 +445,17 @@ body.submissions-view .submissions-header-tips {
 .analysis-panel {
   min-height: 260px;
   padding: 16px;
+}
+
+.analysis-month-panel {
+  grid-column: 1 / -1;
+  min-height: 0;
+}
+
+.analysis-month-bars {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  column-gap: 24px;
+  row-gap: 18px;
 }
 
 .analysis-panel-title {
@@ -467,8 +515,8 @@ body.submissions-view .submissions-header-tips {
 }
 
 .analysis-panel-select {
-  width: auto;
-  min-width: 104px;
+  width: 100px;
+  min-width: 100px;
   height: 32px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
@@ -1216,7 +1264,7 @@ body.customer-progress-open {
 }
 
 .customer-progress-repair-suggestion strong {
-  color: var(--accent-dark);
+  color: #d4a017;
 }
 
 .customer-progress-warranty {
@@ -1612,6 +1660,50 @@ body.customer-progress-open {
   font-weight: 700;
 }
 
+.submission-refresh-button {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 0;
+  background: #fff;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.submission-refresh-button:hover,
+.submission-refresh-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+.submission-refresh-button span {
+  display: inline-block;
+  color: inherit;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.submission-refresh-button.is-loading span {
+  animation: submission-refresh-spin 0.7s linear infinite;
+}
+
+@keyframes submission-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .submission-refresh-button.is-loading span {
+    animation: none;
+  }
+}
+
 .submission-search-input {
   width: min(360px, 100%);
   min-height: 36px;
@@ -1639,6 +1731,30 @@ body.customer-progress-open {
   white-space: nowrap;
 }
 
+.region-col {
+  width: 85px;
+  min-width: 85px;
+  max-width: 85px;
+  padding-right: 8px;
+  padding-left: 8px;
+}
+
+.fault-ownership-col {
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
+  padding-right: 8px;
+  padding-left: 8px;
+}
+
+.fault-category-col {
+  width: 78px;
+  min-width: 78px;
+  max-width: 78px;
+  padding-right: 8px;
+  padding-left: 8px;
+}
+
 .record-id-badge.repair-id {
   border-color: #b9c9e8;
   background: #edf3ff;
@@ -1662,6 +1778,7 @@ body.customer-progress-open {
   border-radius: 6px;
   background: #e4f4f0;
   color: var(--accent-dark);
+  cursor: pointer;
   font-size: 11px;
   font-weight: 800;
   line-height: 1.25;
@@ -1809,6 +1926,14 @@ body:not(.readonly) .inline-return-tracking {
   color: #34434d;
   line-height: 1.55;
   white-space: pre-wrap;
+}
+
+td.repair-process-col {
+  width: calc(7em + 28px);
+  min-width: calc(7em + 28px);
+  max-width: calc(7em + 28px);
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .address-cell {
@@ -2015,6 +2140,10 @@ dialog {
   width: min(1010px, calc(100% - 28px));
 }
 
+#customerProgressPreviewDialog {
+  width: min(560px, calc(100% - 28px));
+}
+
 dialog::backdrop {
   background: rgba(24, 32, 38, 0.45);
 }
@@ -2045,7 +2174,8 @@ dialog::backdrop {
   width: min(440px, calc(100% - 32px));
 }
 
-#detectionReminderDialog {
+#detectionReminderDialog,
+#shippingReminderDialog {
   width: min(440px, calc(100% - 32px));
 }
 
@@ -2186,6 +2316,41 @@ dialog::backdrop {
   display: grid;
   gap: 16px;
   padding: 20px;
+}
+
+.customer-progress-preview-dialog {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.customer-progress-preview-dialog .dialog-head {
+  margin-bottom: 0;
+}
+
+.customer-progress-preview-dialog .dialog-head h2 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: 0;
+}
+
+.customer-progress-preview-viewport {
+  max-height: calc(100dvh - 190px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.customer-progress-preview-content {
+  width: 100%;
+  min-height: 0;
+  padding-bottom: 20px;
+}
+
+.customer-progress-preview-actions {
+  justify-content: flex-end;
 }
 
 .progress-manage-dialog .dialog-head {
@@ -2414,6 +2579,10 @@ dialog::backdrop {
   max-width: 520px;
 }
 
+.progress-result-field {
+  position: relative;
+}
+
 .progress-warranty-options {
   display: block;
   margin: 0;
@@ -2493,6 +2662,13 @@ dialog::backdrop {
   font-weight: 800;
 }
 
+.progress-result-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: start;
+  gap: 6px;
+}
+
 .progress-result-field textarea {
   width: 100%;
   min-height: 82px;
@@ -2506,6 +2682,11 @@ dialog::backdrop {
   line-height: 1.55;
 }
 
+.progress-result-editor > textarea {
+  height: 50px;
+  min-height: 50px;
+}
+
 .progress-result-field textarea:focus {
   border-color: var(--accent);
   outline: 2px solid rgba(15, 123, 108, 0.15);
@@ -2513,6 +2694,126 @@ dialog::backdrop {
 
 .progress-result-field textarea:disabled {
   background: var(--gray-soft);
+}
+
+.progress-result-presets-toggle {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  padding: 0;
+  background: #fff;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.progress-result-presets-toggle:hover,
+.progress-result-presets-toggle:focus-visible,
+.progress-result-presets-toggle[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.progress-result-presets {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(24, 32, 38, 0.12);
+}
+
+.progress-result-preset-list {
+  display: grid;
+  gap: 3px;
+  max-height: 230px;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.progress-result-preset-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  align-items: stretch;
+  gap: 3px;
+}
+
+.progress-result-preset-option,
+.progress-result-preset-delete {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.progress-result-preset-option {
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 9px;
+  color: #34434d;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: left;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.progress-result-preset-option:hover,
+.progress-result-preset-option:focus-visible {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.progress-result-preset-delete {
+  min-width: 34px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 20px;
+}
+
+.progress-result-preset-delete:hover,
+.progress-result-preset-delete:focus-visible {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.progress-result-preset-empty {
+  margin: 0;
+  padding: 12px 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.progress-result-preset-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  padding: 9px;
+  border-top: 1px solid var(--line);
+  background: #f8fafb;
+}
+
+.progress-result-preset-add textarea {
+  height: 45px;
+  min-height: 45px;
+  resize: vertical;
+}
+
+.progress-result-preset-add button {
+  min-height: 40px;
+  white-space: nowrap;
 }
 
 .progress-accessory-field {
@@ -2928,14 +3229,23 @@ dialog::backdrop {
 .repair-process-field-head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   min-height: 34px;
 }
 
 .repair-process-label {
+  flex: 0 1 auto;
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
+}
+
+.record-progress-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  margin-left: 0;
 }
 
 .field-required-marker {
@@ -2947,6 +3257,13 @@ dialog::backdrop {
 .record-progress-button {
   width: 65px;
   min-width: 65px;
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.customer-progress-preview-button {
   min-height: 32px;
   padding: 0 12px;
   font-size: 12px;
@@ -3554,6 +3871,10 @@ body.readonly .row-actions {
     flex-direction: column;
   }
 
+  .analytics-meta {
+    align-items: flex-start;
+  }
+
   .analytics-filters {
     align-items: stretch;
     flex-direction: column;
@@ -3697,5 +4018,9 @@ body.readonly .row-actions {
 
   .progress-manage-step-actions button {
     flex: 1 1 auto;
+  }
+
+  .progress-result-preset-add {
+    grid-template-columns: 1fr;
   }
 }

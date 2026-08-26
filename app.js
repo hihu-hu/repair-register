@@ -1,7 +1,7 @@
 const STORAGE_KEY = "printer_repair_records_v3";
 const CUSTOMER_SUBMISSIONS_STORAGE_KEY = "printer_customer_submissions_v1";
 const REPAIR_PROGRESS_STORAGE_KEY = "printer_repair_progress_events_v1";
-const REPAIR_PROGRESS_ENABLED = false;
+const PROGRESS_RESULT_PRESETS_STORAGE_KEY = "printer_progress_result_presets_v1";
 const LAST_CUSTOMER_SUBMISSION_KEY = "printer_last_customer_submission_v1";
 const PUBLIC_SHARE_BASE_URL = "https://hihu-hu.github.io/repair-register/";
 const CUSTOMER_REGISTER_URL = `${PUBLIC_SHARE_BASE_URL}customer.html`;
@@ -35,6 +35,13 @@ const PROGRESS_ACCESSORY_STORAGE_PREFIX = "__progress_accessories__:";
 const PROGRESS_CUSTOM_ACCESSORY_PART = "自定义";
 const PROGRESS_HIDDEN_ACCESSORY_PARTS = new Set([CUSTOM_PRICE_ACCESSORY_PART, "快递费", "无费用"]);
 const PROGRESS_WARRANTY_OPTIONS = ["在保", "已过保"];
+const DEFAULT_PROGRESS_RESULT_PRESETS = [
+  "设备泡水导致配件腐蚀损坏",
+  "检测到打印头损坏，需要更换后测试",
+  "检测到主板损坏，需要更换后测试",
+  "检测到传感器损坏，需要更换后测试",
+  "检测未发现硬件故障，已清洁维护并测试正常"
+];
 const LOCKED_CUSTOMER_EDIT_STATUSES = ["已寄出", "邮寄并结束"];
 const RETURN_TIME_REQUIRED_STATUSES = ["今天需要寄", "邮寄并结束"];
 const CUSTOMER_PROGRESS_STEPS = [
@@ -292,15 +299,15 @@ const els = {
   analysisDateFrom: document.querySelector("#analysisDateFrom"),
   analysisDateTo: document.querySelector("#analysisDateTo"),
   resetAnalysisDateBtn: document.querySelector("#resetAnalysisDateBtn"),
-  analysisHardwareRate: document.querySelector("#analysisHardwareRate"),
+  analysisTotalRepairs: document.querySelector("#analysisTotalRepairs"),
   analysisThisMonth: document.querySelector("#analysisThisMonth"),
+  analysisMonthBars: document.querySelector("#analysisMonthBars"),
   analysisCategoryBars: document.querySelector("#analysisCategoryBars"),
   analysisRegionBars: document.querySelector("#analysisRegionBars"),
   analysisModelBars: document.querySelector("#analysisModelBars"),
   analysisAccessoryPanel: document.querySelector("#analysisAccessoryPanel"),
   analysisAccessoryFeeModeBtn: document.querySelector("#analysisAccessoryFeeModeBtn"),
   analysisAccessoryModelFilter: document.querySelector("#analysisAccessoryModelFilter"),
-  exportAccessoryExcelBtn: document.querySelector("#exportAccessoryExcelBtn"),
   analysisAccessoryBars: document.querySelector("#analysisAccessoryBars"),
   analysisTrendBars: document.querySelector("#analysisTrendBars"),
   analysisOwnershipTotal: document.querySelector("#analysisOwnershipTotal"),
@@ -334,14 +341,17 @@ const els = {
   cancelSubmissionDialogBtn: document.querySelector("#cancelSubmissionDialogBtn"),
   submissionsBody: document.querySelector("#submissionsBody"),
   submissionCount: document.querySelector("#submissionCount"),
+  refreshSubmissionsBtn: document.querySelector("#refreshSubmissionsBtn"),
   submissionSearchInput: document.querySelector("#submissionSearchInput"),
   submissionsEmptyState: document.querySelector("#submissionsEmptyState"),
   metricCards: document.querySelectorAll("[data-metric-target]"),
   testingCount: document.querySelector("#testingCount"),
   readyCount: document.querySelector("#readyCount"),
   pendingShipmentCount: document.querySelector("#pendingShipmentCount"),
+  pendingSendCount: document.querySelector("#pendingSendCount"),
   finishedCount: document.querySelector("#finishedCount"),
   testStatusCount: document.querySelector("#testStatusCount"),
+  incompleteProgressCount: document.querySelector("#incompleteProgressCount"),
   unrepairedSubmissionCount: document.querySelector("#unrepairedSubmissionCount"),
   filteredCount: document.querySelector("#filteredCount"),
   filterSummaryCount: document.querySelector("#filterSummaryCount"),
@@ -377,6 +387,12 @@ const els = {
   recordId: document.querySelector("#recordId"),
   dialogTitle: document.querySelector("#dialogTitle"),
   recordProgressBtn: document.querySelector("#recordProgressBtn"),
+  previewCustomerProgressBtn: document.querySelector("#previewCustomerProgressBtn"),
+  customerProgressPreviewDialog: document.querySelector("#customerProgressPreviewDialog"),
+  customerProgressPreviewSummary: document.querySelector("#customerProgressPreviewSummary"),
+  customerProgressPreviewTimeline: document.querySelector("#customerProgressPreviewTimeline"),
+  closeCustomerProgressPreviewBtn: document.querySelector("#closeCustomerProgressPreviewBtn"),
+  doneCustomerProgressPreviewBtn: document.querySelector("#doneCustomerProgressPreviewBtn"),
   deviceHistoryBtn: document.querySelector("#deviceHistoryBtn"),
   faultCategoryToggle: document.querySelector("#faultCategoryToggle"),
   faultCategoryMenu: document.querySelector("#faultCategoryMenu"),
@@ -427,6 +443,8 @@ const els = {
   confirmReceivedUndoBtn: document.querySelector("#confirmReceivedUndoBtn"),
   detectionReminderDialog: document.querySelector("#detectionReminderDialog"),
   confirmDetectionReminderBtn: document.querySelector("#confirmDetectionReminderBtn"),
+  shippingReminderDialog: document.querySelector("#shippingReminderDialog"),
+  confirmShippingReminderBtn: document.querySelector("#confirmShippingReminderBtn"),
   modeNote: document.querySelector("#modeNote"),
   toast: document.querySelector("#toast"),
   addressPopover: document.querySelector("#addressPopover"),
@@ -474,6 +492,7 @@ if (linkingPreviewMode) {
 }
 let currentView = "repair";
 let submissionStatusFilter = "";
+let progressIncompleteFilter = false;
 let areaData = null;
 let appliedSubmissionSnapshot = null;
 let appliedSubmissionId = "";
@@ -499,9 +518,10 @@ let receivedUndoHoldButton = null;
 let receivedUndoHoldPointerId = null;
 let pendingReceivedUndoSubmissionId = "";
 let pendingReceivedUndoButton = null;
+let progressResultPresets = loadProgressResultPresets();
 
 const initialIdentityChanged = prepareRecordIdentities({
-  migrateLegacyLinks: false
+  migrateLegacyLinks: shouldUseLocalStartupData || Boolean(sharedData)
 });
 if (shouldUseLocalStartupData && initialIdentityChanged) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
@@ -524,6 +544,26 @@ function loadCustomerSubmissions() {
   } catch {
     return [];
   }
+}
+
+function normalizeProgressResultPreset(value = "") {
+  return String(value || "").trim().replace(/\r\n/g, "\n").slice(0, 500);
+}
+
+function loadProgressResultPresets() {
+  try {
+    const raw = localStorage.getItem(PROGRESS_RESULT_PRESETS_STORAGE_KEY);
+    if (raw === null) return [...DEFAULT_PROGRESS_RESULT_PRESETS];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [...DEFAULT_PROGRESS_RESULT_PRESETS];
+    return [...new Set(parsed.map(normalizeProgressResultPreset).filter(Boolean))];
+  } catch {
+    return [...DEFAULT_PROGRESS_RESULT_PRESETS];
+  }
+}
+
+function saveProgressResultPresets() {
+  localStorage.setItem(PROGRESS_RESULT_PRESETS_STORAGE_KEY, JSON.stringify(progressResultPresets));
 }
 
 function normalizeProgressEvent(item = {}) {
@@ -672,7 +712,7 @@ function applyHashRoute() {
 
   if (linkingPreviewMode) {
     setReadonlyMode(false);
-    setView("repair");
+    setView(location.hash === "#analytics" ? "analytics" : "repair");
     render();
     return;
   }
@@ -700,7 +740,7 @@ function applyHashRoute() {
 
 function closeOpenDialogs() {
   if (els.recordDialog.open && !closeRecordDialogWithGuard()) return false;
-  [els.shareDialog, els.deviceHistoryDialog, els.progressManageDialog].forEach((dialog) => {
+  [els.shareDialog, els.deviceHistoryDialog, els.progressManageDialog, els.customerProgressPreviewDialog].forEach((dialog) => {
     if (dialog.open) dialog.close();
   });
   return true;
@@ -926,6 +966,7 @@ function normalizeCustomerSubmission(item = {}) {
   const deviceNumber = String(item.deviceNumber || item.device_number || "").trim();
   const inferredModel = inferModelFromDeviceNumber(deviceNumber);
   const customerIssue = String(item.customerIssue || item.customer_issue || "").trim();
+  const progressEnabled = item.progressEnabled ?? item.progress_enabled;
   return {
     id: String(item.id || createCustomerSubmissionId()),
     submissionNumber: normalizeDisplayNumber(item.submissionNumber ?? item.submission_number),
@@ -941,6 +982,7 @@ function normalizeCustomerSubmission(item = {}) {
       item.powerAdapterReturned || item.power_adapter_returned || extractPowerAdapterAnswerFromText(customerIssue)
     ),
     customerAddress: String(item.customerAddress || item.customer_address || "").trim(),
+    progressEnabled: typeof progressEnabled === "boolean" ? progressEnabled : null,
     updatedAt: String(item.updatedAt || item.updated_at || new Date().toISOString())
   };
 }
@@ -2053,6 +2095,7 @@ function fromDatabaseSubmission(item) {
     customerIssue: item.customer_issue,
     powerAdapterReturned: item.power_adapter_returned,
     customerAddress: item.customer_address,
+    progressEnabled: item.progress_enabled,
     updatedAt: item.updated_at
   });
 }
@@ -2083,7 +2126,7 @@ async function initializeCloud() {
   refreshAccessMode();
   await loadCloudRecords();
   await loadCloudSubmissions();
-  if (REPAIR_PROGRESS_ENABLED) await loadCloudProgressEvents();
+  await loadCloudProgressEvents();
 
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     const sessionEmail = session?.user?.email || "";
@@ -2091,7 +2134,7 @@ async function initializeCloud() {
     refreshAccessMode();
     loadCloudRecords();
     loadCloudSubmissions();
-    if (REPAIR_PROGRESS_ENABLED) loadCloudProgressEvents();
+    loadCloudProgressEvents();
   });
 }
 
@@ -2113,6 +2156,7 @@ async function loadCloudRecords() {
   prepareRecordIdentities();
   render();
   updateCustomerEditButton();
+  updateCustomerProgressButton();
 }
 
 async function saveCloudRecord(record) {
@@ -2140,7 +2184,7 @@ async function deleteCloudRecord(id) {
 }
 
 async function loadCloudSubmissions() {
-  if (!cloudMode || !supabaseClient) return;
+  if (!cloudMode || !supabaseClient) return false;
 
   const { data, error } = await supabaseClient
     .from("customer_repair_submissions")
@@ -2151,13 +2195,38 @@ async function loadCloudSubmissions() {
     console.error(error);
     showToast("客户提交读取失败，请确认数据库已更新");
     renderSubmissions();
-    return;
+    return false;
   }
 
   customerSubmissions = sortCustomerSubmissionsNewestFirst(data.map(fromDatabaseSubmission));
   prepareRecordIdentities();
   renderTable();
   renderSubmissions();
+  updateCustomerProgressButton();
+  return true;
+}
+
+async function refreshCustomerSubmissions() {
+  if (!cloudMode || !supabaseClient) {
+    showToast("云端连接尚未完成，请稍后再试");
+    return;
+  }
+
+  els.refreshSubmissionsBtn.disabled = true;
+  els.refreshSubmissionsBtn.classList.add("is-loading");
+  els.refreshSubmissionsBtn.setAttribute("aria-busy", "true");
+
+  try {
+    const refreshed = await loadCloudSubmissions();
+    if (refreshed) showToast("客户提交已刷新");
+  } catch (error) {
+    console.error(error);
+    showToast("客户提交刷新失败");
+  } finally {
+    els.refreshSubmissionsBtn.disabled = false;
+    els.refreshSubmissionsBtn.classList.remove("is-loading");
+    els.refreshSubmissionsBtn.removeAttribute("aria-busy");
+  }
 }
 
 async function saveCloudSubmission(item) {
@@ -2194,7 +2263,7 @@ async function deleteCloudSubmission(id) {
 }
 
 async function loadCloudProgressEvents(skipAutoDetection = false) {
-  if (!REPAIR_PROGRESS_ENABLED || !cloudMode || !supabaseClient) return;
+  if (!cloudMode || !supabaseClient) return;
 
   const { data, error } = await supabaseClient
     .from("repair_progress_events")
@@ -2287,7 +2356,7 @@ function getOverdueDetectionEvents(now = Date.now()) {
 }
 
 async function autoStartOverdueDetections() {
-  if (!REPAIR_PROGRESS_ENABLED || autoDetectionCheckRunning || linkingPreviewMode) return 0;
+  if (autoDetectionCheckRunning || linkingPreviewMode) return 0;
   if ((cloudMode && !adminMode) || (!cloudMode && readonlyMode)) return 0;
   const dueEvents = getOverdueDetectionEvents();
   if (!dueEvents.length) return 0;
@@ -2337,7 +2406,6 @@ async function autoStartOverdueDetections() {
 }
 
 async function startDetectionForNewRecord(record) {
-  if (!REPAIR_PROGRESS_ENABLED) return false;
   const submissionId = String(record?.submissionId || "").trim();
   if (!submissionId) return false;
 
@@ -2379,7 +2447,7 @@ async function startDetectionForNewRecord(record) {
 }
 
 function startAutoDetectionChecks() {
-  if (!REPAIR_PROGRESS_ENABLED || linkingPreviewMode) return;
+  if (linkingPreviewMode) return;
   if (autoDetectionCheckTimer) window.clearInterval(autoDetectionCheckTimer);
   autoStartOverdueDetections().catch((error) => console.error("自动检测检查失败", error));
   autoDetectionCheckTimer = window.setInterval(() => {
@@ -2842,7 +2910,13 @@ function getLastCustomerSubmission() {
     if (!raw) return null;
     const cachedSubmission = normalizeCustomerSubmission(JSON.parse(raw));
     const cloudSubmission = customerSubmissions.find((item) => item.id === cachedSubmission.id);
-    return cloudSubmission ? { ...cachedSubmission, submissionNumber: cloudSubmission.submissionNumber } : cachedSubmission;
+    return cloudSubmission
+      ? {
+          ...cachedSubmission,
+          submissionNumber: cloudSubmission.submissionNumber,
+          progressEnabled: cloudSubmission.progressEnabled
+        }
+      : cachedSubmission;
   } catch {
     return null;
   }
@@ -2877,6 +2951,23 @@ function startNewCustomerSubmission() {
 function getCustomerSubmissionRepairRecord(submission) {
   if (!submission) return null;
   return getSubmissionRepairMatches().get(submission.id) || null;
+}
+
+function isCustomerProgressEnabled(submission) {
+  if (!submission) return false;
+  if (typeof submission.progressEnabled === "boolean") return submission.progressEnabled;
+  if (cloudMode) return false;
+  return !getCustomerSubmissionRepairRecord(submission);
+}
+
+function updateCustomerProgressButton() {
+  if (!els.viewCustomerProgressBtn) return;
+  const enabled = isCustomerProgressEnabled(getLastCustomerSubmission());
+  els.viewCustomerProgressBtn.hidden = !enabled;
+  if (!enabled && els.customerProgressPage && !els.customerProgressPage.hidden) {
+    els.customerProgressPage.hidden = true;
+    document.body.classList.remove("customer-progress-open");
+  }
 }
 
 function canEditCustomerSubmission(submission) {
@@ -2934,6 +3025,7 @@ function showCustomerPortal() {
   els.customerForm.hidden = true;
   els.customerRecent.hidden = false;
   updateCustomerEditButton();
+  updateCustomerProgressButton();
   els.customerRecentDetail.innerHTML = `
     <div class="success-panel">
       <strong>登记成功</strong>
@@ -3055,7 +3147,7 @@ function getCustomerProgressNote(index, submission, record, progressState) {
   if (isNoRepairProgressEvent(progressEvent)) {
     if (index === 5) return "无需付款";
     if (index === 6) return "无需维修";
-    if (index === 7) return "机器无需维修，等待安排发货";
+    if (index === 7) return "设备正在打包发货";
   }
   if (index === 4 && progressEvent?.detailText) {
     return parseProgressDetectionDetail(progressEvent.detailText).detailText;
@@ -3068,7 +3160,7 @@ function getCustomerProgressNote(index, submission, record, progressState) {
     "检测结果已确认，维修人员会与您联系",
     "维修费用已确认",
     "机器正在维修处理中",
-    "机器已进入发货安排",
+    "设备正在打包发货",
     record?.returnTrackingNumber ? `寄回单号：${record.returnTrackingNumber}` : "机器已寄回"
   ];
   return notes[index] || "";
@@ -3112,18 +3204,22 @@ function renderCustomerProgressAccessories(submission, detectionDetail) {
   `;
 }
 
-function renderCustomerProgress(submission, record) {
-  if (!submission || !els.customerProgressTimeline) return;
+function renderCustomerProgress(submission, record, options = {}) {
+  const summaryElement = options.summaryElement || els.customerProgressSummary;
+  const timelineElement = options.timelineElement || els.customerProgressTimeline;
+  const pageElement = options.pageElement || els.customerProgressPage;
+  const readonly = Boolean(options.readonly);
+  if (!submission || !summaryElement || !timelineElement) return;
   const position = getCustomerProgressState(submission, record);
   const currentStatus = CUSTOMER_PROGRESS_STEPS[position.currentIndex];
-  els.customerProgressSummary.innerHTML = `
+  summaryElement.innerHTML = `
     <div>
       <span>登记编号 ${escapeHtml(formatSubmissionId(submission))} · 打印机编号</span>
       <strong>${compact(submission.deviceNumber)}</strong>
     </div>
     <small>${escapeHtml(submission.model || "型号未知")}</small>
   `;
-  els.customerProgressTimeline.innerHTML = CUSTOMER_PROGRESS_STEPS.map((label, index) => {
+  timelineElement.innerHTML = CUSTOMER_PROGRESS_STEPS.map((label, index) => {
     const isComplete = index <= position.completedThrough;
     const isCurrent = index === position.currentIndex && position.completedThrough < index;
     const stateClass = isComplete ? "is-complete" : isCurrent ? "is-current" : "is-pending";
@@ -3153,7 +3249,7 @@ function renderCustomerProgress(submission, record) {
       && position.explicitProgress
       && position.events.some((item) => item.stepIndex === 4)
       && !position.events.some((item) => item.stepIndex === 6);
-    const paymentConfirm = canConfirmPayment
+    const paymentConfirm = canConfirmPayment && !readonly
       ? `<p class="customer-payment-guide">
           <span>若无异议，请在「管理端-更多-商城」里支付维修费用</span>
           <span>有异议可返回页面「扫码添加微信」咨询</span>
@@ -3176,7 +3272,7 @@ function renderCustomerProgress(submission, record) {
       </li>
     `;
   }).join("");
-  els.customerProgressPage.setAttribute("data-current-status", currentStatus);
+  pageElement?.setAttribute("data-current-status", currentStatus);
 }
 
 async function confirmCustomerPayment(button) {
@@ -3263,6 +3359,7 @@ function openCustomerProgress() {
     showToast("请先提交维修登记");
     return;
   }
+  if (!isCustomerProgressEnabled(submission)) return;
   const record = getCustomerSubmissionRepairRecord(submission);
   renderCustomerProgress(submission, record);
   els.customerProgressLoading.hidden = true;
@@ -3274,7 +3371,28 @@ function openCustomerProgress() {
 function closeCustomerProgress() {
   els.customerProgressPage.hidden = true;
   document.body.classList.remove("customer-progress-open");
-  els.viewCustomerProgressBtn.focus();
+  if (!els.viewCustomerProgressBtn.hidden) els.viewCustomerProgressBtn.focus();
+}
+
+function openCustomerProgressPreview() {
+  const submissionId = String(els.recordForm.elements.submissionId?.value || appliedSubmissionId || "").trim();
+  const submission = customerSubmissions.find((item) => item.id === submissionId);
+  if (!submission) {
+    showToast("请先关联客户登记 B 编号");
+    return;
+  }
+  renderCustomerProgress(submission, getCustomerSubmissionRepairRecord(submission), {
+    summaryElement: els.customerProgressPreviewSummary,
+    timelineElement: els.customerProgressPreviewTimeline,
+    pageElement: els.customerProgressPreviewDialog,
+    readonly: true
+  });
+  if (!els.customerProgressPreviewDialog.open) els.customerProgressPreviewDialog.showModal();
+  els.closeCustomerProgressPreviewBtn.focus();
+}
+
+function closeCustomerProgressPreview() {
+  if (els.customerProgressPreviewDialog.open) els.customerProgressPreviewDialog.close();
 }
 
 function openProgressManageDialog(submissionId) {
@@ -3489,6 +3607,85 @@ function saveProgressCustomPartPriceFromDialog() {
   return true;
 }
 
+function renderProgressResultPresetOptions(stepIndex) {
+  if (progressResultPresets.length === 0) {
+    return `<p class="progress-result-preset-empty">还没有常用文案，可以在下方添加。</p>`;
+  }
+  return progressResultPresets.map((preset, index) => `
+    <div class="progress-result-preset-item" role="listitem">
+      <button type="button" class="progress-result-preset-option" data-progress-result-preset-index="${index}" data-step-index="${stepIndex}" title="填入这条文案">${escapeHtml(preset)}</button>
+      <button type="button" class="progress-result-preset-delete" data-progress-result-preset-delete="${index}" data-step-index="${stepIndex}" aria-label="删除这条常用文案" title="删除这条常用文案">×</button>
+    </div>
+  `).join("");
+}
+
+function refreshProgressResultPresetOptions(stepIndex) {
+  const list = els.progressManageList.querySelector(`[data-progress-result-preset-list="${stepIndex}"]`);
+  if (list) list.innerHTML = renderProgressResultPresetOptions(stepIndex);
+}
+
+function hideProgressResultPresetMenus() {
+  els.progressManageList.querySelectorAll("[data-progress-result-presets]").forEach((menu) => {
+    menu.hidden = true;
+  });
+  els.progressManageList.querySelectorAll("[data-progress-result-presets-toggle]").forEach((button) => {
+    button.setAttribute("aria-expanded", "false");
+  });
+}
+
+function toggleProgressResultPresetMenu(stepIndex) {
+  const menu = els.progressManageList.querySelector(`[data-progress-result-presets="${stepIndex}"]`);
+  const button = els.progressManageList.querySelector(`[data-progress-result-presets-toggle="${stepIndex}"]`);
+  if (!menu || !button || button.disabled) return;
+  const shouldOpen = menu.hidden;
+  hideProgressResultPresetMenus();
+  menu.hidden = !shouldOpen;
+  button.setAttribute("aria-expanded", String(shouldOpen));
+  if (shouldOpen) {
+    const firstControl = menu.querySelector(".progress-result-preset-option, [data-progress-result-preset-input]");
+    setTimeout(() => firstControl?.focus(), 0);
+  }
+}
+
+function fillProgressResultFromPreset(stepIndex, presetIndex) {
+  const detailInput = els.progressManageList.querySelector(`[data-progress-detail="${stepIndex}"]`);
+  const preset = progressResultPresets[presetIndex];
+  if (!detailInput || detailInput.disabled || !preset) return;
+  detailInput.value = preset;
+  detailInput.dispatchEvent(new Event("input", { bubbles: true }));
+  hideProgressResultPresetMenus();
+  detailInput.focus();
+  showToast("常用文案已填入");
+}
+
+function addProgressResultPreset(stepIndex) {
+  const input = els.progressManageList.querySelector(`[data-progress-result-preset-input="${stepIndex}"]`);
+  const preset = normalizeProgressResultPreset(input?.value);
+  if (!input || !preset) {
+    showToast("请先输入要添加的文案");
+    input?.focus();
+    return;
+  }
+  if (progressResultPresets.includes(preset)) {
+    showToast("这条文案已经在列表里了");
+    input.focus();
+    return;
+  }
+  progressResultPresets.push(preset);
+  saveProgressResultPresets();
+  input.value = "";
+  refreshProgressResultPresetOptions(stepIndex);
+  showToast("常用文案已添加");
+}
+
+function deleteProgressResultPreset(stepIndex, presetIndex) {
+  if (!progressResultPresets[presetIndex]) return;
+  progressResultPresets.splice(presetIndex, 1);
+  saveProgressResultPresets();
+  refreshProgressResultPresetOptions(stepIndex);
+  showToast("常用文案已删除");
+}
+
 function renderProgressManageDialog() {
   const submission = customerSubmissions.find((item) => item.id === managingProgressSubmissionId);
   if (!submission) return;
@@ -3551,10 +3748,22 @@ function renderProgressManageDialog() {
               `).join("")}
             </div>
           </fieldset>
-          <label class="progress-result-field">
-            <span>发送给客户的检测结果</span>
-            <textarea rows="3" data-progress-detail="${stepIndex}" placeholder="例如：检测到打印头损坏，需要更换后测试" ${canEditDetectionResult ? "" : "disabled"}>${escapeHtml(detectionDetail.detailText)}</textarea>
-          </label>
+          <div class="progress-result-field">
+            <span id="progress-result-label-${stepIndex}">发送给客户的检测结果</span>
+            <div class="progress-result-editor">
+              <textarea rows="3" data-progress-detail="${stepIndex}" aria-labelledby="progress-result-label-${stepIndex}" placeholder="例如：检测到打印头损坏，需要更换后测试" ${canEditDetectionResult ? "" : "disabled"}>${escapeHtml(detectionDetail.detailText)}</textarea>
+              <button class="progress-result-presets-toggle" type="button" data-progress-result-presets-toggle="${stepIndex}" aria-label="打开常用文案" title="打开常用文案" aria-expanded="false" aria-controls="progress-result-presets-${stepIndex}" ${canEditDetectionResult ? "" : "disabled"}>⌄</button>
+            </div>
+            <div class="progress-result-presets" id="progress-result-presets-${stepIndex}" data-progress-result-presets="${stepIndex}" hidden>
+              <div class="progress-result-preset-list" data-progress-result-preset-list="${stepIndex}" role="list" aria-label="常用检测结果文案">
+                ${renderProgressResultPresetOptions(stepIndex)}
+              </div>
+              <div class="progress-result-preset-add">
+                <textarea rows="2" maxlength="500" data-progress-result-preset-input="${stepIndex}" placeholder="输入新的常用文案"></textarea>
+                <button class="secondary" type="button" data-progress-result-preset-add="${stepIndex}">添加文案</button>
+              </div>
+            </div>
+          </div>
           ${renderProgressAccessoryEditor(submission, detectionDetail, stepIndex, canEditDetectionResult)}
         </div>`
       : "";
@@ -4045,7 +4254,7 @@ async function undoLatestProgressStep(stepIndex, button) {
 }
 
 function canViewAnalytics() {
-  return cloudMode && adminMode && !forceReadonlyMode;
+  return linkingPreviewMode || (cloudMode && adminMode && !forceReadonlyMode);
 }
 
 function canViewAccessoryAnalytics() {
@@ -4169,6 +4378,12 @@ function getFilters() {
   };
 }
 
+function isProgressIncompleteRecord(record) {
+  const submission = customerSubmissions.find((item) => item.id === record.submissionId);
+  if (!submission) return false;
+  return getCustomerProgressState(submission, record).currentIndex < CUSTOMER_PROGRESS_STEPS.length - 1;
+}
+
 function applyFilters() {
   const filters = getFilters();
   filteredRecords = records.filter((record) => {
@@ -4182,6 +4397,7 @@ function applyFilters() {
 
     return (
       (!filters.search || text.includes(filters.search)) &&
+      (!progressIncompleteFilter || isProgressIncompleteRecord(record)) &&
       (!filters.warranty || normalizeWarrantyStatus(record.warrantyStatus) === filters.warranty) &&
       (!filters.status || record.finalStatus === filters.status) &&
       (!filters.ownership || record.faultOwnership === filters.ownership) &&
@@ -4204,8 +4420,10 @@ function updateStats() {
   els.testingCount.textContent = stats.repairing;
   els.readyCount.textContent = stats.sendToday;
   els.pendingShipmentCount.textContent = stats.pendingShipment;
+  els.pendingSendCount.textContent = stats.pendingSend;
   els.finishedCount.textContent = stats.returningFactory;
   els.testStatusCount.textContent = stats.testing;
+  els.incompleteProgressCount.textContent = stats.incompleteProgress;
   els.unrepairedSubmissionCount.textContent = stats.unrepaired;
   els.filteredCount.textContent = `${filteredRecords.length} 条`;
   els.filterSummaryCount.textContent = filteredRecords.length;
@@ -4219,8 +4437,10 @@ function getRepairStats() {
     repairing: records.filter((record) => record.finalStatus === "维修中").length,
     sendToday: records.filter((record) => record.finalStatus === "今天需要寄").length,
     pendingShipment: records.filter((record) => record.finalStatus === "已修未付费").length,
+    pendingSend: records.filter((record) => record.finalStatus === "已寄出").length,
     returningFactory: records.filter((record) => record.finalStatus === "返厂中").length,
     testing: records.filter((record) => record.finalStatus === "测试中").length,
+    incompleteProgress: records.filter(isProgressIncompleteRecord).length,
     unrepaired: unrepairedSubmissions.length,
     unrepairedTrackingNumbers: unrepairedSubmissions.map((item) => item.trackingNumber || "未填写快递单号")
   };
@@ -4236,12 +4456,19 @@ function updateMetricCards() {
     const isRepairActive =
       currentView === "repair" &&
       target === "repair" &&
+      !progressIncompleteFilter &&
+      !card.dataset.metricProgress &&
       (els.statusFilter.value || "") === (card.dataset.metricStatus || "");
+    const isProgressActive =
+      currentView === "repair" &&
+      target === "repair" &&
+      card.dataset.metricProgress === "incomplete" &&
+      progressIncompleteFilter;
     const isSubmissionActive =
       currentView === "submissions" &&
       target === "submissions" &&
       submissionStatusFilter === (card.dataset.submissionStatus || "");
-    const isActive = isRepairActive || isSubmissionActive;
+    const isActive = isRepairActive || isProgressActive || isSubmissionActive;
     card.classList.toggle("is-active", isActive);
     card.setAttribute("aria-pressed", isActive ? "true" : "false");
   });
@@ -4520,8 +4747,9 @@ function renderAnalysisBars(container, items, total, { limit = ANALYSIS_TOP_LIMI
       const width = clampPercent((item.count / maxCount) * 100);
       const minWidth = item.count > 0 ? "4px" : "0";
       const valueText = item.valueText || `${item.count} 条 · ${formatPercent(item.count, total)}`;
+      const detailLabel = item.detailLabel || item.label;
       const detailAttrs = detailType
-        ? ` data-analysis-detail="${escapeHtml(detailType)}" data-analysis-label="${escapeHtml(item.label)}" tabindex="0" role="button"`
+        ? ` data-analysis-detail="${escapeHtml(detailType)}" data-analysis-label="${escapeHtml(detailLabel)}" tabindex="0" role="button"`
         : "";
       return `
         <div class="analysis-bar-row"${detailAttrs}>
@@ -4562,6 +4790,48 @@ function getRecentTrend(items = records, days = ANALYSIS_TREND_DAYS) {
   }));
 }
 
+function formatAnalysisMonth(monthKey = "") {
+  const [year, month] = String(monthKey).split("-");
+  if (!year || !month) return monthKey;
+  return `${year}年${Number(month)}月`;
+}
+
+function getAnalysisMonthlyItems(items = getAnalysisRecords()) {
+  const recordMonthKeys = items
+    .map((record) => recordDateKey(record.createdTime).slice(0, 7))
+    .filter((key) => /^\d{4}-\d{2}$/.test(key));
+  const sortedMonthKeys = [...recordMonthKeys].sort();
+  const fromMonth = (els.analysisDateFrom?.value || sortedMonthKeys[0] || "").slice(0, 7);
+  const toMonth = (els.analysisDateTo?.value || sortedMonthKeys.at(-1) || "").slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(fromMonth) || !/^\d{4}-\d{2}$/.test(toMonth)) return [];
+
+  const toMonthIndex = (key) => {
+    const [year, month] = key.split("-").map(Number);
+    return year * 12 + month - 1;
+  };
+  const fromIndex = toMonthIndex(fromMonth);
+  const toIndex = toMonthIndex(toMonth);
+  if (fromIndex > toIndex) return [];
+
+  const counts = new Map();
+  recordMonthKeys.forEach((key) => counts.set(key, (counts.get(key) || 0) + 1));
+  const total = items.length;
+  const months = [];
+  for (let index = fromIndex; index <= toIndex; index += 1) {
+    const year = Math.floor(index / 12);
+    const month = index % 12 + 1;
+    const key = `${year}-${String(month).padStart(2, "0")}`;
+    const count = counts.get(key) || 0;
+    months.push({
+      label: formatAnalysisMonth(key),
+      detailLabel: key,
+      count,
+      valueText: `${count} 台 · ${formatPercent(count, total)}`
+    });
+  }
+  return months;
+}
+
 function getThisMonthCount() {
   const monthKey = toInputDate(new Date()).slice(0, 7);
   return getAnalysisRecords().filter((record) => recordDateKey(record.createdTime).startsWith(monthKey)).length;
@@ -4596,7 +4866,6 @@ function renderAnalytics() {
 
   const analysisRecords = getAnalysisRecords();
   const stats = { total: analysisRecords.length };
-  const hardwareCount = analysisRecords.filter((record) => record.faultOwnership === "硬件损坏").length;
   const categoryItems = countBy(analysisRecords, (record) => normalizeFaultCategories(record.faultCategory));
   const regionItems = countBy(analysisRecords, (record) => record.region || "未填写");
   const modelItems = countBy(analysisRecords, (record) => record.model || "未填写");
@@ -4608,14 +4877,19 @@ function renderAnalytics() {
   const accessoryDisplayItems = withAccessoryPriceText(accessoryItems, accessoryModelFilter, accessoryTotal, accessoryFeeMode);
   const ownershipItems = countBy(analysisRecords, (record) => record.faultOwnership || "未填写");
   const areaItems = countBy(analysisRecords, (record) => record.area || "未填写");
+  const monthItems = getAnalysisMonthlyItems(analysisRecords);
   const trendItems = getRecentTrend(analysisRecords);
 
   els.analyticsUpdatedAt.textContent = `更新时间：${formatDateTime(toInputDateTime(new Date()))}`;
-  els.analysisHardwareRate.textContent = formatPercent(hardwareCount, stats.total);
+  els.analysisTotalRepairs.textContent = stats.total;
   els.analysisThisMonth.textContent = getThisMonthCount();
   els.analysisOwnershipTotal.textContent = `${stats.total} 条`;
   els.analysisAreaTotal.textContent = `${stats.total} 条`;
 
+  renderAnalysisBars(els.analysisMonthBars, monthItems, stats.total, {
+    limit: monthItems.length,
+    detailType: "month-models"
+  });
   renderAnalysisBars(els.analysisCategoryBars, categoryItems, stats.total, { detailType: "category-models" });
   renderAnalysisBars(els.analysisRegionBars, regionItems, stats.total, { detailType: "region-models" });
   renderAnalysisBars(els.analysisModelBars, modelItems, stats.total, { detailType: "model-categories" });
@@ -4637,6 +4911,14 @@ function renderAnalytics() {
 
 function getCategoryModelDistribution(category) {
   const matchedRecords = getAnalysisRecords().filter((record) => normalizeFaultCategories(record.faultCategory).includes(category));
+  return {
+    total: matchedRecords.length,
+    items: countBy(matchedRecords, (record) => record.model || "未填写")
+  };
+}
+
+function getMonthModelDistribution(monthKey) {
+  const matchedRecords = getAnalysisRecords().filter((record) => recordDateKey(record.createdTime).startsWith(monthKey));
   return {
     total: matchedRecords.length,
     items: countBy(matchedRecords, (record) => record.model || "未填写")
@@ -5027,6 +5309,14 @@ function openAnalysisDetail(row) {
   if (!label) return;
 
   selectAnalysisRow(row, els.analyticsPage);
+  if (detailType === "month-models") {
+    const distribution = getMonthModelDistribution(label);
+    analysisPopoverState = null;
+    showAnalysisPopover(row, `${formatAnalysisMonth(label)} - 型号分布`, distribution.items, distribution.total, {
+      emptyText: "本月暂无维修数据"
+    });
+  }
+
   if (detailType === "category-models") {
     const distribution = getCategoryModelDistribution(label);
     analysisPopoverState = null;
@@ -5247,12 +5537,12 @@ function renderAddress(record) {
 
 function renderRepairRecordIdCell(record) {
   const submission = customerSubmissions.find((item) => item.id === record.submissionId);
-  const progressState = REPAIR_PROGRESS_ENABLED && submission ? getCustomerProgressState(submission, record) : null;
+  const progressState = submission ? getCustomerProgressState(submission, record) : null;
   const progressLabel = progressState ? CUSTOMER_PROGRESS_STEPS[progressState.currentIndex] : "";
   return `
     <span class="record-id-badge repair-id">${escapeHtml(formatRepairRecordId(record))}</span>
     ${submission ? `<span class="record-id-link">关联 ${escapeHtml(formatSubmissionId(submission))}</span>` : ""}
-    ${progressLabel ? `<span class="record-progress-state" title="当前进度：${escapeHtml(progressLabel)}">${escapeHtml(progressLabel)}</span>` : ""}
+    ${progressLabel ? `<span class="record-progress-state" data-progress-record-id="${escapeHtml(record.id)}" title="双击打开进度页面，当前进度：${escapeHtml(progressLabel)}">${escapeHtml(progressLabel)}</span>` : ""}
   `;
 }
 
@@ -5271,7 +5561,7 @@ function renderTable() {
           <td class="record-id-col">${renderRepairRecordIdCell(record)}</td>
           <td>${compact(formatDateTime(record.createdTime))}</td>
           <td class="tracking-col"><span class="plain-cell tracking-cell">${compact(record.trackingNumber)}</span></td>
-          <td>
+          <td class="region-col">
             <span class="cell-main">${compact(record.region)}</span>
             <span class="cell-sub"><span class="tag ${areaClass(record.area)}">${compact(record.area)}</span></span>
           </td>
@@ -5282,16 +5572,16 @@ function renderTable() {
           <td class="power-col"><span class="tag ${powerClass(record.hasPower)}">${compact(record.hasPower)}</span></td>
           <td class="company-col"><span class="plain-cell company-cell">${compact(record.companyName)}</span></td>
           <td class="text-cell">${compact(record.customerIssue)}</td>
-          <td class="text-cell">${compact(record.repairProcess)}</td>
+          <td class="text-cell repair-process-col">${compact(record.repairProcess)}</td>
           <td class="warranty-fee-col">${renderWarrantyFeeCell(record)}</td>
           <td>${renderReturnTrackingCell(record)}</td>
           <td><span class="tag ${statusClass(record.finalStatus)}">${compact(displayFinalStatus(record.finalStatus))}</span></td>
-          <td><span class="tag ${ownershipClass(record.faultOwnership)}">${compact(record.faultOwnership)}</span></td>
-          <td><div class="tag-list">${renderFaultCategoryTags(record)}</div></td>
+          <td class="fault-ownership-col"><span class="tag ${ownershipClass(record.faultOwnership)}">${compact(record.faultOwnership)}</span></td>
+          <td class="fault-category-col"><div class="tag-list">${renderFaultCategoryTags(record)}</div></td>
           <td class="address-cell">${renderAddress(record)}</td>
           <td class="actions-col">
             <div class="row-actions">
-              ${REPAIR_PROGRESS_ENABLED ? `<button class="secondary" type="button" data-action="progress" data-id="${escapeHtml(record.id)}" ${record.submissionId ? "" : "disabled"} title="${record.submissionId ? "逐项更新维修进度" : "请先关联客户登记 B 编号"}">进度</button>` : ""}
+              <button class="secondary" type="button" data-action="progress" data-id="${escapeHtml(record.id)}" ${record.submissionId ? "" : "disabled"} title="${record.submissionId ? "逐项更新维修进度" : "请先关联客户登记 B 编号"}">进度</button>
               <button class="secondary" type="button" data-action="edit" data-id="${escapeHtml(record.id)}">编辑</button>
               <button class="danger" type="button" data-action="delete" data-id="${escapeHtml(record.id)}">删除</button>
             </div>
@@ -5382,8 +5672,7 @@ function renderSubmissions() {
     .map((item) => {
       const isReviewed = reviewedSubmissionIds.has(item.id);
       const linkedRecord = matchedRecordsBySubmission.get(item.id);
-      const hasReceived = REPAIR_PROGRESS_ENABLED
-        && getEffectiveProgressEvents(item).some((progressEvent) => progressEvent.stepIndex >= 2);
+      const hasReceived = getEffectiveProgressEvents(item).some((progressEvent) => progressEvent.stepIndex >= 2);
       const statusText = isReviewed ? "已检修" : "未检修";
       const statusClass = isReviewed ? "reviewed" : "unreviewed";
       return `
@@ -5410,11 +5699,9 @@ function renderSubmissions() {
               ? `<td class="actions-col">
                   <div class="row-actions">
                     <button class="secondary ${isReviewed ? "reviewed" : ""}" type="button" data-action="use-submission" data-id="${escapeHtml(item.id)}" ${isReviewed ? "disabled" : ""}>${isReviewed ? "已检修" : "生成维修"}</button>
-                    ${REPAIR_PROGRESS_ENABLED
-                      ? hasReceived
-                        ? `<button class="secondary received" type="button" data-action="undo-received" data-id="${escapeHtml(item.id)}" title="按住 3 秒取消已收货" aria-label="已收货，按住 3 秒可取消">已收货</button>`
-                        : `<button class="secondary" type="button" data-action="confirm-received" data-id="${escapeHtml(item.id)}">确认收货</button>`
-                      : ""}
+                    ${hasReceived
+                      ? `<button class="secondary received" type="button" data-action="undo-received" data-id="${escapeHtml(item.id)}" title="按住 3 秒取消已收货" aria-label="已收货，按住 3 秒可取消">已收货</button>`
+                      : `<button class="secondary" type="button" data-action="confirm-received" data-id="${escapeHtml(item.id)}">确认收货</button>`}
                     <button class="secondary" type="button" data-action="edit-submission" data-id="${escapeHtml(item.id)}">编辑</button>
                     <button class="danger" type="button" data-action="delete-submission" data-id="${escapeHtml(item.id)}">删除</button>
                   </div>
@@ -5730,12 +6017,12 @@ function updateDeviceHistoryButton() {
 }
 
 function updateRecordProgressButton() {
-  els.recordProgressBtn.hidden = !REPAIR_PROGRESS_ENABLED;
-  if (!REPAIR_PROGRESS_ENABLED) return;
   const submissionId = String(els.recordForm.elements.submissionId?.value || appliedSubmissionId || "").trim();
   const canOpenProgress = customerSubmissions.some((item) => item.id === submissionId);
   els.recordProgressBtn.disabled = !canOpenProgress;
   els.recordProgressBtn.title = canOpenProgress ? "打开并修改维修进度" : "请先关联客户登记 B 编号";
+  els.previewCustomerProgressBtn.disabled = !canOpenProgress;
+  els.previewCustomerProgressBtn.title = canOpenProgress ? "查看客户手机上的维修进度" : "请先关联客户登记 B 编号";
 }
 
 function openRecordProgressDialog() {
@@ -6056,6 +6343,7 @@ function getCustomerSubmissionFromForm() {
     customerIssue: `电源适配器是否寄回：${powerAdapterReturned}\n故障描述：${customerIssue}`,
     powerAdapterReturned,
     customerAddress: getCustomerAddressFromForm(),
+    progressEnabled: oldSubmission?.progressEnabled ?? true,
     updatedAt: new Date().toISOString()
   });
 }
@@ -6234,6 +6522,7 @@ async function deleteRecord(id) {
 }
 
 function clearRepairFilters(status = "") {
+  progressIncompleteFilter = false;
   els.searchInput.value = "";
   els.warrantyFilter.value = "";
   els.statusFilter.value = status;
@@ -6277,9 +6566,14 @@ function applyMetricShortcut(card) {
   location.hash = "";
   setView("repair");
   clearRepairFilters(card.dataset.metricStatus || "");
+  progressIncompleteFilter = card.dataset.metricProgress === "incomplete";
   render();
   scrollToSection(els.repairRecordsSection);
-  showToast(card.dataset.metricStatus ? `已跳到${card.dataset.metricStatus}数据` : "已跳到全部维修记录");
+  if (progressIncompleteFilter) {
+    showToast("已跳到进度未完成数据");
+    return;
+  }
+  showToast(card.dataset.metricStatus ? `已跳到${displayFinalStatus(card.dataset.metricStatus)}数据` : "已跳到全部维修记录");
 }
 
 function toCsvValue(value) {
@@ -7320,7 +7614,6 @@ function bindEvents() {
     renderAnalytics();
   });
   els.analysisAccessoryModelFilter.addEventListener("change", renderAnalytics);
-  els.exportAccessoryExcelBtn.addEventListener("click", exportAccessoryExcel);
   els.resetAnalysisDateBtn.addEventListener("click", () => {
     setAnalysisDateToThisYear();
     hideAnalysisPopover();
@@ -7333,6 +7626,7 @@ function bindEvents() {
   ["input", "change"].forEach((eventName) => {
     els.submissionSearchInput.addEventListener(eventName, renderSubmissions);
   });
+  els.refreshSubmissionsBtn.addEventListener("click", refreshCustomerSubmissions);
   els.copyCustomerLinkBtn.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(getCustomerRegisterUrl());
@@ -7343,16 +7637,14 @@ function bindEvents() {
   });
   els.newCustomerSubmissionBtn.addEventListener("click", startNewCustomerSubmission);
   els.editCustomerSubmissionBtn.addEventListener("click", startEditCustomerSubmission);
-  if (REPAIR_PROGRESS_ENABLED) {
-    els.viewCustomerProgressBtn.addEventListener("click", openCustomerProgress);
-    els.closeCustomerProgressBtn.addEventListener("click", closeCustomerProgress);
-    els.customerProgressTimeline.addEventListener("click", (event) => {
-      const paymentButton = event.target.closest("button[data-customer-payment-confirm]");
-      if (paymentButton) confirmCustomerPayment(paymentButton);
-      const noRepairButton = event.target.closest("button[data-customer-no-repair]");
-      if (noRepairButton) skipRepairFromCustomerProgress(noRepairButton);
-    });
-  }
+  els.viewCustomerProgressBtn.addEventListener("click", openCustomerProgress);
+  els.closeCustomerProgressBtn.addEventListener("click", closeCustomerProgress);
+  els.customerProgressTimeline.addEventListener("click", (event) => {
+    const paymentButton = event.target.closest("button[data-customer-payment-confirm]");
+    if (paymentButton) confirmCustomerPayment(paymentButton);
+    const noRepairButton = event.target.closest("button[data-customer-no-repair]");
+    if (noRepairButton) skipRepairFromCustomerProgress(noRepairButton);
+  });
   els.authToggleBtn.addEventListener("click", openAuthDialog);
   els.closeAuthDialogBtn.addEventListener("click", () => els.authDialog.close());
   els.cancelAuthDialogBtn.addEventListener("click", () => els.authDialog.close());
@@ -7370,12 +7662,12 @@ function bindEvents() {
   els.closeExpressExportDialogBtn.addEventListener("click", () => els.expressExportDialog.close());
   els.cancelExpressExportBtn.addEventListener("click", () => els.expressExportDialog.close());
   els.deviceHistoryBtn.addEventListener("click", openDeviceHistoryDialog);
-  if (REPAIR_PROGRESS_ENABLED) {
-    els.recordProgressBtn.addEventListener("click", openRecordProgressDialog);
-  }
+  els.recordProgressBtn.addEventListener("click", openRecordProgressDialog);
+  els.previewCustomerProgressBtn.addEventListener("click", openCustomerProgressPreview);
+  els.closeCustomerProgressPreviewBtn.addEventListener("click", closeCustomerProgressPreview);
+  els.doneCustomerProgressPreviewBtn.addEventListener("click", closeCustomerProgressPreview);
   els.closeDeviceHistoryDialogBtn.addEventListener("click", () => els.deviceHistoryDialog.close());
   els.closeDeviceHistoryBtn.addEventListener("click", () => els.deviceHistoryDialog.close());
-  if (REPAIR_PROGRESS_ENABLED) {
   els.closeProgressManageDialogBtn.addEventListener("click", closeProgressManageDialog);
   els.doneProgressManageBtn.addEventListener("click", closeProgressManageDialog);
   els.closeReceivedUndoConfirmBtn.addEventListener("click", closeReceivedUndoConfirm);
@@ -7384,6 +7676,8 @@ function bindEvents() {
   els.receivedUndoConfirmDialog.addEventListener("close", resetReceivedUndoConfirm);
   els.confirmDetectionReminderBtn.addEventListener("click", () => els.detectionReminderDialog.close());
   els.detectionReminderDialog.addEventListener("cancel", (event) => event.preventDefault());
+  els.confirmShippingReminderBtn.addEventListener("click", () => els.shippingReminderDialog.close());
+  els.shippingReminderDialog.addEventListener("cancel", (event) => event.preventDefault());
   els.recordForm.elements.repairProcess.addEventListener("blur", () => {
     if (!els.detectionReminderDialog.open) els.detectionReminderDialog.showModal();
   });
@@ -7393,6 +7687,26 @@ function bindEvents() {
     managingProgressSubmissionId = "";
   });
   els.progressManageList.addEventListener("click", (event) => {
+    const presetToggle = event.target.closest("button[data-progress-result-presets-toggle]");
+    if (presetToggle) {
+      toggleProgressResultPresetMenu(Number(presetToggle.dataset.progressResultPresetsToggle));
+      return;
+    }
+    const presetOption = event.target.closest("button[data-progress-result-preset-index]");
+    if (presetOption) {
+      fillProgressResultFromPreset(Number(presetOption.dataset.stepIndex), Number(presetOption.dataset.progressResultPresetIndex));
+      return;
+    }
+    const presetDelete = event.target.closest("button[data-progress-result-preset-delete]");
+    if (presetDelete) {
+      deleteProgressResultPreset(Number(presetDelete.dataset.stepIndex), Number(presetDelete.dataset.progressResultPresetDelete));
+      return;
+    }
+    const presetAdd = event.target.closest("button[data-progress-result-preset-add]");
+    if (presetAdd) {
+      addProgressResultPreset(Number(presetAdd.dataset.progressResultPresetAdd));
+      return;
+    }
     const button = event.target.closest("button[data-progress-action]");
     if (!button) return;
     const stepIndex = Number(button.dataset.stepIndex);
@@ -7450,11 +7764,11 @@ function bindEvents() {
     const customPartPriceInput = event.target.closest("input[data-progress-custom-part-price]");
     if (customPartPriceInput) updateProgressAccessoryEditor(Number(customPartPriceInput.dataset.progressCustomPartPrice));
   });
-  }
   els.metricCards.forEach((card) => {
     card.addEventListener("click", () => applyMetricShortcut(card));
   });
   [
+    els.analysisMonthBars,
     els.analysisCategoryBars,
     els.analysisRegionBars,
     els.analysisModelBars,
@@ -7512,9 +7826,7 @@ function bindEvents() {
   els.recordDialog.addEventListener("cancel", handleRecordDialogCancel);
   els.recordDialog.addEventListener("close", () => {
     clearRecordDialogSnapshot();
-    if (REPAIR_PROGRESS_ENABLED) {
-      restoreUnsavedRecordProgress().catch((error) => console.error("恢复未保存工单的进度失败", error));
-    }
+    restoreUnsavedRecordProgress().catch((error) => console.error("恢复未保存工单的进度失败", error));
   });
   window.addEventListener("beforeunload", handleRecordBeforeUnload);
   els.categoryFilterToggle.addEventListener("click", toggleCategoryFilterPicker);
@@ -7599,8 +7911,8 @@ function bindEvents() {
     if (!record) return;
     const saved = await upsertRecord(record);
     if (!saved) return;
-    if (REPAIR_PROGRESS_ENABLED && isNewRecord) await startDetectionForNewRecord(record);
-    if (REPAIR_PROGRESS_ENABLED) await restoreUnsavedRecordProgress({ keepSubmissionId: record.submissionId });
+    if (isNewRecord) await startDetectionForNewRecord(record);
+    await restoreUnsavedRecordProgress({ keepSubmissionId: record.submissionId });
     clearRecordDialogSnapshot();
     els.recordDialog.close();
   });
@@ -7620,6 +7932,9 @@ function bindEvents() {
   els.recordForm.elements.finalStatus.addEventListener("change", () => {
     updateAccessoryPartsRequirement();
     updateReturnTimeRequirement();
+    if (els.recordForm.elements.finalStatus.value === "今天需要寄" && !els.shippingReminderDialog.open) {
+      els.shippingReminderDialog.showModal();
+    }
   });
   els.recordForm.elements.deviceNumber.addEventListener("input", () => {
     const input = els.recordForm.elements.deviceNumber;
@@ -7713,7 +8028,7 @@ function bindEvents() {
       if (record?.customerAddress) showAddressPopover(record, button);
       return;
     }
-    if (REPAIR_PROGRESS_ENABLED && button.dataset.action === "progress") openProgressManageDialogForRecord(button.dataset.id);
+    if (button.dataset.action === "progress") openProgressManageDialogForRecord(button.dataset.id);
     if (button.dataset.action === "edit") openEditDialog(button.dataset.id);
     if (button.dataset.action === "delete") deleteRecord(button.dataset.id);
   });
@@ -7721,6 +8036,12 @@ function bindEvents() {
   els.recordsBody.addEventListener("dblclick", (event) => {
     if (readonlyMode) return;
     if (event.target.closest("button, a, input, select, textarea, label")) return;
+
+    const progressState = event.target.closest("[data-progress-record-id]");
+    if (progressState) {
+      openProgressManageDialogForRecord(progressState.dataset.progressRecordId);
+      return;
+    }
 
     const returnTrackingCell = event.target.closest("[data-inline-return-tracking]");
     if (returnTrackingCell) {
@@ -7738,13 +8059,12 @@ function bindEvents() {
     const button = event.target.closest("button[data-action]");
     if (!button) return;
     if (button.dataset.action === "use-submission") openNewDialogFromSubmission(button.dataset.id);
-    if (REPAIR_PROGRESS_ENABLED && button.dataset.action === "confirm-received") confirmSubmissionReceived(button.dataset.id, button);
+    if (button.dataset.action === "confirm-received") confirmSubmissionReceived(button.dataset.id, button);
     if (button.dataset.action === "edit-submission") openSubmissionEditDialog(button.dataset.id);
     if (button.dataset.action === "delete-submission") deleteSubmission(button.dataset.id);
   });
 
   els.submissionsBody.addEventListener("pointerdown", (event) => {
-    if (!REPAIR_PROGRESS_ENABLED) return;
     const button = event.target.closest('button[data-action="undo-received"]');
     if (!button || event.button !== 0) return;
     event.preventDefault();
@@ -7765,7 +8085,6 @@ function bindEvents() {
     if (event.pointerId === receivedUndoHoldPointerId) cancelReceivedUndoHold();
   });
   els.submissionsBody.addEventListener("keydown", (event) => {
-    if (!REPAIR_PROGRESS_ENABLED) return;
     const button = event.target.closest('button[data-action="undo-received"]');
     if (!button || event.repeat || !["Enter", " "].includes(event.key)) return;
     event.preventDefault();
@@ -7778,13 +8097,17 @@ function bindEvents() {
     if (event.target === receivedUndoHoldButton) cancelReceivedUndoHold();
   });
   els.submissionsBody.addEventListener("contextmenu", (event) => {
-    if (REPAIR_PROGRESS_ENABLED && event.target.closest('button[data-action="undo-received"]')) event.preventDefault();
+    if (event.target.closest('button[data-action="undo-received"]')) event.preventDefault();
   });
 
   document.addEventListener("click", (event) => {
     const clickedAddress = event.target.closest(".address-preview");
     const clickedPopover = event.target.closest("#addressPopover");
     if (!clickedAddress && !clickedPopover) hideAddressPopover();
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".progress-result-field")) hideProgressResultPresetMenus();
   });
 
   document.addEventListener("click", (event) => {
@@ -7801,6 +8124,7 @@ function bindEvents() {
     if (event.key === "Escape") {
       hideAddressPopover();
       hideAnalysisPopover();
+      hideProgressResultPresetMenus();
     }
   });
 
@@ -7817,13 +8141,13 @@ function bindEvents() {
   });
   window.addEventListener("hashchange", applyHashRoute);
   document.addEventListener("visibilitychange", () => {
-    if (REPAIR_PROGRESS_ENABLED && !document.hidden) {
+    if (!document.hidden) {
       autoStartOverdueDetections().catch((error) => console.error("自动检测检查失败", error));
       refreshOpenProgressManageDialog();
     }
   });
   document.addEventListener("keydown", (event) => {
-    if (REPAIR_PROGRESS_ENABLED && event.key === "Escape" && !els.customerProgressPage.hidden) closeCustomerProgress();
+    if (event.key === "Escape" && !els.customerProgressPage.hidden) closeCustomerProgress();
   });
 }
 
@@ -7835,7 +8159,5 @@ loadAreaData();
 if (linkingPreviewMode) {
   render();
 } else {
-  initializeCloud().finally(() => {
-    if (REPAIR_PROGRESS_ENABLED) startAutoDetectionChecks();
-  });
+  initializeCloud().finally(startAutoDetectionChecks);
 }

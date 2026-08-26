@@ -10,7 +10,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260819-registration-ids">
+    <link rel="stylesheet" href="styles.css?v=20260821-progress-actions-position-monthly-stats">
   </head>
   <body>
     <header class="app-header">
@@ -54,6 +54,10 @@
           <span>已修未付费</span>
           <strong id="pendingShipmentCount">0</strong>
         </button>
+        <button class="metric" type="button" data-metric-target="repair" data-metric-status="已寄出" aria-pressed="false">
+          <span>待寄出</span>
+          <strong id="pendingSendCount">0</strong>
+        </button>
         <button class="metric" type="button" data-metric-target="repair" data-metric-status="返厂中" aria-pressed="false">
           <span>返厂中</span>
           <strong id="finishedCount">0</strong>
@@ -61,6 +65,10 @@
         <button class="metric" type="button" data-metric-target="repair" data-metric-status="测试中" aria-pressed="false">
           <span>测试中</span>
           <strong id="testStatusCount">0</strong>
+        </button>
+        <button class="metric" type="button" data-metric-target="repair" data-metric-progress="incomplete" aria-pressed="false">
+          <span>进度未完成</span>
+          <strong id="incompleteProgressCount">0</strong>
         </button>
         <button class="metric" type="button" data-metric-target="submissions" data-submission-status="unreviewed" aria-pressed="false">
           <span>未维修</span>
@@ -155,17 +163,17 @@
                 <th class="record-id-col">ID</th>
                 <th>创建时间</th>
                 <th class="tracking-col">快递单号</th>
-                <th>地区 / 区域</th>
+                <th class="region-col">地区 / 区域</th>
                 <th>编号 / 型号</th>
                 <th class="power-col">电源</th>
                 <th class="company-col">公司名</th>
                 <th class="customer-issue-heading">客户描述问题</th>
-                <th class="customer-issue-heading">维修过程</th>
+                <th class="customer-issue-heading repair-process-col">维修过程</th>
                 <th class="warranty-fee-col">是否保修 / 费用</th>
                 <th>寄回单号</th>
                 <th>最终状态</th>
-                <th>故障归属</th>
-                <th>故障分类</th>
+                <th class="fault-ownership-col">故障归属</th>
+                <th class="fault-category-col">故障分类</th>
                 <th>客户地址</th>
                 <th class="actions-col">操作</th>
               </tr>
@@ -196,13 +204,16 @@
             </label>
             <button class="secondary" id="resetAnalysisDateBtn" type="button">重置</button>
           </div>
-          <span id="analyticsUpdatedAt">等待数据</span>
+          <div class="analytics-meta">
+            <span id="analyticsUpdatedAt">等待数据</span>
+            <span class="analytics-drilldown-hint">可点击子分类查看</span>
+          </div>
         </div>
 
         <div class="analysis-summary-grid">
           <article class="analysis-card">
-            <span>硬件损坏占比</span>
-            <strong id="analysisHardwareRate">0%</strong>
+            <span>总维修数</span>
+            <strong id="analysisTotalRepairs">0</strong>
           </article>
           <article class="analysis-card">
             <span>本月新增</span>
@@ -211,9 +222,17 @@
         </div>
 
         <div class="analysis-grid">
+          <article class="analysis-panel analysis-month-panel">
+            <div class="analysis-panel-title">
+              <h3>月份统计</h3>
+              <span>按创建时间</span>
+            </div>
+            <div class="analysis-bars analysis-month-bars" id="analysisMonthBars"></div>
+          </article>
+
           <article class="analysis-panel">
             <div class="analysis-panel-title">
-              <h3>故障分类排行</h3>
+              <h3>故障分类分布</h3>
               <span>最多 8 项</span>
             </div>
             <div class="analysis-bars" id="analysisCategoryBars"></div>
@@ -221,7 +240,7 @@
 
           <article class="analysis-panel">
             <div class="analysis-panel-title">
-              <h3>地区排行</h3>
+              <h3>地区分布</h3>
               <span>最多 8 项</span>
             </div>
             <div class="analysis-bars" id="analysisRegionBars"></div>
@@ -229,7 +248,7 @@
 
           <article class="analysis-panel">
             <div class="analysis-panel-title">
-              <h3>型号排行</h3>
+              <h3>型号分布</h3>
               <span>最多 8 项</span>
             </div>
             <div class="analysis-bars" id="analysisModelBars"></div>
@@ -237,10 +256,9 @@
 
           <article class="analysis-panel" id="analysisAccessoryPanel" hidden>
             <div class="analysis-panel-title">
-              <h3>配件使用排行</h3>
-              <button class="analysis-panel-export" id="exportAccessoryExcelBtn" type="button">导出 Excel</button>
-              <button class="analysis-panel-toggle" id="analysisAccessoryFeeModeBtn" type="button" aria-pressed="false">付费</button>
+              <h3>配件使用分布</h3>
               <select class="analysis-panel-select" id="analysisAccessoryModelFilter" aria-label="配件使用型号筛选"></select>
+              <button class="analysis-panel-toggle" id="analysisAccessoryFeeModeBtn" type="button" aria-pressed="false">付费</button>
             </div>
             <div class="analysis-bars" id="analysisAccessoryBars"></div>
           </article>
@@ -395,6 +413,9 @@
           <div>
             <h2>客户提交</h2>
             <span id="submissionCount">0 条</span>
+            <button class="submission-refresh-button" id="refreshSubmissionsBtn" type="button" aria-label="刷新客户提交" title="刷新客户提交">
+              <span aria-hidden="true">↻</span>
+            </button>
           </div>
           <input class="submission-search-input" id="submissionSearchInput" type="search" placeholder="搜索寄出单号、编号、公司、电话、地址">
         </div>
@@ -545,7 +566,10 @@
           <div class="field wide repair-process-field">
             <div class="repair-process-field-head">
               <span class="repair-process-label">维修过程 <small class="field-note-danger">（不修需要清空本单所用配件）</small><b class="field-required-marker" aria-hidden="true">*</b></span>
-              <button class="secondary record-progress-button" id="recordProgressBtn" type="button" disabled hidden title="请先关联客户登记 B 编号">进度</button>
+              <div class="record-progress-actions">
+                <button class="secondary record-progress-button" id="recordProgressBtn" type="button" disabled title="请先关联客户登记 B 编号">进度</button>
+                <button class="secondary customer-progress-preview-button" id="previewCustomerProgressBtn" type="button" disabled title="请先关联客户登记 B 编号">客户所见进度</button>
+              </div>
             </div>
             <textarea name="repairProcess" rows="4" required aria-label="维修过程"></textarea>
           </div>
@@ -563,6 +587,27 @@
           </div>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="customerProgressPreviewDialog" aria-labelledby="customerProgressPreviewTitle">
+      <div class="customer-progress-preview-dialog">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">客户页面</p>
+            <h2 id="customerProgressPreviewTitle">客户所见进度</h2>
+          </div>
+          <button class="icon-btn" id="closeCustomerProgressPreviewBtn" type="button" aria-label="关闭客户所见进度">×</button>
+        </div>
+        <div class="customer-progress-preview-viewport">
+          <div class="customer-progress-content customer-progress-preview-content">
+            <div class="customer-progress-summary" id="customerProgressPreviewSummary"></div>
+            <ol class="customer-progress-timeline" id="customerProgressPreviewTimeline"></ol>
+          </div>
+        </div>
+        <div class="dialog-actions customer-progress-preview-actions">
+          <button class="primary" id="doneCustomerProgressPreviewBtn" type="button">关闭</button>
+        </div>
+      </div>
     </dialog>
 
     <dialog id="customPartPriceDialog">
@@ -810,11 +855,25 @@
         <div class="dialog-head">
           <div>
             <p class="eyebrow">工单提醒</p>
-            <h2 id="detectionReminderTitle">已检测，记得同步进度</h2>
+            <h2 id="detectionReminderTitle">已检测，记得同步进度（首建工单编辑会自动进入“检测中”）</h2>
           </div>
         </div>
         <div class="dialog-actions detection-reminder-actions">
           <button class="primary" id="confirmDetectionReminderBtn" type="button">确定</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="shippingReminderDialog" aria-labelledby="shippingReminderTitle">
+      <div class="detection-reminder-dialog">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">邮寄提醒</p>
+            <h2 id="shippingReminderTitle">该工单今天要邮寄，请及时更改进度状态</h2>
+          </div>
+        </div>
+        <div class="dialog-actions detection-reminder-actions">
+          <button class="primary" id="confirmShippingReminderBtn" type="button">确定</button>
         </div>
       </div>
     </dialog>
@@ -826,7 +885,7 @@
     <div class="analysis-popover analysis-grandchild-popover" id="analysisGrandchildPopover" role="dialog" aria-label="分析下级明细" hidden></div>
 
     <script src="area-data.js"></script>
-    <script src="street-data.js?v=20260819-registration-ids"></script>
-    <script src="app.js?v=20260819-registration-ids"></script>
+    <script src="street-data.js?v=20260807"></script>
+    <script src="app.js?v=20260821-monthly-model-stats"></script>
   </body>
 </html>
