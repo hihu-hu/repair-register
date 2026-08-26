@@ -1,6 +1,4 @@
--- 在 Supabase SQL Editor 运行一次。
--- 已收货满 14 小时后，如果仍未开始检测，数据库会自动进入“检测中”。
-
+-- 恢复“确认收货满 14 小时后自动进入检测中”。
 create extension if not exists pg_cron with schema extensions;
 
 create or replace function public.auto_start_overdue_detection()
@@ -41,9 +39,19 @@ $$;
 
 revoke all on function public.auto_start_overdue_detection() from public;
 
-select cron.unschedule(jobid)
-from cron.job
-where jobname = 'auto-start-repair-detection-after-14h';
+do $$
+declare
+  scheduled_job_id bigint;
+begin
+  for scheduled_job_id in
+    select jobid
+    from cron.job
+    where jobname = 'auto-start-repair-detection-after-14h'
+  loop
+    perform cron.unschedule(scheduled_job_id);
+  end loop;
+end;
+$$;
 
 select cron.schedule(
   'auto-start-repair-detection-after-14h',
