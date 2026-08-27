@@ -4926,6 +4926,14 @@ function getMonthModelDistribution(monthKey) {
   };
 }
 
+function getMonthRegionDistribution(monthKey) {
+  const matchedRecords = getAnalysisRecords().filter((record) => recordDateKey(record.createdTime).startsWith(monthKey));
+  return {
+    total: matchedRecords.length,
+    items: countBy(matchedRecords, (record) => record.region || "未填写")
+  };
+}
+
 function getRegionModelDistribution(region) {
   const matchedRecords = getAnalysisRecords().filter((record) => (record.region || "未填写") === region);
   return {
@@ -4987,7 +4995,10 @@ function showAnalysisPopover(anchor, title, items, total, { emptyText = "暂无�
         })
         .join("")
     : `<div class="analysis-popover-empty">${escapeHtml(emptyText)}</div>`;
-  const toggleButton = toggle
+  const inlineToggle = toggle?.label
+    ? `<button class="analysis-popover-mode-toggle" type="button" data-action="toggle-analysis-popover" title="${escapeHtml(toggle.title)}" aria-label="${escapeHtml(toggle.title)}">${escapeHtml(toggle.label)}</button>`
+    : "";
+  const toggleButton = toggle && !toggle.label
     ? `<button class="analysis-popover-toggle" type="button" data-action="toggle-analysis-popover" title="${escapeHtml(toggle.title)}" aria-label="${escapeHtml(toggle.title)}">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M4 7h14" />
@@ -5000,7 +5011,7 @@ function showAnalysisPopover(anchor, title, items, total, { emptyText = "暂无�
 
   els.analysisPopover.innerHTML = `
     <div class="analysis-popover-head">
-      <div class="analysis-popover-title">${escapeHtml(title)}</div>
+      <div class="analysis-popover-title">${escapeHtml(title)}${inlineToggle}</div>
       ${toggleButton}
     </div>
     ${rows}
@@ -5298,10 +5309,48 @@ function showOwnershipDetail(row, mode = "models") {
   );
 }
 
+function showMonthDetail(row, mode = "models") {
+  const label = row.dataset.analysisLabel || "";
+  if (!label) return;
+
+  const showingModels = mode !== "regions";
+  const distribution = showingModels
+    ? getMonthModelDistribution(label)
+    : getMonthRegionDistribution(label);
+  analysisPopoverState = {
+    anchor: row,
+    detailType: "month-models",
+    label,
+    mode: showingModels ? "models" : "regions"
+  };
+  showAnalysisPopover(
+    row,
+    `${formatAnalysisMonth(label)} - `,
+    distribution.items,
+    distribution.total,
+    {
+      emptyText: showingModels ? "本月暂无型号数据" : "本月暂无地区数据",
+      toggle: {
+        label: showingModels ? "型号分布" : "地区分布",
+        title: showingModels ? "切换成地区分布" : "切换成型号分布"
+      }
+    }
+  );
+}
+
 function toggleAnalysisPopoverMode() {
-  if (!analysisPopoverState || analysisPopoverState.detailType !== "ownership-models") return;
-  const nextMode = analysisPopoverState.mode === "models" ? "categories" : "models";
-  showOwnershipDetail(analysisPopoverState.anchor, nextMode);
+  if (!analysisPopoverState) return;
+
+  if (analysisPopoverState.detailType === "month-models") {
+    const nextMode = analysisPopoverState.mode === "models" ? "regions" : "models";
+    showMonthDetail(analysisPopoverState.anchor, nextMode);
+    return;
+  }
+
+  if (analysisPopoverState.detailType === "ownership-models") {
+    const nextMode = analysisPopoverState.mode === "models" ? "categories" : "models";
+    showOwnershipDetail(analysisPopoverState.anchor, nextMode);
+  }
 }
 
 function openAnalysisDetail(row) {
@@ -5311,11 +5360,7 @@ function openAnalysisDetail(row) {
 
   selectAnalysisRow(row, els.analyticsPage);
   if (detailType === "month-models") {
-    const distribution = getMonthModelDistribution(label);
-    analysisPopoverState = null;
-    showAnalysisPopover(row, `${formatAnalysisMonth(label)} - 型号分布`, distribution.items, distribution.total, {
-      emptyText: "本月暂无维修数据"
-    });
+    showMonthDetail(row);
   }
 
   if (detailType === "category-models") {

@@ -3,6 +3,12 @@ begin;
 create sequence if not exists public.repair_record_number_seq;
 create sequence if not exists public.customer_submission_number_seq;
 
+alter table public.repair_records
+  add column if not exists record_number bigint;
+
+alter table public.customer_repair_submissions
+  add column if not exists submission_number bigint;
+
 create or replace function public.parse_display_order_time(
   value text,
   fallback_value timestamptz
@@ -46,19 +52,10 @@ $$;
 
 revoke all on function public.parse_display_order_time(text, timestamptz) from public;
 
-alter table public.repair_records
-  add column if not exists record_number bigint;
-
-alter table public.repair_records
-  add column if not exists submission_id text;
-
-alter table public.customer_repair_submissions
-  add column if not exists submission_number bigint;
-
 lock table public.repair_records in share row exclusive mode;
 lock table public.customer_repair_submissions in share row exclusive mode;
 
--- 先换成不会冲突的临时负数，再按创建时间从 1 重新编号。
+-- 临时负数保证已有唯一编号在重排过程中不会互相冲突。
 with number_offset as (
   select coalesce(max(abs(record_number)), 0)::bigint as value
   from public.repair_records
@@ -119,50 +116,6 @@ set submission_number = numbered.next_number
 from numbered
 where target.id = numbered.id;
 
-update public.repair_records
-set submission_id = null
-where submission_id = '';
-
-with ranked_records as (
-  select
-    id,
-    lower(trim(device_number)) as device_key,
-    row_number() over (
-      partition by lower(trim(device_number))
-      order by created_time, updated_at, id
-    ) as match_number
-  from public.repair_records
-  where trim(device_number) <> ''
-),
-ranked_submissions as (
-  select
-    id,
-    lower(trim(device_number)) as device_key,
-    row_number() over (
-      partition by lower(trim(device_number))
-      order by created_time, updated_at, id
-    ) as match_number
-  from public.customer_repair_submissions
-  where trim(device_number) <> ''
-),
-legacy_matches as (
-  select records.id as record_id, submissions.id as submission_id
-  from ranked_records as records
-  join ranked_submissions as submissions
-    on submissions.device_key = records.device_key
-   and submissions.match_number = records.match_number
-)
-update public.repair_records as target
-set submission_id = legacy_matches.submission_id
-from legacy_matches
-where target.id = legacy_matches.record_id
-  and target.submission_id is null
-  and not exists (
-    select 1
-    from public.repair_records as linked
-    where linked.submission_id = legacy_matches.submission_id
-  );
-
 select setval(
   'public.repair_record_number_seq',
   coalesce((select max(record_number) from public.repair_records), 0) + 1,
@@ -194,30 +147,6 @@ create unique index if not exists repair_records_record_number_uidx
 
 create unique index if not exists customer_submissions_submission_number_uidx
   on public.customer_repair_submissions (submission_number);
-
-create unique index if not exists repair_records_submission_id_uidx
-  on public.repair_records (submission_id)
-  where submission_id is not null;
-
-create index if not exists repair_records_submission_id_idx
-  on public.repair_records (submission_id);
-
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_constraint
-    where conname = 'repair_records_submission_id_fkey'
-      and conrelid = 'public.repair_records'::regclass
-  ) then
-    alter table public.repair_records
-      add constraint repair_records_submission_id_fkey
-      foreign key (submission_id)
-      references public.customer_repair_submissions (id)
-      on delete set null;
-  end if;
-end
-$$;
 
 grant usage, select on sequence public.repair_record_number_seq
   to anon, authenticated;

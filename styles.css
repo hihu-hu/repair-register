@@ -447,17 +447,6 @@ body.submissions-view .submissions-header-tips {
   padding: 16px;
 }
 
-.analysis-month-panel {
-  grid-column: 1 / -1;
-  min-height: 0;
-}
-
-.analysis-month-bars {
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  column-gap: 24px;
-  row-gap: 18px;
-}
-
 .analysis-panel-title {
   display: flex;
   align-items: center;
@@ -3638,6 +3627,24 @@ dialog::backdrop {
   color: var(--accent-dark);
   font-size: 14px;
   font-weight: 900;
+}
+
+.analysis-popover-mode-toggle {
+  display: inline;
+  padding: 2px 3px;
+  border: 0;
+  border-bottom: 1px dashed currentColor;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.analysis-popover-mode-toggle:hover,
+.analysis-popover-mode-toggle:focus-visible {
+  background: var(--accent-soft);
+  outline: none;
 }
 
 .analysis-popover-toggle {
