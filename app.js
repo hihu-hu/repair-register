@@ -4855,6 +4855,24 @@ function getThisYearRange() {
   };
 }
 
+function getThisMonthRange() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const monthIndex = now.getMonth();
+  const month = String(monthIndex + 1).padStart(2, "0");
+  const lastDay = String(new Date(year, monthIndex + 1, 0).getDate()).padStart(2, "0");
+  return {
+    from: `${year}-${month}-01`,
+    to: `${year}-${month}-${lastDay}`
+  };
+}
+
+function setRepairDateToThisMonth() {
+  const range = getThisMonthRange();
+  els.dateFrom.value = range.from;
+  els.dateTo.value = range.to;
+}
+
 function setAnalysisDateToThisYear() {
   const range = getThisYearRange();
   els.analysisDateFrom.value = range.from;
@@ -6579,8 +6597,7 @@ function clearRepairFilters(status = "") {
   els.modelFilter.value = "";
   els.regionFilter.value = "";
   els.areaFilter.value = "";
-  els.dateFrom.value = "";
-  els.dateTo.value = "";
+  setRepairDateToThisMonth();
 }
 
 function resetFilters() {
@@ -8199,6 +8216,7 @@ function bindEvents() {
 
 fillStaticOptions();
 bindEvents();
+setRepairDateToThisMonth();
 setAnalysisDateToThisYear();
 applyHashRoute();
 loadAreaData();
