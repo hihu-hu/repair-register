@@ -389,6 +389,7 @@ const els = {
   dialogTitle: document.querySelector("#dialogTitle"),
   recordProgressBtn: document.querySelector("#recordProgressBtn"),
   previewCustomerProgressBtn: document.querySelector("#previewCustomerProgressBtn"),
+  toggleCustomerProgressVisibilityBtn: document.querySelector("#toggleCustomerProgressVisibilityBtn"),
   customerProgressPreviewDialog: document.querySelector("#customerProgressPreviewDialog"),
   customerProgressPreviewSummary: document.querySelector("#customerProgressPreviewSummary"),
   customerProgressPreviewTimeline: document.querySelector("#customerProgressPreviewTimeline"),
@@ -437,6 +438,7 @@ const els = {
   progressManageList: document.querySelector("#progressManageList"),
   closeProgressManageDialogBtn: document.querySelector("#closeProgressManageDialogBtn"),
   doneProgressManageBtn: document.querySelector("#doneProgressManageBtn"),
+  completeProgressManageBtn: document.querySelector("#completeProgressManageBtn"),
   receivedUndoConfirmDialog: document.querySelector("#receivedUndoConfirmDialog"),
   receivedUndoConfirmMessage: document.querySelector("#receivedUndoConfirmMessage"),
   closeReceivedUndoConfirmBtn: document.querySelector("#closeReceivedUndoConfirmBtn"),
@@ -2078,6 +2080,7 @@ function toDatabaseSubmission(item) {
     tracking_number: item.trackingNumber || "",
     customer_issue: item.customerIssue || "",
     customer_address: item.customerAddress || "",
+    progress_enabled: item.progressEnabled !== false,
     updated_at: item.updatedAt || new Date().toISOString()
   };
 }
@@ -2237,6 +2240,17 @@ async function saveCloudSubmission(item) {
   if (error) throw error;
 }
 
+async function saveCloudProgressVisibility(submissionId, progressEnabled, updatedAt) {
+  const { data, error } = await supabaseClient
+    .from("customer_repair_submissions")
+    .update({ progress_enabled: progressEnabled, updated_at: updatedAt })
+    .eq("id", submissionId)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return fromDatabaseSubmission(data);
+}
+
 async function saveCustomerSubmissionReliably(item) {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/customer_repair_submissions?on_conflict=id`, {
     method: "POST",
@@ -2325,6 +2339,25 @@ async function createCloudProgressEventIfMissing(item) {
     .select("*");
   if (error) throw error;
   return data?.[0] ? fromDatabaseProgressEvent(data[0]) : null;
+}
+
+async function createCloudProgressEventsIfMissing(items) {
+  if (!items.length) return [];
+  const { error } = await supabaseClient
+    .from("repair_progress_events")
+    .upsert(items.map(toDatabaseProgressEvent), {
+      onConflict: "submission_id,step_index",
+      ignoreDuplicates: true
+    });
+  if (error) throw error;
+
+  const { data, error: readError } = await supabaseClient
+    .from("repair_progress_events")
+    .select("*")
+    .eq("submission_id", items[0].submissionId)
+    .order("step_index", { ascending: true });
+  if (readError) throw readError;
+  return data.map(fromDatabaseProgressEvent);
 }
 
 function getOverdueDetectionEvents(now = Date.now()) {
@@ -2957,8 +2990,7 @@ function getCustomerSubmissionRepairRecord(submission) {
 function isCustomerProgressEnabled(submission) {
   if (!submission) return false;
   if (typeof submission.progressEnabled === "boolean") return submission.progressEnabled;
-  if (cloudMode) return false;
-  return !getCustomerSubmissionRepairRecord(submission);
+  return true;
 }
 
 function updateCustomerProgressButton() {
@@ -3691,11 +3723,17 @@ function renderProgressManageDialog() {
   const submission = customerSubmissions.find((item) => item.id === managingProgressSubmissionId);
   if (!submission) return;
   const record = getCustomerSubmissionRepairRecord(submission);
+  const formSubmissionId = String(els.recordForm.elements.submissionId?.value || appliedSubmissionId || "").trim();
+  const formReturnTrackingNumber = els.recordDialog.open && formSubmissionId === submission.id
+    ? String(els.recordForm.elements.returnTrackingNumber?.value || "").trim()
+    : "";
+  const progressReturnTrackingNumber = formReturnTrackingNumber || record?.returnTrackingNumber || "";
   const events = getEffectiveProgressEvents(submission);
   const eventByStep = new Map(events.map((item) => [item.stepIndex, item]));
   const latestIndex = Math.max(...events.map((item) => item.stepIndex));
   const nextIndex = latestIndex < CUSTOMER_PROGRESS_STEPS.length - 1 ? latestIndex + 1 : -1;
   const currentLabel = CUSTOMER_PROGRESS_STEPS[latestIndex] || CUSTOMER_PROGRESS_STEPS[1];
+  els.completeProgressManageBtn.disabled = latestIndex >= CUSTOMER_PROGRESS_STEPS.length - 1;
 
   els.progressManageSummary.innerHTML = `
     <div>
@@ -3771,7 +3809,7 @@ function renderProgressManageDialog() {
     const returnTrackingField = stepIndex === 8 && (event || isNext)
       ? `<label class="progress-return-tracking-field">
           <span>寄回快递单号 <b>*</b></span>
-          <input type="text" value="${escapeHtml(record?.returnTrackingNumber || "")}" data-progress-return-tracking="${stepIndex}" placeholder="请输入寄回快递单号" ${event ? "disabled" : ""}>
+          <input type="text" value="${escapeHtml(progressReturnTrackingNumber)}" data-progress-return-tracking="${stepIndex}" placeholder="请输入寄回快递单号" ${event ? "disabled" : ""}>
         </label>`
       : "";
     const undoControls = confirmingProgressUndoStep === stepIndex
@@ -3816,6 +3854,91 @@ function renderProgressManageDialog() {
       </li>
     `;
   }).join("");
+}
+
+async function completeProgressFromDialog(button) {
+  const submission = customerSubmissions.find((item) => item.id === managingProgressSubmissionId);
+  if (!submission) {
+    showToast("没有找到这条客户登记");
+    return;
+  }
+
+  const events = getEffectiveProgressEvents(submission);
+  const latestIndex = Math.max(...events.map((item) => item.stepIndex));
+  const finalStepIndex = CUSTOMER_PROGRESS_STEPS.length - 1;
+  if (latestIndex >= finalStepIndex) {
+    showToast("这条进度已经完成到已发货");
+    return;
+  }
+
+  const eventTimes = events
+    .map((item) => new Date(item.occurredAt).getTime())
+    .filter(Number.isFinite);
+  const completedAt = new Date(Math.max(Date.now(), ...eventTimes)).toISOString();
+  const missingEvents = [];
+  for (let stepIndex = latestIndex + 1; stepIndex <= finalStepIndex; stepIndex += 1) {
+    missingEvents.push(normalizeProgressEvent({
+      submissionId: submission.id,
+      stepIndex,
+      occurredAt: completedAt,
+      detailText: stepIndex === 5 ? PAYMENT_ADMIN_PROGRESS_MARK : "",
+      updatedAt: completedAt
+    }));
+  }
+
+  button.disabled = true;
+  button.textContent = "正在完成";
+  try {
+    const repairRecord = getCustomerSubmissionRepairRecord(submission);
+    const formSubmissionId = String(els.recordForm.elements.submissionId?.value || appliedSubmissionId || "").trim();
+    const formMatchesSubmission = els.recordDialog.open && formSubmissionId === submission.id;
+    const formReturnTrackingNumber = formMatchesSubmission
+      ? String(els.recordForm.elements.returnTrackingNumber?.value || "").trim()
+      : "";
+    const returnTrackingNumber = formReturnTrackingNumber || repairRecord?.returnTrackingNumber || "1";
+
+    if (formMatchesSubmission && !formReturnTrackingNumber) {
+      els.recordForm.elements.returnTrackingNumber.value = returnTrackingNumber;
+    }
+
+    if (repairRecord && repairRecord.returnTrackingNumber !== returnTrackingNumber) {
+      const updatedRecord = normalizeRecord({
+        ...repairRecord,
+        returnTrackingNumber,
+        updatedAt: completedAt
+      });
+      const savedRecord = cloudMode ? await saveCloudRecord(updatedRecord) : updatedRecord;
+      const recordIndex = records.findIndex((item) => item.id === savedRecord.id);
+      if (recordIndex >= 0) records[recordIndex] = { ...records[recordIndex], ...savedRecord };
+      if (!cloudMode) saveRecords();
+    }
+
+    if (cloudMode) {
+      const savedEvents = await createCloudProgressEventsIfMissing(missingEvents);
+      repairProgressEvents = repairProgressEvents.filter((item) => item.submissionId !== submission.id);
+      repairProgressEvents.push(...savedEvents);
+    } else {
+      missingEvents.forEach((progressEvent) => {
+        repairProgressEvents = repairProgressEvents.filter((item) => !(
+          item.submissionId === progressEvent.submissionId && item.stepIndex === progressEvent.stepIndex
+        ));
+        repairProgressEvents.push(progressEvent);
+      });
+      saveRepairProgressEvents();
+    }
+
+    render();
+    renderProgressManageDialog();
+    renderCustomerProgress(submission, getCustomerSubmissionRepairRecord(submission));
+    showToast("进度已完成到已发货");
+  } catch (error) {
+    console.error(error);
+    showToast("完成进度失败，请检查网络后重试", "error");
+  } finally {
+    button.textContent = "完成进度";
+    const currentEvents = getEffectiveProgressEvents(submission);
+    button.disabled = Math.max(...currentEvents.map((item) => item.stepIndex)) >= finalStepIndex;
+  }
 }
 
 async function saveProgressStepFromDialog(stepIndex) {
@@ -6064,11 +6187,64 @@ function updateDeviceHistoryButton() {
 
 function updateRecordProgressButton() {
   const submissionId = String(els.recordForm.elements.submissionId?.value || appliedSubmissionId || "").trim();
-  const canOpenProgress = customerSubmissions.some((item) => item.id === submissionId);
+  const submission = customerSubmissions.find((item) => item.id === submissionId) || null;
+  const canOpenProgress = Boolean(submission);
   els.recordProgressBtn.disabled = !canOpenProgress;
   els.recordProgressBtn.title = canOpenProgress ? "打开并修改维修进度" : "请先关联客户登记 B 编号";
   els.previewCustomerProgressBtn.disabled = !canOpenProgress;
-  els.previewCustomerProgressBtn.title = canOpenProgress ? "查看客户手机上的维修进度" : "请先关联客户登记 B 编号";
+  els.previewCustomerProgressBtn.title = canOpenProgress
+    ? (isCustomerProgressEnabled(submission) ? "查看客户手机上的维修进度" : "预览进度内容（客户当前看不到入口）")
+    : "请先关联客户登记 B 编号";
+
+  const progressHidden = canOpenProgress && !isCustomerProgressEnabled(submission);
+  els.toggleCustomerProgressVisibilityBtn.disabled = !canOpenProgress;
+  els.toggleCustomerProgressVisibilityBtn.textContent = "不展示进度";
+  els.toggleCustomerProgressVisibilityBtn.title = canOpenProgress
+    ? (progressHidden ? "已不展示；再次点击恢复展示" : "点击后让客户看不到查看维修进度入口")
+    : "请先关联客户登记 B 编号";
+  els.toggleCustomerProgressVisibilityBtn.setAttribute("aria-pressed", String(progressHidden));
+  els.toggleCustomerProgressVisibilityBtn.classList.toggle("is-progress-hidden", progressHidden);
+}
+
+async function toggleCustomerProgressVisibility() {
+  if (readonlyMode) return;
+  if (cloudMode && !adminMode) {
+    showToast("请先管理员登录");
+    return;
+  }
+
+  const submissionId = String(els.recordForm.elements.submissionId?.value || appliedSubmissionId || "").trim();
+  const submission = customerSubmissions.find((item) => item.id === submissionId);
+  if (!submission) {
+    showToast("请先关联客户登记 B 编号");
+    updateRecordProgressButton();
+    return;
+  }
+
+  const progressEnabled = !isCustomerProgressEnabled(submission);
+  const updatedAt = new Date().toISOString();
+  els.toggleCustomerProgressVisibilityBtn.disabled = true;
+
+  try {
+    const savedSubmission = cloudMode
+      ? await saveCloudProgressVisibility(submission.id, progressEnabled, updatedAt)
+      : normalizeCustomerSubmission({ ...submission, progressEnabled, updatedAt });
+    customerSubmissions = customerSubmissions.map((item) => (
+      item.id === savedSubmission.id ? savedSubmission : item
+    ));
+    if (!cloudMode) saveCustomerSubmissions();
+
+    const lastSubmission = getLastCustomerSubmission();
+    if (lastSubmission?.id === savedSubmission.id) saveLastCustomerSubmission(savedSubmission);
+    updateCustomerProgressButton();
+    renderSubmissions();
+    showToast(progressEnabled ? "已展示进度，客户可以查看" : "已关闭展示，客户看不到进度入口");
+  } catch (error) {
+    console.error(error);
+    showToast("进度展示设置保存失败，请检查网络后重试", "error");
+  } finally {
+    updateRecordProgressButton();
+  }
 }
 
 function openRecordProgressDialog() {
@@ -7710,12 +7886,14 @@ function bindEvents() {
   els.deviceHistoryBtn.addEventListener("click", openDeviceHistoryDialog);
   els.recordProgressBtn.addEventListener("click", openRecordProgressDialog);
   els.previewCustomerProgressBtn.addEventListener("click", openCustomerProgressPreview);
+  els.toggleCustomerProgressVisibilityBtn.addEventListener("click", toggleCustomerProgressVisibility);
   els.closeCustomerProgressPreviewBtn.addEventListener("click", closeCustomerProgressPreview);
   els.doneCustomerProgressPreviewBtn.addEventListener("click", closeCustomerProgressPreview);
   els.closeDeviceHistoryDialogBtn.addEventListener("click", () => els.deviceHistoryDialog.close());
   els.closeDeviceHistoryBtn.addEventListener("click", () => els.deviceHistoryDialog.close());
   els.closeProgressManageDialogBtn.addEventListener("click", closeProgressManageDialog);
   els.doneProgressManageBtn.addEventListener("click", closeProgressManageDialog);
+  els.completeProgressManageBtn.addEventListener("click", () => completeProgressFromDialog(els.completeProgressManageBtn));
   els.closeReceivedUndoConfirmBtn.addEventListener("click", closeReceivedUndoConfirm);
   els.cancelReceivedUndoConfirmBtn.addEventListener("click", closeReceivedUndoConfirm);
   els.confirmReceivedUndoBtn.addEventListener("click", confirmReceivedUndoChange);

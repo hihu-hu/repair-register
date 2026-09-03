@@ -10,7 +10,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260827-month-region-toggle">
+    <link rel="stylesheet" href="styles.css?v=20260903-complete-progress">
   </head>
   <body>
     <header class="app-header">
@@ -569,6 +569,7 @@
               <div class="record-progress-actions">
                 <button class="secondary record-progress-button" id="recordProgressBtn" type="button" disabled title="请先关联客户登记 B 编号">进度</button>
                 <button class="secondary customer-progress-preview-button" id="previewCustomerProgressBtn" type="button" disabled title="请先关联客户登记 B 编号">客户所见进度</button>
+                <button class="secondary progress-visibility-toggle-button" id="toggleCustomerProgressVisibilityBtn" type="button" disabled aria-pressed="false" title="请先关联客户登记 B 编号">不展示进度</button>
               </div>
             </div>
             <textarea name="repairProcess" rows="4" required aria-label="维修过程"></textarea>
@@ -829,6 +830,7 @@
 
         <div class="dialog-actions progress-manage-actions">
           <button class="secondary" id="doneProgressManageBtn" type="button">关闭</button>
+          <button class="primary" id="completeProgressManageBtn" type="button">完成进度</button>
         </div>
       </div>
     </dialog>
@@ -886,6 +888,6 @@
 
     <script src="area-data.js"></script>
     <script src="street-data.js?v=20260807"></script>
-    <script src="app.js?v=20260901-repair-all-time-filter"></script>
+    <script src="app.js?v=20260903-complete-progress-tracking"></script>
   </body>
 </html>

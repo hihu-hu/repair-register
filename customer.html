@@ -259,6 +259,7 @@
       let activeProgressRecord = null;
       let activeProgressEvents = [];
       let progressRefreshRunning = false;
+      let submissionRefreshRunning = false;
       let pendingPaymentButton = null;
       let pendingNoRepairButton = null;
       const clean = (value) => String(value || "").trim();
@@ -692,7 +693,10 @@
       keepRepairBtn.addEventListener("click", cancelNoRepairConfirm);
       noRepairConfirmDialog.addEventListener("cancel", cancelNoRepairConfirm);
       progressTimeline.addEventListener("click", (event) => { const paymentButton = event.target.closest("button[data-payment-confirm]"); if (paymentButton) confirmPayment(paymentButton); const noRepairButton = event.target.closest("button[data-no-repair]"); if (noRepairButton) requestNoRepair(noRepairButton); });
-      window.setInterval(() => { if (activeProgressSubmission && !progressPage.hidden) refreshOpenProgress(); },5000);
+      window.setInterval(() => {
+        if (activeProgressSubmission && !progressPage.hidden) refreshOpenProgress();
+        else if (!success.hidden) restoreLastSubmissionView();
+      },5000);
       async function notifyNewSubmission(submissionId) {
         let lastError = new Error("企微推送失败");
         for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -742,7 +746,8 @@
       }
       function showForm() { success.hidden = true; form.hidden = false; errorBox.textContent = ""; }
       async function restoreLastSubmissionView() {
-        if (previewSubmission || document.hidden || new URLSearchParams(location.search).get("entry") === "edit") return;
+        if (previewSubmission || document.hidden || submissionRefreshRunning || new URLSearchParams(location.search).get("entry") === "edit") return;
+        submissionRefreshRunning = true;
         try {
           const cachedSubmission = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null");
           if (!cachedSubmission) return;
@@ -750,7 +755,7 @@
           const latestSubmission = await loadSubmission(cachedSubmission);
           localStorage.setItem(LAST_SUBMISSION_KEY,JSON.stringify(latestSubmission));
           showCachedSuccess(latestSubmission);
-        } catch {}
+        } catch {} finally { submissionRefreshRunning = false; }
       }
       form.addEventListener("input", saveDraft); form.addEventListener("change", saveDraft); form.elements.deviceNumber.addEventListener("input", () => { form.elements.deviceNumber.value = form.elements.deviceNumber.value.replace(/\D/g, "").slice(0,10); }); form.elements.phone.addEventListener("input", () => { form.elements.phone.value = form.elements.phone.value.replace(/\D/g, "").slice(0,11); }); form.elements.addressProvince.addEventListener("change", updateCities); form.elements.addressCity.addEventListener("change", updateDistricts); form.elements.addressDistrict.addEventListener("change", updateStreets); form.addEventListener("submit", submit); document.querySelector("#newBtn").addEventListener("click", () => { form.reset(); draftNote.hidden = true; history.replaceState(null, "", location.pathname); showForm(); }); document.querySelector("#editBtn").addEventListener("click", () => { const item = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null"); if (item) { form.elements.deviceNumber.value = item.device_number || item.deviceNumber || ""; form.elements.companyName.value = item.company_name || item.companyName || ""; form.elements.contactName.value = item.contact_name || item.contactName || ""; form.elements.phone.value = item.phone || ""; form.elements.trackingNumber.value = item.tracking_number || item.trackingNumber || ""; form.elements.customerIssue.value = (item.customer_issue || item.customerIssue || "").replace(/^电源适配器是否寄回：[^\n]+\n?/, ""); form.elements.powerAdapterReturned.value = item.power_adapter_returned || item.powerAdapterReturned || ((item.customer_issue || "").match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1]; } history.replaceState(null, "", `${location.pathname}?entry=edit`); showForm(); }); document.querySelector("#viewProgressBtn").addEventListener("click", openProgress); document.querySelector("#closeProgressBtn").addEventListener("click", closeProgress); progressTimeline.addEventListener("change", (event) => { const checkbox = event.target.closest("input[data-payment-confirm]"); if (checkbox) confirmPayment(checkbox); }); document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !progressPage.hidden) closeProgress(); }); document.addEventListener("visibilitychange", () => { restoreLastSubmissionView(); if (!document.hidden) refreshOpenProgress(); }); window.addEventListener("pageshow", () => { restoreLastSubmissionView(); refreshOpenProgress(); }); restoreLastSubmissionView(); try { showCachedSuccess(previewSubmission); } catch {} loadAreas();
     </script>

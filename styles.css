@@ -3070,8 +3070,8 @@ dialog::backdrop {
   white-space: nowrap;
 }
 
-.progress-manage-actions {
-  justify-content: flex-end;
+.dialog-actions.progress-manage-actions {
+  justify-content: flex-start;
   margin-top: 0;
 }
 
@@ -3252,11 +3252,25 @@ dialog::backdrop {
   white-space: nowrap;
 }
 
-.customer-progress-preview-button {
+.customer-progress-preview-button,
+.progress-visibility-toggle-button {
   min-height: 32px;
   padding: 0 12px;
   font-size: 12px;
   white-space: nowrap;
+}
+
+.progress-visibility-toggle-button.is-progress-hidden:not(:disabled) {
+  border-color: #c93c3c;
+  background: #c93c3c;
+  color: #fff;
+}
+
+.progress-visibility-toggle-button.is-progress-hidden:not(:disabled):hover,
+.progress-visibility-toggle-button.is-progress-hidden:not(:disabled):focus-visible {
+  border-color: #a92f2f;
+  background: #a92f2f;
+  color: #fff;
 }
 
 .form-grid label:has(:required) > span::after,
