@@ -213,8 +213,9 @@ begin
     and case trim(coalesce(p_query_method, ''))
       when 'device_number' then trim(p_query_value) ~ '^[0-9]{10}$'
         and submission.device_number = trim(p_query_value)
-      when 'tracking_number' then nullif(regexp_replace(p_query_value, '[^0-9]', '', 'g'), '') is not null
-        and regexp_replace(submission.tracking_number, '[^0-9]', '', 'g') = regexp_replace(p_query_value, '[^0-9]', '', 'g')
+      when 'tracking_number' then nullif(regexp_replace(p_query_value, '[^A-Za-z0-9]', '', 'g'), '') is not null
+        and upper(regexp_replace(submission.tracking_number, '[^A-Za-z0-9]', '', 'g'))
+          = upper(regexp_replace(p_query_value, '[^A-Za-z0-9]', '', 'g'))
       else false
     end
   limit 1;
@@ -291,8 +292,9 @@ begin
     and case trim(coalesce(p_query_method, ''))
       when 'device_number' then trim(p_query_value) ~ '^[0-9]{10}$'
         and submission.device_number = trim(p_query_value)
-      when 'tracking_number' then nullif(regexp_replace(p_query_value, '[^0-9]', '', 'g'), '') is not null
-        and regexp_replace(submission.tracking_number, '[^0-9]', '', 'g') = regexp_replace(p_query_value, '[^0-9]', '', 'g')
+      when 'tracking_number' then nullif(regexp_replace(p_query_value, '[^A-Za-z0-9]', '', 'g'), '') is not null
+        and upper(regexp_replace(submission.tracking_number, '[^A-Za-z0-9]', '', 'g'))
+          = upper(regexp_replace(p_query_value, '[^A-Za-z0-9]', '', 'g'))
       else false
     end
     and progress_enabled = true
@@ -333,8 +335,9 @@ begin
     and case trim(coalesce(p_query_method, ''))
       when 'device_number' then trim(p_query_value) ~ '^[0-9]{10}$'
         and submission.device_number = trim(p_query_value)
-      when 'tracking_number' then nullif(regexp_replace(p_query_value, '[^0-9]', '', 'g'), '') is not null
-        and regexp_replace(submission.tracking_number, '[^0-9]', '', 'g') = regexp_replace(p_query_value, '[^0-9]', '', 'g')
+      when 'tracking_number' then nullif(regexp_replace(p_query_value, '[^A-Za-z0-9]', '', 'g'), '') is not null
+        and upper(regexp_replace(submission.tracking_number, '[^A-Za-z0-9]', '', 'g'))
+          = upper(regexp_replace(p_query_value, '[^A-Za-z0-9]', '', 'g'))
       else false
     end
     and progress_enabled = true

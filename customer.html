@@ -317,7 +317,7 @@
       const PREVIEW_SUBMISSION_STORAGE_KEY = "__repair_preview_submission__";
       const QUERY_METHODS = {
         device_number:{ label:"打印机编号", placeholder:"请输入10位打印机编号", inputMode:"numeric", maxLength:10 },
-        tracking_number:{ label:"快递单号（仅填单号数字）", placeholder:"请输入快递单号中的数字", inputMode:"numeric", maxLength:50 }
+        tracking_number:{ label:"快递单号（仅限字母或数字）", placeholder:"请输入快递单号", inputMode:"text", maxLength:50 }
       };
       const previewRequested = new URLSearchParams(location.search).get("preview") === "1" || location.protocol === "file:";
       const previewSubmission = privatePreviewHost && previewRequested ? { id:"customer-preview", submission_number:1, created_time:new Date(Date.now() - 4 * 3600000).toISOString(), device_number:"1002000000", model:"DK110A", company_name:"进度预览", contact_name:"客户", phone:"13800000000", tracking_number:"YT10000002", customer_issue:"电源适配器是否寄回：是\n故障描述：打印效果异常", customer_address:"浙江省杭州市预览地址", progress_enabled:true } : null;
@@ -406,7 +406,8 @@
           ? itemValue(submission,"device_number","deviceNumber")
           : itemValue(submission,"tracking_number","trackingNumber");
         if (access.queryMethod === "tracking_number") {
-          return clean(actualValue).replace(/\D/g,"") === clean(access.queryValue).replace(/\D/g,"");
+          return clean(actualValue).replace(/[^a-z0-9]/gi,"").toLowerCase()
+            === clean(access.queryValue).replace(/[^a-z0-9]/gi,"").toLowerCase();
         }
         return clean(actualValue) === clean(access.queryValue);
       }
@@ -504,8 +505,8 @@
           progressQueryForm.elements.queryValue.focus();
           return;
         }
-        if (access.queryMethod === "tracking_number" && !/^\d+$/.test(access.queryValue)) {
-          queryError.textContent = "请填写快递单号中的数字";
+        if (access.queryMethod === "tracking_number" && !/^[a-z0-9]+$/i.test(access.queryValue)) {
+          queryError.textContent = "快递单号只能填写字母或数字";
           progressQueryForm.elements.queryValue.focus();
           return;
         }
@@ -992,8 +993,9 @@
       progressQueryForm.elements.queryValue.addEventListener("input", () => {
         const method = progressQueryForm.elements.queryMethod.value;
         if (!QUERY_METHODS[method]) return;
+        const disallowedCharacters = method === "device_number" ? /\D/g : /[^a-z0-9]/gi;
         progressQueryForm.elements.queryValue.value = progressQueryForm.elements.queryValue.value
-          .replace(/\D/g, "")
+          .replace(disallowedCharacters, "")
           .slice(0,QUERY_METHODS[method].maxLength);
       });
       registerTabBtn.addEventListener("click", () => setEntryMode("register"));
