@@ -211,8 +211,10 @@ begin
   where submission_number = p_submission_number
     and nullif(trim(coalesce(p_query_value, '')), '') is not null
     and case trim(coalesce(p_query_method, ''))
-      when 'device_number' then submission.device_number = trim(p_query_value)
-      when 'tracking_number' then lower(trim(submission.tracking_number)) = lower(trim(p_query_value))
+      when 'device_number' then trim(p_query_value) ~ '^[0-9]{10}$'
+        and submission.device_number = trim(p_query_value)
+      when 'tracking_number' then nullif(regexp_replace(p_query_value, '[^0-9]', '', 'g'), '') is not null
+        and regexp_replace(submission.tracking_number, '[^0-9]', '', 'g') = regexp_replace(p_query_value, '[^0-9]', '', 'g')
       else false
     end
   limit 1;
@@ -287,8 +289,10 @@ begin
   where submission_number = p_submission_number
     and nullif(trim(coalesce(p_query_value, '')), '') is not null
     and case trim(coalesce(p_query_method, ''))
-      when 'device_number' then submission.device_number = trim(p_query_value)
-      when 'tracking_number' then lower(trim(submission.tracking_number)) = lower(trim(p_query_value))
+      when 'device_number' then trim(p_query_value) ~ '^[0-9]{10}$'
+        and submission.device_number = trim(p_query_value)
+      when 'tracking_number' then nullif(regexp_replace(p_query_value, '[^0-9]', '', 'g'), '') is not null
+        and regexp_replace(submission.tracking_number, '[^0-9]', '', 'g') = regexp_replace(p_query_value, '[^0-9]', '', 'g')
       else false
     end
     and progress_enabled = true
@@ -327,8 +331,10 @@ begin
   where submission_number = p_submission_number
     and nullif(trim(coalesce(p_query_value, '')), '') is not null
     and case trim(coalesce(p_query_method, ''))
-      when 'device_number' then submission.device_number = trim(p_query_value)
-      when 'tracking_number' then lower(trim(submission.tracking_number)) = lower(trim(p_query_value))
+      when 'device_number' then trim(p_query_value) ~ '^[0-9]{10}$'
+        and submission.device_number = trim(p_query_value)
+      when 'tracking_number' then nullif(regexp_replace(p_query_value, '[^0-9]', '', 'g'), '') is not null
+        and regexp_replace(submission.tracking_number, '[^0-9]', '', 'g') = regexp_replace(p_query_value, '[^0-9]', '', 'g')
       else false
     end
     and progress_enabled = true
