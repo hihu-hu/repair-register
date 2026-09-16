@@ -195,7 +195,7 @@
         <form class="query-form" id="progressQueryForm">
           <div class="query-fields">
             <label>
-              <span>登记编号</span>
+              <span>登记编码</span>
               <span class="number-input">
                 <span class="number-prefix" aria-hidden="true">B</span>
                 <input name="submissionNumber" required inputmode="numeric" maxlength="10" pattern="\d+" autocomplete="off" placeholder="例如 123">
@@ -360,7 +360,7 @@
       function updateStreets() { const districtCode = form.elements.addressDistrict.value; fillSelect(form.elements.addressStreet, streetItems(districtCode), districtCode ? "街道 / 乡镇" : "请先选择区 / 县"); saveDraft(); }
       async function loadAreas() { try { if (window.CHINA_AREA_DATA) { areaData = window.CHINA_AREA_DATA; } else { const response = await fetch("area-data.json"); if (!response.ok) throw new Error(); areaData = await response.json(); } fillSelect(form.elements.addressProvince, areaData["86"], "省"); fillSelect(form.elements.addressCity, {}, "市"); fillSelect(form.elements.addressDistrict, {}, "区 / 县"); fillSelect(form.elements.addressStreet, {}, "街道 / 乡镇"); restoreDraft(); const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); if (draft) { form.elements.addressProvince.value = draft.addressProvince || ""; updateCities(); form.elements.addressCity.value = draft.addressCity || ""; updateDistricts(); form.elements.addressDistrict.value = draft.addressDistrict || ""; updateStreets(); form.elements.addressStreet.value = draft.addressStreet || ""; } } catch { errorBox.textContent = "省市区街道资料加载失败，请刷新页面重试"; } }
       function validate() { const number = clean(form.elements.deviceNumber.value); const phone = clean(form.elements.phone.value); if (!/^\d{10}$/.test(number)) return "打印机编号要填写10位数字"; if (!/^\d{11}$/.test(phone)) return "手机号码要填写11位数字"; if (!areaData) return "省市区资料还没加载完，请稍等"; return ""; }
-      function showCachedSuccess(item) { if (!item) return; const value = (snake, camel = snake) => item[snake] || item[camel] || ""; const issue = value("customer_issue", "customerIssue"); const visibleIssue = issue.split("\n").filter((line) => clean(line) !== NO_REPAIR_REQUEST_MARK).join("\n"); const power = value("power_adapter_returned", "powerAdapterReturned") || (issue.match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1]; const created = value("created_time", "createdTime"); const address = value("customer_address", "customerAddress"); const submissionNumber = value("submission_number", "submissionNumber"); document.querySelector("#successDetail").innerHTML = `<dl><div><dt>登记编号</dt><dd>${escapeHtml(submissionNumber ? `B${submissionNumber}` : "-")}</dd></div><div><dt>提交时间</dt><dd>${escapeHtml(created)}</dd></div><div><dt>寄出单号</dt><dd>${escapeHtml(value("tracking_number", "trackingNumber"))}</dd></div><div><dt>打印机编号</dt><dd>${escapeHtml(value("device_number", "deviceNumber"))}</dd></div><div><dt>型号</dt><dd>${escapeHtml(value("model"))}</dd></div><div><dt>电源适配器是否寄回</dt><dd>${escapeHtml(power)}</dd></div><div><dt>公司名</dt><dd>${escapeHtml(value("company_name", "companyName"))}</dd></div><div><dt>故障原因</dt><dd>${escapeHtml(visibleIssue.replace(/^电源适配器是否寄回：[^\n]+\n?/, ""))}</dd></div><div><dt>收件信息</dt><dd>${escapeHtml([value("contact_name", "contactName"), value("phone"), address].filter(Boolean).join(" "))}</dd></div></dl>`; viewProgressBtn.hidden = !isProgressEnabled(item); form.hidden = true; success.hidden = false; }
+      function showCachedSuccess(item) { if (!item) return; const value = (snake, camel = snake) => item[snake] || item[camel] || ""; const issue = value("customer_issue", "customerIssue"); const visibleIssue = issue.split("\n").filter((line) => clean(line) !== NO_REPAIR_REQUEST_MARK).join("\n"); const power = value("power_adapter_returned", "powerAdapterReturned") || (issue.match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1]; const created = value("created_time", "createdTime"); const address = value("customer_address", "customerAddress"); const submissionNumber = value("submission_number", "submissionNumber"); document.querySelector("#successDetail").innerHTML = `<dl><div><dt>登记编码</dt><dd>${escapeHtml(submissionNumber ? `B${submissionNumber}` : "-")}</dd></div><div><dt>提交时间</dt><dd>${escapeHtml(created)}</dd></div><div><dt>寄出单号</dt><dd>${escapeHtml(value("tracking_number", "trackingNumber"))}</dd></div><div><dt>打印机编号</dt><dd>${escapeHtml(value("device_number", "deviceNumber"))}</dd></div><div><dt>型号</dt><dd>${escapeHtml(value("model"))}</dd></div><div><dt>电源适配器是否寄回</dt><dd>${escapeHtml(power)}</dd></div><div><dt>公司名</dt><dd>${escapeHtml(value("company_name", "companyName"))}</dd></div><div><dt>故障原因</dt><dd>${escapeHtml(visibleIssue.replace(/^电源适配器是否寄回：[^\n]+\n?/, ""))}</dd></div><div><dt>收件信息</dt><dd>${escapeHtml([value("contact_name", "contactName"), value("phone"), address].filter(Boolean).join(" "))}</dd></div></dl>`; viewProgressBtn.hidden = !isProgressEnabled(item); form.hidden = true; success.hidden = false; }
       function escapeHtml(value) { return String(value || "").replace(/[&<>\"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[char])); }
       function itemValue(item, snake, camel = snake) { return item?.[snake] || item?.[camel] || ""; }
       function normalizeSubmissionNumber(value) {
@@ -409,7 +409,7 @@
         pageEyebrow.textContent = querying ? "维修查询" : "维修登记";
         pageTitle.textContent = querying ? "查询维修进度" : "请填写机器和收件信息";
         pageLead.textContent = querying
-          ? "请输入登记编号和登记时填写的手机号码。"
+          ? "请输入登记编码和登记时填写的手机号码。"
           : "填好后点击提交，维修人员会尽快联系您。填写过程中刷新页面，内容也会自动保留。";
         if (querying) {
           const cachedSubmission = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null");
@@ -437,7 +437,7 @@
           phone:clean(progressQueryForm.elements.phone.value)
         };
         if (!access.submissionNumber) {
-          queryError.textContent = "登记编号填写不正确，请填写 B 后面的数字";
+          queryError.textContent = "登记编码填写不正确，请填写 B 后面的数字";
           progressQueryForm.elements.submissionNumber.focus();
           return;
         }
@@ -451,7 +451,7 @@
         try {
           const bundle = await loadProgressBundle(access);
           if (!bundle?.found || !bundle.submission) {
-            queryError.textContent = "没有查到记录，请检查登记编号和手机号";
+            queryError.textContent = "没有查到记录，请检查登记编码和手机号";
             return;
           }
           if (!isProgressEnabled(bundle.submission)) {
@@ -649,7 +649,7 @@
         const deviceNumber = itemValue(submission,"device_number","deviceNumber");
         const model = itemValue(submission,"model") || inferModel(deviceNumber) || "型号未知";
         const submissionNumber = itemValue(submission,"submission_number","submissionNumber");
-        progressSummary.innerHTML = `<div><span>登记编号 ${escapeHtml(submissionNumber ? `B${submissionNumber}` : "-")} · 打印机编号</span><strong>${escapeHtml(deviceNumber || "-")}</strong></div><small>${escapeHtml(model)}</small>`;
+        progressSummary.innerHTML = `<div><span>登记编码 ${escapeHtml(submissionNumber ? `B${submissionNumber}` : "-")} · 打印机编号</span><strong>${escapeHtml(deviceNumber || "-")}</strong></div><small>${escapeHtml(model)}</small>`;
         progressTimeline.innerHTML = progressSteps.map((label,index) => {
           const isComplete = index <= position.completedThrough;
           const isCurrent = index === position.currentIndex && position.completedThrough < index;
