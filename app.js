@@ -2118,6 +2118,15 @@ function fromDatabaseProgressEvent(item) {
   return normalizeProgressEvent(item);
 }
 
+function clearProtectedCloudData() {
+  records = [];
+  customerSubmissions = [];
+  repairProgressEvents = [];
+  prepareRecordIdentities();
+  render();
+  renderSubmissions();
+}
+
 async function initializeCloud() {
   if ((forceReadonlyMode && location.hash.includes("view=")) || !(await ensureSupabaseLoaded())) return;
 
@@ -2128,17 +2137,25 @@ async function initializeCloud() {
   const email = data.session?.user?.email || "";
   setCurrentAdminByEmail(email);
   refreshAccessMode();
-  await loadCloudRecords();
-  await loadCloudSubmissions();
-  await loadCloudProgressEvents();
+  if (adminMode) {
+    await loadCloudRecords();
+    await loadCloudSubmissions();
+    await loadCloudProgressEvents();
+  } else {
+    clearProtectedCloudData();
+  }
 
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     const sessionEmail = session?.user?.email || "";
     setCurrentAdminByEmail(sessionEmail);
     refreshAccessMode();
-    loadCloudRecords();
-    loadCloudSubmissions();
-    loadCloudProgressEvents();
+    if (adminMode) {
+      loadCloudRecords();
+      loadCloudSubmissions();
+      loadCloudProgressEvents();
+    } else {
+      clearProtectedCloudData();
+    }
   });
 }
 
@@ -2252,24 +2269,46 @@ async function saveCloudProgressVisibility(submissionId, progressEnabled, update
 }
 
 async function saveCustomerSubmissionReliably(item) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/customer_repair_submissions?on_conflict=id`, {
+  const oldSubmission = customerSubmissions.find((submission) => submission.id === item.id)
+    || (getLastCustomerSubmission()?.id === item.id ? getLastCustomerSubmission() : null);
+  const isEditing = Boolean(oldSubmission?.submissionNumber && oldSubmission?.phone);
+  const functionName = isEditing
+    ? "update_customer_repair_submission"
+    : "create_customer_repair_submission";
+  const sharedBody = {
+    p_device_number: item.deviceNumber || "",
+    p_model: item.model || "",
+    p_company_name: item.companyName || "",
+    p_contact_name: item.contactName || "",
+    p_tracking_number: item.trackingNumber || "",
+    p_customer_issue: item.customerIssue || "",
+    p_customer_address: item.customerAddress || ""
+  };
+  const body = isEditing
+    ? {
+        ...sharedBody,
+        p_submission_number: oldSubmission.submissionNumber,
+        p_current_phone: oldSubmission.phone,
+        p_new_phone: item.phone || ""
+      }
+    : { ...sharedBody, p_phone: item.phone || "" };
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${functionName}`, {
     method: "POST",
     headers: {
       apikey: SUPABASE_ANON_KEY,
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      "Content-Type": "application/json",
-      Prefer: "resolution=merge-duplicates,return=representation"
+      "Content-Type": "application/json"
     },
-    body: JSON.stringify(toDatabaseSubmission(item))
+    body: JSON.stringify(body)
   });
 
   const result = await response.json().catch(() => null);
-  if (!response.ok || !Array.isArray(result) || result[0]?.id !== item.id) {
+  if (!response.ok || !result?.id) {
     const error = new Error(result?.message || "客户提交没有得到云端确认");
     error.code = result?.code || String(response.status);
     throw error;
   }
-  return fromDatabaseSubmission(result[0]);
+  return fromDatabaseSubmission(result);
 }
 
 async function deleteCloudSubmission(id) {
@@ -2489,15 +2528,21 @@ function startAutoDetectionChecks() {
   }, AUTO_DETECTION_CHECK_INTERVAL_MS);
 }
 
-async function requestPaymentConfirmation(submissionId, occurredAt = "") {
-  const body = { p_submission_id: submissionId };
-  if (occurredAt) body.p_occurred_at = occurredAt;
+async function requestPaymentConfirmation(submissionOrId, occurredAt = "") {
+  const isAdminRequest = Boolean(occurredAt && adminMode);
+  const submission = typeof submissionOrId === "object" ? submissionOrId : null;
+  const functionName = isAdminRequest
+    ? "admin_confirm_repair_payment"
+    : "confirm_customer_repair_payment";
+  const body = isAdminRequest
+    ? { p_submission_id: String(submissionOrId || ""), p_occurred_at: occurredAt }
+    : { p_submission_number: submission?.submissionNumber, p_phone: submission?.phone || "" };
   let accessToken = SUPABASE_ANON_KEY;
-  if (occurredAt && adminMode && supabaseClient) {
+  if (isAdminRequest && supabaseClient) {
     const { data } = await supabaseClient.auth.getSession();
     accessToken = data.session?.access_token || SUPABASE_ANON_KEY;
   }
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/confirm_repair_payment`, {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${functionName}`, {
     method: "POST",
     headers: {
       apikey: SUPABASE_ANON_KEY,
@@ -2511,15 +2556,19 @@ async function requestPaymentConfirmation(submissionId, occurredAt = "") {
   return result || {};
 }
 
-async function requestNoRepair(submissionId, occurredAt = "") {
-  const body = { p_submission_id: submissionId };
-  if (occurredAt) body.p_occurred_at = occurredAt;
+async function requestNoRepair(submissionOrId, occurredAt = "") {
+  const isAdminRequest = Boolean(occurredAt && adminMode);
+  const submission = typeof submissionOrId === "object" ? submissionOrId : null;
+  const functionName = isAdminRequest ? "admin_skip_repair" : "skip_customer_repair";
+  const body = isAdminRequest
+    ? { p_submission_id: String(submissionOrId || ""), p_occurred_at: occurredAt }
+    : { p_submission_number: submission?.submissionNumber, p_phone: submission?.phone || "" };
   let accessToken = SUPABASE_ANON_KEY;
-  if (occurredAt && adminMode && supabaseClient) {
+  if (isAdminRequest && supabaseClient) {
     const { data } = await supabaseClient.auth.getSession();
     accessToken = data.session?.access_token || SUPABASE_ANON_KEY;
   }
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/skip_repair`, {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${functionName}`, {
     method: "POST",
     headers: {
       apikey: SUPABASE_ANON_KEY,
@@ -3315,7 +3364,7 @@ async function confirmCustomerPayment(button) {
   const confirmedAt = new Date().toISOString();
   try {
     const result = cloudMode
-      ? await requestPaymentConfirmation(submission.id)
+      ? await requestPaymentConfirmation(submission)
       : {};
     applyPaymentConfirmationLocally(submission.id, result, confirmedAt);
     if (cloudMode) {
@@ -3353,7 +3402,7 @@ async function skipRepairFromCustomerProgress(button) {
     let requestError = null;
     if (cloudMode) {
       try {
-        result = await requestNoRepair(submission.id);
+        result = await requestNoRepair(submission);
       } catch (error) {
         requestError = error;
       }

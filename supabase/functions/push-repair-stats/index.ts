@@ -35,6 +35,18 @@ type CustomerSubmissionRow = {
   updated_at?: string;
 };
 
+function getSecretKey() {
+  const legacyKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (legacyKey) return legacyKey;
+
+  try {
+    const keys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
+    return String(keys.default || "");
+  } catch {
+    return "";
+  }
+}
+
 function numberText(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? String(number) : "0";
@@ -134,11 +146,12 @@ Deno.serve(async (request) => {
   const webhookUrl = Deno.env.get("WECOM_WEBHOOK_URL");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const secretKey = getSecretKey();
   const cronSecret = Deno.env.get("WECOM_PUSH_CRON_SECRET");
   if (!webhookUrl) {
     return Response.json({ ok: false, error: "还没有配置企业微信机器人地址" }, { status: 500, headers: corsHeaders });
   }
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabaseAnonKey || !secretKey) {
     return Response.json({ ok: false, error: "Supabase 环境变量缺失" }, { status: 500, headers: corsHeaders });
   }
 
@@ -146,10 +159,12 @@ Deno.serve(async (request) => {
     const accessToken = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
     const requestCronSecret = request.headers.get("x-cron-secret") || "";
     const isCronRequest = Boolean(cronSecret && requestCronSecret && requestCronSecret === cronSecret);
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
 
     if (!isCronRequest) {
-      const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+      const { data: userData, error: userError } = await authClient.auth.getUser(accessToken);
       const userEmail = String(userData.user?.email || "").toLowerCase();
       const isAdmin = ADMIN_EMAILS.some((email) => email.toLowerCase() === userEmail);
       if (userError || !isAdmin) {
@@ -162,11 +177,14 @@ Deno.serve(async (request) => {
     }
 
     await request.json().catch(() => ({}));
+    const supabaseAdmin = createClient(supabaseUrl, secretKey, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
     const [recordsResult, submissionsResult] = await Promise.all([
-      supabase
+      supabaseAdmin
         .from("repair_records")
         .select("created_time,device_number,final_status,updated_at"),
-      supabase
+      supabaseAdmin
         .from("customer_repair_submissions")
         .select("id,created_time,device_number,tracking_number,updated_at")
     ]);

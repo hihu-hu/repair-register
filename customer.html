@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f5f7f8">
-    <meta name="description" content="客户维修登记">
-    <title>客户维修登记</title>
+    <meta name="description" content="客户维修登记与进度查询">
+    <title>维修登记与进度查询</title>
     <link rel="icon" type="image/png" href="assets/favicon.png">
     <style>
       :root { --ink:#182026; --muted:#607080; --line:#dce3e8; --accent:#0f7b6c; --accent-dark:#075f54; --soft:#e5f4f1; }
@@ -17,7 +17,16 @@
       .eyebrow { margin:0 0 5px; color:var(--accent-dark); font-size:13px; font-weight:700; }
       h1 { margin:0; font-size:clamp(25px,7vw,34px); letter-spacing:0; }
       .lead { margin:8px 0 0; color:var(--muted); line-height:1.6; }
+      .entry-switch { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin:0 0 18px; padding:4px; border:1px solid var(--line); border-radius:8px; background:#e9eef1; }
+      .entry-switch button { min-width:0; background:transparent; color:#52616c; }
+      .entry-switch button[aria-selected="true"] { background:#fff; color:var(--accent-dark); box-shadow:0 1px 5px rgba(24,32,38,.12); }
       form, .success { padding:18px; border:1px solid var(--line); border-radius:8px; background:#fff; box-shadow:0 12px 30px rgba(24,32,38,.07); }
+      .query-form { display:grid; gap:18px; }
+      .query-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:15px; }
+      .number-input { display:grid; grid-template-columns:42px minmax(0,1fr); align-items:stretch; }
+      .number-prefix { display:grid; place-items:center; border:1px solid #c4d0d8; border-right:0; border-radius:6px 0 0 6px; background:#eef3f5; color:#40515d; font-size:16px; font-weight:800; }
+      .number-input input { border-radius:0 6px 6px 0; }
+      .query-submit { justify-self:end; min-width:150px; }
       .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:15px; }
       label { display:grid; gap:7px; min-width:0; color:#34434d; font-size:14px; font-weight:700; }
       label.wide { grid-column:1/-1; }
@@ -113,6 +122,8 @@
         main { width:min(100% - 20px,760px); padding-top:16px; }
         form, .success { padding:15px; }
         .form-grid { grid-template-columns:1fr; gap:14px; }
+        .query-fields { grid-template-columns:1fr; }
+        .query-submit { width:100%; }
         label.wide { grid-column:auto; }
         .address-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
         .address-grid select { padding-left:7px; padding-right:22px; }
@@ -131,10 +142,17 @@
   <body>
     <main>
       <header class="page-head">
-        <p class="eyebrow">维修登记</p>
-        <h1>请填写机器和收件信息</h1>
-        <p class="lead">填好后点击提交，维修人员会尽快联系您。填写过程中刷新页面，内容也会自动保留。</p>
+        <p class="eyebrow" id="pageEyebrow">维修登记</p>
+        <h1 id="pageTitle">请填写机器和收件信息</h1>
+        <p class="lead" id="pageLead">填好后点击提交，维修人员会尽快联系您。填写过程中刷新页面，内容也会自动保留。</p>
       </header>
+
+      <div class="entry-switch" role="tablist" aria-label="维修服务入口">
+        <button id="registerTabBtn" type="button" role="tab" aria-selected="true" aria-controls="registerPanel">登记维修</button>
+        <button id="queryTabBtn" type="button" role="tab" aria-selected="false" aria-controls="queryPanel">查询进度</button>
+      </div>
+
+      <section id="registerPanel" role="tabpanel" aria-labelledby="registerTabBtn">
 
       <form id="customerForm">
         <div class="form-grid">
@@ -170,6 +188,27 @@
         <div class="wechat-card"><img class="wechat-qr" src="assets/enterprise-wechat-qr.png" alt="企业微信二维码"><strong>长按/扫描二维码添加好友（以便咨询维修进度）</strong></div>
         <div class="success-detail" id="successDetail"></div>
         <button class="progress-button" id="viewProgressBtn" type="button" hidden>查看维修进度 <span aria-hidden="true">›</span></button>
+      </section>
+      </section>
+
+      <section id="queryPanel" role="tabpanel" aria-labelledby="queryTabBtn" hidden>
+        <form class="query-form" id="progressQueryForm">
+          <div class="query-fields">
+            <label>
+              <span>登记编号</span>
+              <span class="number-input">
+                <span class="number-prefix" aria-hidden="true">B</span>
+                <input name="submissionNumber" required inputmode="numeric" maxlength="10" pattern="\d+" autocomplete="off" placeholder="例如 123">
+              </span>
+            </label>
+            <label>
+              <span>登记时的手机号码</span>
+              <input name="phone" required inputmode="numeric" maxlength="11" pattern="\d{11}" autocomplete="tel" placeholder="请输入11位手机号">
+            </label>
+          </div>
+          <p class="error" id="queryError" role="alert"></p>
+          <button class="primary query-submit" id="querySubmitBtn" type="submit">查询维修进度</button>
+        </form>
       </section>
     </main>
     <section class="progress-page" id="progressPage" aria-label="维修进度查询" hidden>
@@ -211,6 +250,16 @@
       const NEW_SUBMISSION_PUSH_URL = `${SUPABASE_URL}/functions/v1/push-new-customer-submission`;
       const DRAFT_KEY = "printer_customer_draft_v1";
       const LAST_SUBMISSION_KEY = "printer_last_customer_submission_v2";
+      const pageEyebrow = document.querySelector("#pageEyebrow");
+      const pageTitle = document.querySelector("#pageTitle");
+      const pageLead = document.querySelector("#pageLead");
+      const registerPanel = document.querySelector("#registerPanel");
+      const queryPanel = document.querySelector("#queryPanel");
+      const registerTabBtn = document.querySelector("#registerTabBtn");
+      const queryTabBtn = document.querySelector("#queryTabBtn");
+      const progressQueryForm = document.querySelector("#progressQueryForm");
+      const queryError = document.querySelector("#queryError");
+      const querySubmitBtn = document.querySelector("#querySubmitBtn");
       const form = document.querySelector("#customerForm");
       const errorBox = document.querySelector("#error");
       const draftNote = document.querySelector("#draftNote");
@@ -262,6 +311,10 @@
       let submissionRefreshRunning = false;
       let pendingPaymentButton = null;
       let pendingNoRepairButton = null;
+      let activeProgressAccess = null;
+      let activeProgressCanCache = false;
+      let progressReturnFocus = null;
+      let editingSubmissionAccess = null;
       const clean = (value) => String(value || "").trim();
       const isProgressEnabled = (submission) => (submission?.progress_enabled ?? submission?.progressEnabled) === true;
       const isNoRepairProgressEvent = (event) => clean(itemValue(event,"detail_text","detailText")).startsWith("__no_repair");
@@ -305,6 +358,103 @@
       function showCachedSuccess(item) { if (!item) return; const value = (snake, camel = snake) => item[snake] || item[camel] || ""; const issue = value("customer_issue", "customerIssue"); const visibleIssue = issue.split("\n").filter((line) => clean(line) !== NO_REPAIR_REQUEST_MARK).join("\n"); const power = value("power_adapter_returned", "powerAdapterReturned") || (issue.match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1]; const created = value("created_time", "createdTime"); const address = value("customer_address", "customerAddress"); const submissionNumber = value("submission_number", "submissionNumber"); document.querySelector("#successDetail").innerHTML = `<dl><div><dt>登记编号</dt><dd>${escapeHtml(submissionNumber ? `B${submissionNumber}` : "-")}</dd></div><div><dt>提交时间</dt><dd>${escapeHtml(created)}</dd></div><div><dt>寄出单号</dt><dd>${escapeHtml(value("tracking_number", "trackingNumber"))}</dd></div><div><dt>打印机编号</dt><dd>${escapeHtml(value("device_number", "deviceNumber"))}</dd></div><div><dt>型号</dt><dd>${escapeHtml(value("model"))}</dd></div><div><dt>电源适配器是否寄回</dt><dd>${escapeHtml(power)}</dd></div><div><dt>公司名</dt><dd>${escapeHtml(value("company_name", "companyName"))}</dd></div><div><dt>故障原因</dt><dd>${escapeHtml(visibleIssue.replace(/^电源适配器是否寄回：[^\n]+\n?/, ""))}</dd></div><div><dt>收件信息</dt><dd>${escapeHtml([value("contact_name", "contactName"), value("phone"), address].filter(Boolean).join(" "))}</dd></div></dl>`; viewProgressBtn.hidden = !isProgressEnabled(item); form.hidden = true; success.hidden = false; }
       function escapeHtml(value) { return String(value || "").replace(/[&<>\"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[char])); }
       function itemValue(item, snake, camel = snake) { return item?.[snake] || item?.[camel] || ""; }
+      function normalizeSubmissionNumber(value) {
+        const match = clean(value).match(/^B?(\d+)$/i);
+        return match ? Number(match[1]) : 0;
+      }
+      function getSubmissionAccess(submission) {
+        const submissionNumber = normalizeSubmissionNumber(itemValue(submission,"submission_number","submissionNumber"));
+        const phone = clean(itemValue(submission,"phone"));
+        return submissionNumber && /^\d{11}$/.test(phone) ? { submissionNumber, phone } : null;
+      }
+      async function callCustomerRpc(name, body) {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+          method:"POST",
+          headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}`, "Content-Type":"application/json" },
+          body:JSON.stringify(body)
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result?.message || result?.error || "请求失败");
+        return result;
+      }
+      async function loadProgressBundle(access) {
+        if (!access) return null;
+        if (previewSubmission && access.submissionNumber === 1 && access.phone === "13800000000") {
+          return { found:true, submission:previewSubmission, record:null, events:previewProgressEvents };
+        }
+        return await callCustomerRpc("lookup_customer_repair_progress", {
+          p_submission_number:access.submissionNumber,
+          p_phone:access.phone
+        });
+      }
+      function setEntryMode(mode, updateUrl = true) {
+        const querying = mode === "query";
+        registerPanel.hidden = querying;
+        queryPanel.hidden = !querying;
+        registerTabBtn.setAttribute("aria-selected", querying ? "false" : "true");
+        queryTabBtn.setAttribute("aria-selected", querying ? "true" : "false");
+        pageEyebrow.textContent = querying ? "维修查询" : "维修登记";
+        pageTitle.textContent = querying ? "查询维修进度" : "请填写机器和收件信息";
+        pageLead.textContent = querying
+          ? "请输入登记编号和登记时填写的手机号码。"
+          : "填好后点击提交，维修人员会尽快联系您。填写过程中刷新页面，内容也会自动保留。";
+        if (querying) {
+          const cachedSubmission = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null");
+          const cachedAccess = getSubmissionAccess(cachedSubmission);
+          if (cachedAccess && !progressQueryForm.elements.submissionNumber.value) {
+            progressQueryForm.elements.submissionNumber.value = String(cachedAccess.submissionNumber);
+            progressQueryForm.elements.phone.value = cachedAccess.phone;
+          }
+          window.setTimeout(() => progressQueryForm.elements.submissionNumber.focus(),0);
+        }
+        if (updateUrl) {
+          const url = new URL(location.href);
+          url.searchParams.delete("submitted");
+          url.searchParams.delete("entry");
+          if (querying) url.searchParams.set("view","query");
+          else url.searchParams.delete("view");
+          history.replaceState(null,"",`${url.pathname}${url.search}`);
+        }
+      }
+      async function submitProgressQuery(event) {
+        event.preventDefault();
+        queryError.textContent = "";
+        const access = {
+          submissionNumber:normalizeSubmissionNumber(progressQueryForm.elements.submissionNumber.value),
+          phone:clean(progressQueryForm.elements.phone.value)
+        };
+        if (!access.submissionNumber) {
+          queryError.textContent = "登记编号填写不正确，请填写 B 后面的数字";
+          progressQueryForm.elements.submissionNumber.focus();
+          return;
+        }
+        if (!/^\d{11}$/.test(access.phone)) {
+          queryError.textContent = "手机号码要填写11位数字";
+          progressQueryForm.elements.phone.focus();
+          return;
+        }
+        querySubmitBtn.disabled = true;
+        querySubmitBtn.textContent = "正在查询";
+        try {
+          const bundle = await loadProgressBundle(access);
+          if (!bundle?.found || !bundle.submission) {
+            queryError.textContent = "没有查到记录，请检查登记编号和手机号";
+            return;
+          }
+          if (!isProgressEnabled(bundle.submission)) {
+            queryError.textContent = "这条记录暂未开放进度查询，请联系维修人员";
+            return;
+          }
+          progressReturnFocus = querySubmitBtn;
+          openProgressBundle(bundle,access,false);
+        } catch (error) {
+          console.error(error);
+          queryError.textContent = "查询失败，请检查网络后重试";
+        } finally {
+          querySubmitBtn.disabled = false;
+          querySubmitBtn.textContent = "查询维修进度";
+        }
+      }
       function parseDetectionDetail(value) {
         const lines = clean(value).split(/\r?\n/);
         let accessoryParts = [];
@@ -505,74 +655,24 @@
           return `<li class="progress-step ${state}"><span class="progress-marker" aria-hidden="true"></span><h3>${escapeHtml(label)}${isCurrent && !isHalfComplete ? '<span class="progress-current-label">当前进度</span>' : ""}</h3>${time ? `<p class="progress-time">${escapeHtml(time)}</p>` : ""}${warrantyType ? `<p class="progress-warranty">保修期状态：<strong>${escapeHtml(warrantyType)}</strong></p>` : ""}${note ? `<p class="progress-note">${escapeHtml(note)}</p>` : ""}${repairQuote}${repairSuggestion}${paymentConfirm}</li>`;
         }).join("");
       }
-      async function loadRepairRecord(submission) {
-        const submissionId = itemValue(submission,"id");
-        if (!submissionId) return null;
-        const params = new URLSearchParams({ select:"id,created_time,final_status,return_time,return_tracking_number,updated_at,accessory_parts,model,region,customer_address", submission_id:`eq.${submissionId}`, limit:"1" });
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/repair_records?${params}`, { headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}` } });
-        if (!response.ok) throw new Error("progress unavailable");
-        const records = await response.json();
-        return records[0] || null;
-      }
-      async function loadSubmission(submission) {
-        const submissionId = itemValue(submission,"id");
-        if (!submissionId || (previewSubmission && submissionId === previewSubmission.id)) return submission;
-        const params = new URLSearchParams({ select:"*", id:`eq.${submissionId}`, limit:"1" });
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/customer_repair_submissions?${params}`, { headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}` } });
-        if (!response.ok) throw new Error("submission unavailable");
-        const submissions = await response.json();
-        return submissions[0] || submission;
-      }
-      async function loadProgressEvents(submission) {
-        const submissionId = itemValue(submission,"id");
-        if (!submissionId) return [];
-        if (previewSubmission && submissionId === previewSubmission.id) return previewProgressEvents;
-        const params = new URLSearchParams({ select:"step_index,occurred_at,detail_text,updated_at", submission_id:`eq.${submissionId}`, order:"step_index.asc" });
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/repair_progress_events?${params}`, { headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}` } });
-        if (!response.ok) throw new Error("progress events unavailable");
-        return await response.json();
-      }
-      async function saveNoRepairRequest(submission) {
-        const currentIssue = clean(itemValue(submission,"customer_issue","customerIssue"));
-        const customerIssue = [
-          ...currentIssue.split("\n").filter((line) => clean(line) !== NO_REPAIR_REQUEST_MARK),
-          NO_REPAIR_REQUEST_MARK
-        ].filter(Boolean).join("\n");
-        const updatedAt = new Date().toISOString();
-        const params = new URLSearchParams({ id:`eq.${itemValue(submission,"id")}` });
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/customer_repair_submissions?${params}`, {
-          method:"PATCH",
-          headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}`, "Content-Type":"application/json", Prefer:"return=representation" },
-          body:JSON.stringify({ customer_issue:customerIssue, updated_at:updatedAt })
-        });
-        const rows = await response.json().catch(() => []);
-        if (!response.ok || !rows[0]) throw new Error("no repair request was not saved");
-        return rows[0];
-      }
-      async function restoreSubmissionIssue(submission, customerIssue) {
-        const updatedAt = new Date().toISOString();
-        const params = new URLSearchParams({ id:`eq.${itemValue(submission,"id")}` });
-        await fetch(`${SUPABASE_URL}/rest/v1/customer_repair_submissions?${params}`, {
-          method:"PATCH",
-          headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}`, "Content-Type":"application/json" },
-          body:JSON.stringify({ customer_issue:customerIssue, updated_at:updatedAt })
-        });
+      function applyProgressBundle(bundle) {
+        if (!bundle?.submission) return false;
+        activeProgressSubmission = bundle.submission;
+        activeProgressRecord = bundle.record || null;
+        activeProgressEvents = Array.isArray(bundle.events) ? bundle.events : [];
+        if (activeProgressCanCache) localStorage.setItem(LAST_SUBMISSION_KEY,JSON.stringify(activeProgressSubmission));
+        return true;
       }
       async function refreshOpenProgress({ showLoading = false } = {}) {
-        if (!activeProgressSubmission || progressPage.hidden || progressRefreshRunning) return;
+        if (!activeProgressSubmission || !activeProgressAccess || progressPage.hidden || progressRefreshRunning) return;
         progressRefreshRunning = true;
         if (showLoading) {
           progressLoading.textContent = "正在读取最新进度...";
           progressLoading.hidden = false;
         }
         try {
-          const [submissionResult,recordResult,eventResult] = await Promise.allSettled([loadSubmission(activeProgressSubmission),loadRepairRecord(activeProgressSubmission),loadProgressEvents(activeProgressSubmission)]);
-          if (submissionResult.status === "fulfilled") {
-            activeProgressSubmission = submissionResult.value;
-            localStorage.setItem(LAST_SUBMISSION_KEY,JSON.stringify(activeProgressSubmission));
-          }
-          if (recordResult.status === "fulfilled") activeProgressRecord = recordResult.value;
-          if (eventResult.status === "fulfilled") activeProgressEvents = eventResult.value;
+          const bundle = await loadProgressBundle(activeProgressAccess);
+          if (!bundle?.found || !applyProgressBundle(bundle)) throw new Error("progress unavailable");
           if (!isProgressEnabled(activeProgressSubmission)) {
             viewProgressBtn.hidden = true;
             progressPage.hidden = true;
@@ -604,9 +704,12 @@
               { submission_id:previewSubmission.id, step_index:6, occurred_at:now, detail_text:"" }
             ]);
           } else {
-            const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/confirm_repair_payment`, { method:"POST", headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}`, "Content-Type":"application/json" }, body:JSON.stringify({ p_submission_id:itemValue(activeProgressSubmission,"id") }) });
-            if (!response.ok) throw new Error("payment confirmation failed");
-            activeProgressEvents = await loadProgressEvents(activeProgressSubmission);
+            await callCustomerRpc("confirm_customer_repair_payment", {
+              p_submission_number:activeProgressAccess.submissionNumber,
+              p_phone:activeProgressAccess.phone
+            });
+            const bundle = await loadProgressBundle(activeProgressAccess);
+            if (!bundle?.found || !applyProgressBundle(bundle)) throw new Error("payment confirmation failed");
           }
           renderProgress(activeProgressSubmission,activeProgressRecord,activeProgressEvents);
           progressLoading.hidden = true;
@@ -629,7 +732,6 @@
         progressLoading.textContent = "正在提交无需维修...";
         progressLoading.hidden = false;
         try {
-          const originalIssue = clean(itemValue(activeProgressSubmission,"customer_issue","customerIssue"));
           if (previewSubmission && itemValue(activeProgressSubmission,"id") === previewSubmission.id) {
             const now = new Date().toISOString();
             activeProgressSubmission = { ...activeProgressSubmission, customer_issue:`${clean(itemValue(activeProgressSubmission,"customer_issue","customerIssue"))}\n${NO_REPAIR_REQUEST_MARK}`, updated_at:now };
@@ -639,24 +741,12 @@
               { submission_id:previewSubmission.id, step_index:7, occurred_at:now, detail_text:NO_REPAIR_PROGRESS_MARK, updated_at:now }
             ]);
           } else {
-            activeProgressSubmission = await saveNoRepairRequest(activeProgressSubmission);
-            localStorage.setItem(LAST_SUBMISSION_KEY,JSON.stringify(activeProgressSubmission));
-            let response = null;
-            let result = {};
-            try {
-              response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/skip_repair`, { method:"POST", headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}`, "Content-Type":"application/json" }, body:JSON.stringify({ p_submission_id:itemValue(activeProgressSubmission,"id") }) });
-              result = await response.json().catch(() => ({}));
-              activeProgressEvents = await loadProgressEvents(activeProgressSubmission);
-            } catch (error) {
-              console.error(error);
-            }
-            const repairHasStarted = activeProgressEvents.some((item) => [6,7].includes(Number(item.step_index ?? item.stepIndex)) && !isNoRepairProgressEvent(item));
-            if (response && !response.ok && repairHasStarted) {
-              await restoreSubmissionIssue(activeProgressSubmission,originalIssue);
-              activeProgressSubmission = { ...activeProgressSubmission, customer_issue:originalIssue };
-              localStorage.setItem(LAST_SUBMISSION_KEY,JSON.stringify(activeProgressSubmission));
-              throw new Error(result?.message || "repair progress has already continued");
-            }
+            await callCustomerRpc("skip_customer_repair", {
+              p_submission_number:activeProgressAccess.submissionNumber,
+              p_phone:activeProgressAccess.phone
+            });
+            const bundle = await loadProgressBundle(activeProgressAccess);
+            if (!bundle?.found || !applyProgressBundle(bundle)) throw new Error("skip repair failed");
           }
           renderProgress(activeProgressSubmission,activeProgressRecord,activeProgressEvents);
           progressLoading.textContent = "已放弃维修，当前进度已进入等待发货";
@@ -670,18 +760,32 @@
           window.setTimeout(() => { progressLoading.hidden = true; progressLoading.textContent = "正在读取最新进度..."; },2600);
         }
       }
-      async function openProgress() {
-        const submission = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null") || previewSubmission;
-        if (!submission || !isProgressEnabled(submission)) return;
+      function openProgressBundle(bundle,access,canCache) {
+        if (!bundle?.submission || !access) return;
+        activeProgressAccess = access;
+        activeProgressCanCache = Boolean(canCache);
+        applyProgressBundle(bundle);
         const openAccessories = progressTimeline.querySelector(".progress-accessories[open]");
         if (openAccessories) openAccessories.open = false;
-        renderProgress(submission,null);
+        renderProgress(activeProgressSubmission,activeProgressRecord,activeProgressEvents);
         progressPage.hidden = false;
         document.body.classList.add("progress-open");
         document.querySelector("#closeProgressBtn").focus();
+      }
+      async function openProgress() {
+        const submission = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null") || previewSubmission;
+        if (!submission || !isProgressEnabled(submission)) return;
+        const access = getSubmissionAccess(submission);
+        if (!access) return;
+        progressReturnFocus = viewProgressBtn;
+        openProgressBundle({ found:true, submission, record:null, events:[] },access,true);
         await refreshOpenProgress({ showLoading:true });
       }
-      function closeProgress() { progressPage.hidden = true; document.body.classList.remove("progress-open"); if (!viewProgressBtn.hidden) viewProgressBtn.focus(); }
+      function closeProgress() {
+        progressPage.hidden = true;
+        document.body.classList.remove("progress-open");
+        if (progressReturnFocus && !progressReturnFocus.hidden) progressReturnFocus.focus();
+      }
       function cancelPaymentConfirm() { pendingPaymentButton = null; if (paymentConfirmDialog.open) paymentConfirmDialog.close(); }
       function acceptPaymentConfirm() { const button = pendingPaymentButton; pendingPaymentButton = null; if (paymentConfirmDialog.open) paymentConfirmDialog.close(); if (!button) return; button.dataset.paymentConfirmed = "1"; confirmPayment(button); }
       function cancelNoRepairConfirm() { pendingNoRepairButton = null; if (noRepairConfirmDialog.open) noRepairConfirmDialog.close(); }
@@ -694,7 +798,7 @@
       noRepairConfirmDialog.addEventListener("cancel", cancelNoRepairConfirm);
       progressTimeline.addEventListener("click", (event) => { const paymentButton = event.target.closest("button[data-payment-confirm]"); if (paymentButton) confirmPayment(paymentButton); const noRepairButton = event.target.closest("button[data-no-repair]"); if (noRepairButton) requestNoRepair(noRepairButton); });
       window.setInterval(() => {
-        if (activeProgressSubmission && !progressPage.hidden) refreshOpenProgress();
+        if (activeProgressSubmission && !progressPage.hidden) refreshOpenProgress().catch((error) => console.error(error));
         else if (!success.hidden) restoreLastSubmissionView();
       },5000);
       async function notifyNewSubmission(submissionId) {
@@ -725,26 +829,44 @@
         if (message) { errorBox.textContent = message; return; }
         submitBtn.disabled = true;
         submitBtn.textContent = "正在提交";
-        const now = new Date().toISOString();
-        const data = { id:`customer-${Date.now()}-${Math.random().toString(16).slice(2)}`, created_time:now, device_number:clean(form.elements.deviceNumber.value), model:inferModel(form.elements.deviceNumber.value), company_name:clean(form.elements.companyName.value), contact_name:clean(form.elements.contactName.value), phone:clean(form.elements.phone.value), tracking_number:clean(form.elements.trackingNumber.value), customer_issue:`电源适配器是否寄回：${clean(form.elements.powerAdapterReturned.value)}\n故障描述：${clean(form.elements.customerIssue.value)}`, customer_address:addressText(), updated_at:now };
+        const isEditing = Boolean(editingSubmissionAccess);
+        const phone = clean(form.elements.phone.value);
+        const payload = {
+          p_device_number:clean(form.elements.deviceNumber.value),
+          p_model:inferModel(form.elements.deviceNumber.value),
+          p_company_name:clean(form.elements.companyName.value),
+          p_contact_name:clean(form.elements.contactName.value),
+          p_tracking_number:clean(form.elements.trackingNumber.value),
+          p_customer_issue:`电源适配器是否寄回：${clean(form.elements.powerAdapterReturned.value)}\n故障描述：${clean(form.elements.customerIssue.value)}`,
+          p_customer_address:addressText()
+        };
         try {
-          const response = await fetch(`${SUPABASE_URL}/rest/v1/customer_repair_submissions?on_conflict=id`, { method:"POST", headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${SUPABASE_ANON_KEY}`, "Content-Type":"application/json", Prefer:"resolution=merge-duplicates,return=representation" }, body:JSON.stringify(data) });
-          const savedRows = await response.json().catch(() => []);
-          if (!response.ok || !savedRows[0]) throw new Error();
-          const savedData = savedRows[0];
+          const savedData = isEditing
+            ? await callCustomerRpc("update_customer_repair_submission", {
+                ...payload,
+                p_submission_number:editingSubmissionAccess.submissionNumber,
+                p_current_phone:editingSubmissionAccess.phone,
+                p_new_phone:phone
+              })
+            : await callCustomerRpc("create_customer_repair_submission",{ ...payload, p_phone:phone });
+          if (!savedData?.id) throw new Error("submission was not saved");
+          editingSubmissionAccess = null;
           localStorage.removeItem(DRAFT_KEY);
           localStorage.setItem(LAST_SUBMISSION_KEY,JSON.stringify(savedData));
           history.replaceState(null,"",`${location.pathname}?submitted=1`);
           showCachedSuccess(savedData);
-          notifyNewSubmission(savedData.id).catch((error) => console.error("企微推送失败",error));
-        } catch {
-          errorBox.textContent = "提交失败，信息还没有保存，请检查网络后重试";
+          if (!isEditing) notifyNewSubmission(savedData.id).catch((error) => console.error("企微推送失败",error));
+        } catch (error) {
+          console.error(error);
+          errorBox.textContent = error?.message === "submission locked"
+            ? "这条记录已经寄出，不能再修改"
+            : "提交失败，信息还没有保存，请检查网络后重试";
         } finally {
           submitBtn.disabled = false;
-          submitBtn.textContent = "提交登记";
+          submitBtn.textContent = isEditing ? "保存修改" : "提交登记";
         }
       }
-      function showForm() { success.hidden = true; form.hidden = false; errorBox.textContent = ""; }
+      function showForm() { success.hidden = true; form.hidden = false; errorBox.textContent = ""; submitBtn.textContent = editingSubmissionAccess ? "保存修改" : "提交登记"; }
       async function restoreLastSubmissionView() {
         if (previewSubmission || document.hidden || submissionRefreshRunning || new URLSearchParams(location.search).get("entry") === "edit") return;
         submissionRefreshRunning = true;
@@ -752,12 +874,63 @@
           const cachedSubmission = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null");
           if (!cachedSubmission) return;
           showCachedSuccess(cachedSubmission);
-          const latestSubmission = await loadSubmission(cachedSubmission);
-          localStorage.setItem(LAST_SUBMISSION_KEY,JSON.stringify(latestSubmission));
-          showCachedSuccess(latestSubmission);
+          const access = getSubmissionAccess(cachedSubmission);
+          const bundle = await loadProgressBundle(access);
+          if (bundle?.found && bundle.submission) {
+            localStorage.setItem(LAST_SUBMISSION_KEY,JSON.stringify(bundle.submission));
+            showCachedSuccess(bundle.submission);
+          }
         } catch {} finally { submissionRefreshRunning = false; }
       }
-      form.addEventListener("input", saveDraft); form.addEventListener("change", saveDraft); form.elements.deviceNumber.addEventListener("input", () => { form.elements.deviceNumber.value = form.elements.deviceNumber.value.replace(/\D/g, "").slice(0,10); }); form.elements.phone.addEventListener("input", () => { form.elements.phone.value = form.elements.phone.value.replace(/\D/g, "").slice(0,11); }); form.elements.addressProvince.addEventListener("change", updateCities); form.elements.addressCity.addEventListener("change", updateDistricts); form.elements.addressDistrict.addEventListener("change", updateStreets); form.addEventListener("submit", submit); document.querySelector("#newBtn").addEventListener("click", () => { form.reset(); draftNote.hidden = true; history.replaceState(null, "", location.pathname); showForm(); }); document.querySelector("#editBtn").addEventListener("click", () => { const item = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null"); if (item) { form.elements.deviceNumber.value = item.device_number || item.deviceNumber || ""; form.elements.companyName.value = item.company_name || item.companyName || ""; form.elements.contactName.value = item.contact_name || item.contactName || ""; form.elements.phone.value = item.phone || ""; form.elements.trackingNumber.value = item.tracking_number || item.trackingNumber || ""; form.elements.customerIssue.value = (item.customer_issue || item.customerIssue || "").replace(/^电源适配器是否寄回：[^\n]+\n?/, ""); form.elements.powerAdapterReturned.value = item.power_adapter_returned || item.powerAdapterReturned || ((item.customer_issue || "").match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1]; } history.replaceState(null, "", `${location.pathname}?entry=edit`); showForm(); }); document.querySelector("#viewProgressBtn").addEventListener("click", openProgress); document.querySelector("#closeProgressBtn").addEventListener("click", closeProgress); progressTimeline.addEventListener("change", (event) => { const checkbox = event.target.closest("input[data-payment-confirm]"); if (checkbox) confirmPayment(checkbox); }); document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !progressPage.hidden) closeProgress(); }); document.addEventListener("visibilitychange", () => { restoreLastSubmissionView(); if (!document.hidden) refreshOpenProgress(); }); window.addEventListener("pageshow", () => { restoreLastSubmissionView(); refreshOpenProgress(); }); restoreLastSubmissionView(); try { showCachedSuccess(previewSubmission); } catch {} loadAreas();
+      form.addEventListener("input", saveDraft);
+      form.addEventListener("change", saveDraft);
+      form.elements.deviceNumber.addEventListener("input", () => { form.elements.deviceNumber.value = form.elements.deviceNumber.value.replace(/\D/g, "").slice(0,10); });
+      form.elements.phone.addEventListener("input", () => { form.elements.phone.value = form.elements.phone.value.replace(/\D/g, "").slice(0,11); });
+      form.elements.addressProvince.addEventListener("change", updateCities);
+      form.elements.addressCity.addEventListener("change", updateDistricts);
+      form.elements.addressDistrict.addEventListener("change", updateStreets);
+      form.addEventListener("submit", submit);
+      progressQueryForm.addEventListener("submit", submitProgressQuery);
+      progressQueryForm.elements.submissionNumber.addEventListener("input", () => {
+        progressQueryForm.elements.submissionNumber.value = progressQueryForm.elements.submissionNumber.value.replace(/\D/g, "").slice(0,10);
+      });
+      progressQueryForm.elements.phone.addEventListener("input", () => {
+        progressQueryForm.elements.phone.value = progressQueryForm.elements.phone.value.replace(/\D/g, "").slice(0,11);
+      });
+      registerTabBtn.addEventListener("click", () => setEntryMode("register"));
+      queryTabBtn.addEventListener("click", () => setEntryMode("query"));
+      document.querySelector("#newBtn").addEventListener("click", () => {
+        editingSubmissionAccess = null;
+        form.reset();
+        draftNote.hidden = true;
+        setEntryMode("register");
+        showForm();
+      });
+      document.querySelector("#editBtn").addEventListener("click", () => {
+        const item = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null");
+        editingSubmissionAccess = getSubmissionAccess(item);
+        if (item && editingSubmissionAccess) {
+          form.elements.deviceNumber.value = item.device_number || item.deviceNumber || "";
+          form.elements.companyName.value = item.company_name || item.companyName || "";
+          form.elements.contactName.value = item.contact_name || item.contactName || "";
+          form.elements.phone.value = item.phone || "";
+          form.elements.trackingNumber.value = item.tracking_number || item.trackingNumber || "";
+          form.elements.customerIssue.value = (item.customer_issue || item.customerIssue || "").replace(/^电源适配器是否寄回：[^\n]+\n?/, "").replace(/^故障描述：/, "");
+          form.elements.powerAdapterReturned.value = item.power_adapter_returned || item.powerAdapterReturned || ((item.customer_issue || "").match(/电源适配器是否寄回：([^\n]+)/) || ["", ""])[1];
+        }
+        history.replaceState(null,"",`${location.pathname}?entry=edit`);
+        showForm();
+      });
+      viewProgressBtn.addEventListener("click", () => openProgress().catch((error) => console.error(error)));
+      document.querySelector("#closeProgressBtn").addEventListener("click", closeProgress);
+      progressTimeline.addEventListener("change", (event) => { const checkbox = event.target.closest("input[data-payment-confirm]"); if (checkbox) confirmPayment(checkbox); });
+      document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !progressPage.hidden) closeProgress(); });
+      document.addEventListener("visibilitychange", () => { restoreLastSubmissionView(); if (!document.hidden) refreshOpenProgress().catch((error) => console.error(error)); });
+      window.addEventListener("pageshow", () => { restoreLastSubmissionView(); refreshOpenProgress().catch((error) => console.error(error)); });
+      setEntryMode(new URLSearchParams(location.search).get("view") === "query" ? "query" : "register",false);
+      restoreLastSubmissionView();
+      try { showCachedSuccess(previewSubmission); } catch {}
+      loadAreas();
     </script>
   </body>
 </html>
