@@ -466,11 +466,6 @@
           ? "请输入登记编码，再选择打印机编号或快递单号查询。"
           : "填好后点击提交，维修人员会尽快联系您。填写过程中刷新页面，内容也会自动保留。";
         if (querying) {
-          const cachedSubmission = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null");
-          const cachedAccess = getProgressAccess(cachedSubmission);
-          if (cachedAccess && !progressQueryForm.elements.submissionNumber.value) {
-            progressQueryForm.elements.submissionNumber.value = String(cachedAccess.submissionNumber);
-          }
           window.setTimeout(() => progressQueryForm.elements.submissionNumber.focus(),0);
         }
         if (updateUrl) {
