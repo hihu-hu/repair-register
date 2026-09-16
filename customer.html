@@ -301,9 +301,11 @@
       };
       const SHIPPING_PRICES = {浙江:8,江苏:8,上海:8,安徽:8,北京:13,福建:13,河南:13,湖南:13,湖北:13,江西:13,山东:13,河北:16,天津:16,广东:16,广西:16,山西:16,陕西:16,四川:16,重庆:16,贵州:19,海南:19,黑龙江:19,吉林:19,云南:19,辽宁:19,甘肃:32,宁夏:32,青海:32,内蒙古:32,新疆:49};
       const privatePreviewHost = ["localhost","127.0.0.1"].includes(location.hostname)
-        || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+        || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname)
+        || location.protocol === "file:";
       const PREVIEW_SUBMISSION_STORAGE_KEY = "__repair_preview_submission__";
-      const previewSubmission = privatePreviewHost && new URLSearchParams(location.search).get("preview") === "1" ? { id:"customer-preview", submission_number:1, created_time:new Date(Date.now() - 4 * 3600000).toISOString(), device_number:"1002000000", model:"DK110A", company_name:"进度预览", contact_name:"客户", phone:"13800000000", tracking_number:"预览快递单号", customer_issue:"电源适配器是否寄回：是\n故障描述：打印效果异常", customer_address:"浙江省杭州市预览地址", progress_enabled:true } : null;
+      const previewRequested = new URLSearchParams(location.search).get("preview") === "1" || location.protocol === "file:";
+      const previewSubmission = privatePreviewHost && previewRequested ? { id:"customer-preview", submission_number:1, created_time:new Date(Date.now() - 4 * 3600000).toISOString(), device_number:"1002000000", model:"DK110A", company_name:"进度预览", contact_name:"客户", phone:"13800000000", tracking_number:"预览快递单号", customer_issue:"电源适配器是否寄回：是\n故障描述：打印效果异常", customer_address:"浙江省杭州市预览地址", progress_enabled:true } : null;
       const previewProgressEvents = previewSubmission ? [0,1,2,3,4].map((step_index,index) => ({ submission_id:previewSubmission.id, step_index, occurred_at:new Date(Date.now() - (4 - index) * 3600000).toISOString(), detail_text:step_index === 4 ? "检测发现打印头积碳，清洁后打印测试正常，本次无需更换配件。" : "" })) : [];
       const modelRules = [["1009","GMX"],["10064","GMI"],["2003","GMT"],["10063","GMH"],["2009","GMX-5G"],["3003","GMT-5G"],["1002","DK110A"],["1007","DK110B"],["2002","DK110S"],["1003","DK80"],["7","新北洋110"],["9","芯烨80"]];
       let areaData = null;
