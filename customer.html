@@ -23,6 +23,7 @@
       form, .success { padding:18px; border:1px solid var(--line); border-radius:8px; background:#fff; box-shadow:0 12px 30px rgba(24,32,38,.07); }
       .query-form { display:grid; gap:18px; }
       .query-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:15px; }
+      .query-value-field { grid-column:1/-1; }
       .number-input { display:grid; grid-template-columns:42px minmax(0,1fr); align-items:stretch; }
       .number-prefix { display:grid; place-items:center; border:1px solid #c4d0d8; border-right:0; border-radius:6px 0 0 6px; background:#eef3f5; color:#40515d; font-size:16px; font-weight:800; }
       .number-input input { border-radius:0 6px 6px 0; }
@@ -202,8 +203,16 @@
               </span>
             </label>
             <label>
-              <span>登记时的手机号码</span>
-              <input name="phone" required inputmode="numeric" maxlength="11" pattern="\d{11}" autocomplete="tel" placeholder="请输入11位手机号">
+              <span>查询方式</span>
+              <select name="queryMethod" required>
+                <option value="">请选择查询方式</option>
+                <option value="device_number">打印机编号查询</option>
+                <option value="tracking_number">快递单号查询</option>
+              </select>
+            </label>
+            <label class="query-value-field" id="queryValueLabel" hidden>
+              <span id="queryValueTitle"></span>
+              <input name="queryValue" autocomplete="off">
             </label>
           </div>
           <p class="error" id="queryError" role="alert"></p>
@@ -260,6 +269,8 @@
       const progressQueryForm = document.querySelector("#progressQueryForm");
       const queryError = document.querySelector("#queryError");
       const querySubmitBtn = document.querySelector("#querySubmitBtn");
+      const queryValueLabel = document.querySelector("#queryValueLabel");
+      const queryValueTitle = document.querySelector("#queryValueTitle");
       const form = document.querySelector("#customerForm");
       const errorBox = document.querySelector("#error");
       const draftNote = document.querySelector("#draftNote");
@@ -304,6 +315,10 @@
         || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname)
         || location.protocol === "file:";
       const PREVIEW_SUBMISSION_STORAGE_KEY = "__repair_preview_submission__";
+      const QUERY_METHODS = {
+        device_number:{ label:"打印机编号", placeholder:"请输入10位打印机编号", inputMode:"numeric", maxLength:10 },
+        tracking_number:{ label:"快递单号", placeholder:"请输入登记时填写的快递单号", inputMode:"text", maxLength:120 }
+      };
       const previewRequested = new URLSearchParams(location.search).get("preview") === "1" || location.protocol === "file:";
       const previewSubmission = privatePreviewHost && previewRequested ? { id:"customer-preview", submission_number:1, created_time:new Date(Date.now() - 4 * 3600000).toISOString(), device_number:"1002000000", model:"DK110A", company_name:"进度预览", contact_name:"客户", phone:"13800000000", tracking_number:"预览快递单号", customer_issue:"电源适配器是否寄回：是\n故障描述：打印效果异常", customer_address:"浙江省杭州市预览地址", progress_enabled:true } : null;
       const previewProgressEvents = previewSubmission ? [0,1,2,3,4].map((step_index,index) => ({ submission_id:previewSubmission.id, step_index, occurred_at:new Date(Date.now() - (4 - index) * 3600000).toISOString(), detail_text:step_index === 4 ? "检测发现打印头积碳，清洁后打印测试正常，本次无需更换配件。" : "" })) : [];
@@ -367,7 +382,16 @@
         const match = clean(value).match(/^B?(\d+)$/i);
         return match ? Number(match[1]) : 0;
       }
-      function getSubmissionAccess(submission) {
+      function getProgressAccess(submission) {
+        const submissionNumber = normalizeSubmissionNumber(itemValue(submission,"submission_number","submissionNumber"));
+        const deviceNumber = clean(itemValue(submission,"device_number","deviceNumber"));
+        const trackingNumber = clean(itemValue(submission,"tracking_number","trackingNumber"));
+        if (!submissionNumber) return null;
+        if (/^\d{10}$/.test(deviceNumber)) return { submissionNumber, queryMethod:"device_number", queryValue:deviceNumber };
+        if (trackingNumber) return { submissionNumber, queryMethod:"tracking_number", queryValue:trackingNumber };
+        return null;
+      }
+      function getEditingAccess(submission) {
         const submissionNumber = normalizeSubmissionNumber(itemValue(submission,"submission_number","submissionNumber"));
         const phone = clean(itemValue(submission,"phone"));
         return submissionNumber && /^\d{11}$/.test(phone) ? { submissionNumber, phone } : null;
@@ -375,6 +399,30 @@
       function getPreviewSavedSubmission() {
         if (!previewSubmission) return null;
         try { return JSON.parse(localStorage.getItem(PREVIEW_SUBMISSION_STORAGE_KEY) || "null"); } catch { return null; }
+      }
+      function matchesProgressAccess(submission,access) {
+        if (!submission || !access) return false;
+        const actualValue = access.queryMethod === "device_number"
+          ? itemValue(submission,"device_number","deviceNumber")
+          : itemValue(submission,"tracking_number","trackingNumber");
+        return clean(actualValue).toLowerCase() === clean(access.queryValue).toLowerCase();
+      }
+      function updateQueryValueField({ preserveValue = false } = {}) {
+        const method = progressQueryForm.elements.queryMethod.value;
+        const config = QUERY_METHODS[method];
+        const input = progressQueryForm.elements.queryValue;
+        queryValueLabel.hidden = !config;
+        input.required = Boolean(config);
+        if (!config) {
+          if (!preserveValue) input.value = "";
+          return;
+        }
+        queryValueTitle.textContent = config.label;
+        input.placeholder = config.placeholder;
+        input.inputMode = config.inputMode;
+        input.maxLength = config.maxLength;
+        if (!preserveValue) input.value = "";
+        window.setTimeout(() => input.focus(),0);
       }
       async function callCustomerRpc(name, body) {
         const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
@@ -390,14 +438,16 @@
         if (!access) return null;
         if (previewSubmission && access.submissionNumber === 1) {
           const savedPreview = getPreviewSavedSubmission();
-          const submission = savedPreview?.phone === access.phone
+          const submission = matchesProgressAccess(savedPreview,access)
             ? savedPreview
-            : access.phone === previewSubmission.phone ? previewSubmission : null;
+            : matchesProgressAccess(previewSubmission,access) ? previewSubmission : null;
           if (submission) return { found:true, submission, record:null, events:previewProgressEvents.map((item) => ({ ...item, submission_id:submission.id })) };
+          return { found:false };
         }
         return await callCustomerRpc("lookup_customer_repair_progress", {
           p_submission_number:access.submissionNumber,
-          p_phone:access.phone
+          p_query_method:access.queryMethod,
+          p_query_value:access.queryValue
         });
       }
       function setEntryMode(mode, updateUrl = true) {
@@ -409,14 +459,13 @@
         pageEyebrow.textContent = querying ? "维修查询" : "维修登记";
         pageTitle.textContent = querying ? "查询维修进度" : "请填写机器和收件信息";
         pageLead.textContent = querying
-          ? "请输入登记编码和登记时填写的手机号码。"
+          ? "请输入登记编码，再选择打印机编号或快递单号查询。"
           : "填好后点击提交，维修人员会尽快联系您。填写过程中刷新页面，内容也会自动保留。";
         if (querying) {
           const cachedSubmission = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null");
-          const cachedAccess = getSubmissionAccess(cachedSubmission);
+          const cachedAccess = getProgressAccess(cachedSubmission);
           if (cachedAccess && !progressQueryForm.elements.submissionNumber.value) {
             progressQueryForm.elements.submissionNumber.value = String(cachedAccess.submissionNumber);
-            progressQueryForm.elements.phone.value = cachedAccess.phone;
           }
           window.setTimeout(() => progressQueryForm.elements.submissionNumber.focus(),0);
         }
@@ -434,16 +483,27 @@
         queryError.textContent = "";
         const access = {
           submissionNumber:normalizeSubmissionNumber(progressQueryForm.elements.submissionNumber.value),
-          phone:clean(progressQueryForm.elements.phone.value)
+          queryMethod:progressQueryForm.elements.queryMethod.value,
+          queryValue:clean(progressQueryForm.elements.queryValue.value)
         };
         if (!access.submissionNumber) {
           queryError.textContent = "登记编码填写不正确，请填写 B 后面的数字";
           progressQueryForm.elements.submissionNumber.focus();
           return;
         }
-        if (!/^\d{11}$/.test(access.phone)) {
-          queryError.textContent = "手机号码要填写11位数字";
-          progressQueryForm.elements.phone.focus();
+        if (!QUERY_METHODS[access.queryMethod]) {
+          queryError.textContent = "请先选择查询方式";
+          progressQueryForm.elements.queryMethod.focus();
+          return;
+        }
+        if (access.queryMethod === "device_number" && !/^\d{10}$/.test(access.queryValue)) {
+          queryError.textContent = "打印机编号要填写10位数字";
+          progressQueryForm.elements.queryValue.focus();
+          return;
+        }
+        if (access.queryMethod === "tracking_number" && !access.queryValue) {
+          queryError.textContent = "请填写快递单号";
+          progressQueryForm.elements.queryValue.focus();
           return;
         }
         querySubmitBtn.disabled = true;
@@ -451,7 +511,7 @@
         try {
           const bundle = await loadProgressBundle(access);
           if (!bundle?.found || !bundle.submission) {
-            queryError.textContent = "没有查到记录，请检查登记编码和手机号";
+            queryError.textContent = `没有查到记录，请检查登记编码和${QUERY_METHODS[access.queryMethod].label}`;
             return;
           }
           if (!isProgressEnabled(bundle.submission)) {
@@ -719,7 +779,8 @@
           } else {
             await callCustomerRpc("confirm_customer_repair_payment", {
               p_submission_number:activeProgressAccess.submissionNumber,
-              p_phone:activeProgressAccess.phone
+              p_query_method:activeProgressAccess.queryMethod,
+              p_query_value:activeProgressAccess.queryValue
             });
             const bundle = await loadProgressBundle(activeProgressAccess);
             if (!bundle?.found || !applyProgressBundle(bundle)) throw new Error("payment confirmation failed");
@@ -756,7 +817,8 @@
           } else {
             await callCustomerRpc("skip_customer_repair", {
               p_submission_number:activeProgressAccess.submissionNumber,
-              p_phone:activeProgressAccess.phone
+              p_query_method:activeProgressAccess.queryMethod,
+              p_query_value:activeProgressAccess.queryValue
             });
             const bundle = await loadProgressBundle(activeProgressAccess);
             if (!bundle?.found || !applyProgressBundle(bundle)) throw new Error("skip repair failed");
@@ -788,7 +850,7 @@
       async function openProgress() {
         const submission = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null") || previewSubmission;
         if (!submission || !isProgressEnabled(submission)) return;
-        const access = getSubmissionAccess(submission);
+        const access = getProgressAccess(submission);
         if (!access) return;
         progressReturnFocus = viewProgressBtn;
         openProgressBundle({ found:true, submission, record:null, events:[] },access,true);
@@ -903,7 +965,7 @@
           const cachedSubmission = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null");
           if (!cachedSubmission) return;
           showCachedSuccess(cachedSubmission);
-          const access = getSubmissionAccess(cachedSubmission);
+          const access = getProgressAccess(cachedSubmission);
           const bundle = await loadProgressBundle(access);
           if (bundle?.found && bundle.submission) {
             localStorage.setItem(LAST_SUBMISSION_KEY,JSON.stringify(bundle.submission));
@@ -923,8 +985,11 @@
       progressQueryForm.elements.submissionNumber.addEventListener("input", () => {
         progressQueryForm.elements.submissionNumber.value = progressQueryForm.elements.submissionNumber.value.replace(/\D/g, "").slice(0,10);
       });
-      progressQueryForm.elements.phone.addEventListener("input", () => {
-        progressQueryForm.elements.phone.value = progressQueryForm.elements.phone.value.replace(/\D/g, "").slice(0,11);
+      progressQueryForm.elements.queryMethod.addEventListener("change", () => updateQueryValueField());
+      progressQueryForm.elements.queryValue.addEventListener("input", () => {
+        if (progressQueryForm.elements.queryMethod.value === "device_number") {
+          progressQueryForm.elements.queryValue.value = progressQueryForm.elements.queryValue.value.replace(/\D/g, "").slice(0,10);
+        }
       });
       registerTabBtn.addEventListener("click", () => setEntryMode("register"));
       queryTabBtn.addEventListener("click", () => setEntryMode("query"));
@@ -938,7 +1003,7 @@
       });
       document.querySelector("#editBtn").addEventListener("click", () => {
         const item = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null");
-        editingSubmissionAccess = getSubmissionAccess(item);
+        editingSubmissionAccess = getEditingAccess(item);
         if (item && editingSubmissionAccess) {
           form.elements.deviceNumber.value = item.device_number || item.deviceNumber || "";
           form.elements.companyName.value = item.company_name || item.companyName || "";
@@ -958,6 +1023,7 @@
       document.addEventListener("visibilitychange", () => { restoreLastSubmissionView(); if (!document.hidden) refreshOpenProgress().catch((error) => console.error(error)); });
       window.addEventListener("pageshow", () => { restoreLastSubmissionView(); refreshOpenProgress().catch((error) => console.error(error)); });
       setEntryMode(new URLSearchParams(location.search).get("view") === "query" ? "query" : "register",false);
+      updateQueryValueField({ preserveValue:true });
       restoreLastSubmissionView();
       try { showCachedSuccess(previewSubmission); } catch {}
       loadAreas();

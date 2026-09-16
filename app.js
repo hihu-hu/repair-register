@@ -2536,7 +2536,11 @@ async function requestPaymentConfirmation(submissionOrId, occurredAt = "") {
     : "confirm_customer_repair_payment";
   const body = isAdminRequest
     ? { p_submission_id: String(submissionOrId || ""), p_occurred_at: occurredAt }
-    : { p_submission_number: submission?.submissionNumber, p_phone: submission?.phone || "" };
+    : {
+        p_submission_number: submission?.submissionNumber,
+        p_query_method: submission?.deviceNumber ? "device_number" : "tracking_number",
+        p_query_value: submission?.deviceNumber || submission?.trackingNumber || ""
+      };
   let accessToken = SUPABASE_ANON_KEY;
   if (isAdminRequest && supabaseClient) {
     const { data } = await supabaseClient.auth.getSession();
@@ -2562,7 +2566,11 @@ async function requestNoRepair(submissionOrId, occurredAt = "") {
   const functionName = isAdminRequest ? "admin_skip_repair" : "skip_customer_repair";
   const body = isAdminRequest
     ? { p_submission_id: String(submissionOrId || ""), p_occurred_at: occurredAt }
-    : { p_submission_number: submission?.submissionNumber, p_phone: submission?.phone || "" };
+    : {
+        p_submission_number: submission?.submissionNumber,
+        p_query_method: submission?.deviceNumber ? "device_number" : "tracking_number",
+        p_query_value: submission?.deviceNumber || submission?.trackingNumber || ""
+      };
   let accessToken = SUPABASE_ANON_KEY;
   if (isAdminRequest && supabaseClient) {
     const { data } = await supabaseClient.auth.getSession();

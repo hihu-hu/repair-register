@@ -188,9 +188,12 @@ $$;
 revoke all on function public.update_customer_repair_submission(bigint, text, text, text, text, text, text, text, text, text) from public;
 grant execute on function public.update_customer_repair_submission(bigint, text, text, text, text, text, text, text, text, text) to anon, authenticated;
 
+drop function if exists public.lookup_customer_repair_progress(bigint, text);
+
 create or replace function public.lookup_customer_repair_progress(
   p_submission_number bigint,
-  p_phone text
+  p_query_method text,
+  p_query_value text
 )
 returns jsonb
 language plpgsql
@@ -204,9 +207,14 @@ declare
 begin
   select *
   into submission_row
-  from public.customer_repair_submissions
+  from public.customer_repair_submissions as submission
   where submission_number = p_submission_number
-    and phone = trim(coalesce(p_phone, ''))
+    and nullif(trim(coalesce(p_query_value, '')), '') is not null
+    and case trim(coalesce(p_query_method, ''))
+      when 'device_number' then submission.device_number = trim(p_query_value)
+      when 'tracking_number' then lower(trim(submission.tracking_number)) = lower(trim(p_query_value))
+      else false
+    end
   limit 1;
 
   if not found then
@@ -255,12 +263,15 @@ begin
 end;
 $$;
 
-revoke all on function public.lookup_customer_repair_progress(bigint, text) from public;
-grant execute on function public.lookup_customer_repair_progress(bigint, text) to anon, authenticated;
+revoke all on function public.lookup_customer_repair_progress(bigint, text, text) from public;
+grant execute on function public.lookup_customer_repair_progress(bigint, text, text) to anon, authenticated;
+
+drop function if exists public.confirm_customer_repair_payment(bigint, text);
 
 create or replace function public.confirm_customer_repair_payment(
   p_submission_number bigint,
-  p_phone text
+  p_query_method text,
+  p_query_value text
 )
 returns jsonb
 language plpgsql
@@ -272,9 +283,14 @@ declare
 begin
   select id
   into submission_id
-  from public.customer_repair_submissions
+  from public.customer_repair_submissions as submission
   where submission_number = p_submission_number
-    and phone = trim(coalesce(p_phone, ''))
+    and nullif(trim(coalesce(p_query_value, '')), '') is not null
+    and case trim(coalesce(p_query_method, ''))
+      when 'device_number' then submission.device_number = trim(p_query_value)
+      when 'tracking_number' then lower(trim(submission.tracking_number)) = lower(trim(p_query_value))
+      else false
+    end
     and progress_enabled = true
   limit 1;
 
@@ -286,12 +302,15 @@ begin
 end;
 $$;
 
-revoke all on function public.confirm_customer_repair_payment(bigint, text) from public;
-grant execute on function public.confirm_customer_repair_payment(bigint, text) to anon, authenticated;
+revoke all on function public.confirm_customer_repair_payment(bigint, text, text) from public;
+grant execute on function public.confirm_customer_repair_payment(bigint, text, text) to anon, authenticated;
+
+drop function if exists public.skip_customer_repair(bigint, text);
 
 create or replace function public.skip_customer_repair(
   p_submission_number bigint,
-  p_phone text
+  p_query_method text,
+  p_query_value text
 )
 returns jsonb
 language plpgsql
@@ -304,9 +323,14 @@ declare
 begin
   select id
   into submission_id
-  from public.customer_repair_submissions
+  from public.customer_repair_submissions as submission
   where submission_number = p_submission_number
-    and phone = trim(coalesce(p_phone, ''))
+    and nullif(trim(coalesce(p_query_value, '')), '') is not null
+    and case trim(coalesce(p_query_method, ''))
+      when 'device_number' then submission.device_number = trim(p_query_value)
+      when 'tracking_number' then lower(trim(submission.tracking_number)) = lower(trim(p_query_value))
+      else false
+    end
     and progress_enabled = true
   limit 1;
 
@@ -329,8 +353,8 @@ begin
 end;
 $$;
 
-revoke all on function public.skip_customer_repair(bigint, text) from public;
-grant execute on function public.skip_customer_repair(bigint, text) to anon, authenticated;
+revoke all on function public.skip_customer_repair(bigint, text, text) from public;
+grant execute on function public.skip_customer_repair(bigint, text, text) to anon, authenticated;
 
 create or replace function public.admin_confirm_repair_payment(
   p_submission_id text,
