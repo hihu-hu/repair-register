@@ -602,7 +602,7 @@ body.submissions-view .submissions-header-tips {
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(230px, 1.35fr) repeat(7, minmax(104px, 0.72fr)) auto;
+  grid-template-columns: minmax(230px, 1.35fr) repeat(8, minmax(104px, 0.72fr)) auto;
   align-items: end;
   gap: 12px;
   padding: 16px;
@@ -624,7 +624,7 @@ body.submissions-view .submissions-header-tips {
 
 .filter-summary {
   display: grid;
-  grid-column: 8;
+  grid-column: 9;
   grid-row: 1;
   align-self: stretch;
   min-height: 88px;
@@ -649,7 +649,7 @@ body.submissions-view .submissions-header-tips {
 
 .express-export-slot {
   display: flex;
-  grid-column: 7;
+  grid-column: 8;
   grid-row: 1;
   align-self: center;
   justify-content: center;
@@ -2159,7 +2159,8 @@ dialog::backdrop {
   width: min(760px, calc(100% - 28px));
 }
 
-#receivedUndoConfirmDialog {
+#receivedUndoConfirmDialog,
+#returnStatusConfirmDialog {
   width: min(440px, calc(100% - 32px));
 }
 
@@ -3230,6 +3231,247 @@ dialog::backdrop {
   font-weight: 700;
 }
 
+.record-detection-panel {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 10px;
+  min-width: 0;
+  margin-top: 2px;
+  padding: 14px 0 2px;
+  border-top: 1px solid var(--line);
+}
+
+.record-detection-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.record-detection-head h3 {
+  margin: 0;
+  color: #34434d;
+  font-size: 16px;
+  letter-spacing: 0;
+}
+
+.record-detection-meta-row {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+}
+
+.record-detection-time {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.record-detection-time input,
+.record-detection-time button {
+  height: 36px;
+  min-height: 36px;
+  font-size: 14px;
+}
+
+.record-detection-time button {
+  min-width: 70px;
+  padding: 0 10px;
+}
+
+.record-detection-warranty {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.record-detection-warranty legend {
+  float: left;
+  margin: 0;
+  padding: 0;
+  color: #40515d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.record-detection-warranty > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.form-grid .record-detection-warranty label {
+  display: inline-flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: #fff;
+  color: #40515d;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.form-grid .record-detection-warranty label.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.form-grid .record-detection-warranty label.is-selected.is-expired {
+  border-color: #f5b061;
+  background: #f2e0cf;
+  color: #d97706;
+}
+
+.form-grid .record-detection-warranty label span,
+.form-grid .record-detection-panel .progress-accessory-option span,
+.form-grid .record-detection-panel .progress-repair-suggestion-field > span {
+  display: inline;
+  margin: 0;
+}
+
+.record-detection-warranty input {
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.record-detection-result-field,
+.record-detection-accessory-field {
+  max-width: none;
+}
+
+.record-detection-result-field > span,
+.record-detection-accessory-field .progress-accessory-heading > strong,
+.record-detection-suggestion-field > span {
+  font-size: 12px;
+}
+
+.record-detection-result-field .progress-result-editor > textarea {
+  height: 54px;
+  min-height: 54px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.record-detection-result-field .progress-result-presets {
+  top: calc(100% + 6px);
+}
+
+.record-detection-accessories .progress-accessory-options {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.form-grid .record-detection-accessories .progress-accessory-option {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 6px;
+  min-height: 38px;
+  padding: 5px 7px;
+  font-size: 13px;
+}
+
+.record-detection-accessories .progress-accessory-option input {
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.record-detection-accessories .progress-accessory-option strong {
+  font-size: 12px;
+}
+
+.record-detection-accessories .progress-accessory-total {
+  padding-top: 6px;
+  font-size: 12px;
+}
+
+.record-detection-accessories .progress-accessory-total strong {
+  font-size: 14px;
+}
+
+.form-grid .record-detection-suggestion-field {
+  display: grid;
+  gap: 6px;
+}
+
+.record-detection-suggestion-field input {
+  height: 40px;
+  min-height: 40px;
+  font-size: 14px;
+}
+
+.record-detection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.record-detection-send {
+  flex: 1 1 220px;
+  min-width: 0;
+  min-height: 42px;
+  margin-top: 0;
+  font-size: 14px;
+}
+
+.record-detection-undo {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.record-detection-send:disabled,
+.record-detection-send:disabled:hover,
+.record-detection-send.is-sent-locked,
+.record-detection-send.is-sent-locked:hover {
+  border-color: var(--line-strong);
+  background: var(--gray-soft);
+  color: var(--muted);
+  opacity: 1;
+}
+
+.record-detection-send.is-sent-locked {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+.record-detection-send.is-sent-locked::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 4px;
+  background: var(--accent);
+  content: "";
+  pointer-events: none;
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.record-detection-send.is-sent-locked.is-holding::after {
+  animation: received-undo-hold 3s linear forwards;
+}
+
 .record-progress-actions {
   display: flex;
   flex: 0 0 auto;
@@ -3286,6 +3528,21 @@ dialog::backdrop {
 
 .repair-fee-field {
   grid-column: 3 / 4;
+}
+
+.repair-choice-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.repair-choice-fields label {
+  min-width: 0;
+}
+
+.repair-choice-fields select {
+  width: 100%;
 }
 
 .warranty-status-field {
@@ -3874,6 +4131,27 @@ body.readonly .row-actions {
     grid-template-columns: 1fr;
   }
 
+  .record-detection-head {
+    align-items: flex-start;
+  }
+
+  .record-detection-meta-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .record-detection-time button {
+    min-width: 70px;
+  }
+
+  .record-detection-result-field .progress-result-editor {
+    grid-template-columns: minmax(0, 1fr) 40px;
+  }
+
+  .record-detection-accessories .progress-accessory-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .repair-fee-field {
     grid-column: auto;
   }
@@ -4043,5 +4321,24 @@ body.readonly .row-actions {
 
   .progress-result-preset-add {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 380px) {
+  .repair-choice-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .return-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .record-detection-accessories .progress-accessory-options {
+    grid-template-columns: 1fr;
+  }
+
+  .record-detection-warranty {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

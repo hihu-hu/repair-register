@@ -162,7 +162,7 @@
           <label><span>公司名</span><input name="companyName" required placeholder="在黑端的公司信息里查看"></label>
           <label class="wide"><span>打印机故障原因</span><textarea name="customerIssue" required placeholder="请详细描述打印机哪里坏了"></textarea></label>
           <label class="wide"><span>电源适配器是否寄回</span><select name="powerAdapterReturned" required><option value="">请选择</option><option value="否">否</option><option value="是">是</option></select></label>
-          <label><span>收件人（您的名字）</span><input name="contactName" required></label>
+          <label><span>收件人</span><input name="contactName" required></label>
           <label><span>您的手机号码</span><input name="phone" required inputmode="numeric" maxlength="11" pattern="\d{11}"></label>
           <div class="wide">
             <label><span>收件地区</span></label>
@@ -294,6 +294,7 @@
       const WAITING_RECEIPT_RESET_MARK = "__waiting_receipt_reset__";
       const NO_REPAIR_PROGRESS_MARK = "__no_repair__";
       const NO_REPAIR_CUSTOMER_PROGRESS_MARK = "__no_repair_customer__";
+      const NO_REPAIR_ADMIN_PROGRESS_MARK = "__no_repair_admin__";
       const NO_REPAIR_REQUEST_MARK = "客户选择：无需维修";
       const PROGRESS_ACCESSORY_STORAGE_PREFIX = "__progress_accessories__:";
       const CUSTOM_PRICE_ACCESSORY_PART = "塑料件/其他件";
@@ -607,15 +608,15 @@
         const explicit = resetToWaiting || validEvents.some((item) => Number(item.step_index ?? item.stepIndex) >= 2);
         if (!explicit) return { ...legacyProgressPosition(record), events:validEvents, explicit:false };
         const latest = Math.max(...validEvents.map((item) => Number(item.step_index ?? item.stepIndex)));
-        if (latest === 4 && hasNoRepairRequest(submission,validEvents)) return { completedThrough:5, currentIndex:5, events:validEvents, explicit:true };
-        if (latest === 4) return { completedThrough:4, currentIndex:5, events:validEvents, explicit:true };
         return { completedThrough:latest === progressSteps.length - 1 ? latest : latest - 1, currentIndex:latest, events:validEvents, explicit:true };
       }
       function progressNote(index, submission, record, state) {
         const progressEvent = state.events.find((item) => Number(item.step_index ?? item.stepIndex) === index);
         const detailText = itemValue(progressEvent,"detail_text","detailText");
         if (isNoRepairProgressEvent(progressEvent)) {
-          if (index === 5) return "用户放弃维修，并支付寄回运费";
+          if (index === 5) return detailText === NO_REPAIR_ADMIN_PROGRESS_MARK
+            ? "已放弃维修，等待安排寄回"
+            : "用户放弃维修，并支付寄回运费";
           if (index === 6) return "无需维修";
           if (index === 7) return "设备正在打包发货";
         }
@@ -635,7 +636,7 @@
           "用户已付款",
           "机器正在维修处理中",
           "设备正在打包发货",
-          itemValue(record,"return_tracking_number","returnTrackingNumber") ? `寄回单号：${itemValue(record,"return_tracking_number","returnTrackingNumber")}` : "机器已寄回"
+          itemValue(record,"return_tracking_number","returnTrackingNumber") ? `中通快递 · 寄回单号：${itemValue(record,"return_tracking_number","returnTrackingNumber")}` : "机器已寄回"
         ];
         return notes[index] || "";
       }
@@ -717,6 +718,10 @@
           const time = isComplete || isCurrent ? formatProgressTime(progressTime(index,submission,record,position)) : "";
           const note = isComplete || isCurrent ? progressNote(index,submission,record,position) : "";
           const detectionEvent = index === 4 ? position.events.find((item) => Number(item.step_index ?? item.stepIndex) === index) : null;
+          const progressEvent = position.events.find((item) => Number(item.step_index ?? item.stepIndex) === index);
+          const displayLabel = [5,6].includes(index) && isNoRepairProgressEvent(progressEvent)
+            ? (index === 5 ? "放弃维修" : "无需维修")
+            : label;
           const detectionDetail = parseDetectionDetail(itemValue(detectionEvent,"detail_text","detailText"));
           const warrantyType = isComplete || isCurrent ? detectionDetail.warrantyType : "";
           const repairQuote = index === 4 && (isComplete || isCurrent) ? renderRepairQuote(submission,detectionDetail,accessoriesExpanded) : "";
@@ -724,7 +729,7 @@
           const canConfirmPayment = index === 5 && position.explicit && position.events.some((item) => Number(item.step_index ?? item.stepIndex) === 4) && !position.events.some((item) => Number(item.step_index ?? item.stepIndex) === 6);
           const noRepairRequested = hasNoRepairRequest(submission,position.events);
           const paymentConfirm = canConfirmPayment && !noRepairRequested ? `<p class="payment-guide"><span>*若无异议，请在「管理端-更多-商城」里支付维修费用</span><span>*有异议可返回页面「扫码添加微信」咨询</span><span>已付款请点击「确认付款」；不修请点击「放弃维修」</span></p><div class="payment-actions"><button class="payment-confirm" type="button" data-payment-confirm>确认付款</button><button class="payment-no-repair" type="button" data-no-repair>放弃维修</button></div>` : "";
-          return `<li class="progress-step ${state}"><span class="progress-marker" aria-hidden="true"></span><h3>${escapeHtml(label)}${isCurrent && !isHalfComplete ? '<span class="progress-current-label">当前进度</span>' : ""}</h3>${time ? `<p class="progress-time">${escapeHtml(time)}</p>` : ""}${warrantyType ? `<p class="progress-warranty">保修期状态：<strong>${escapeHtml(warrantyType)}</strong></p>` : ""}${note ? `<p class="progress-note">${escapeHtml(note)}</p>` : ""}${repairQuote}${repairSuggestion}${paymentConfirm}</li>`;
+          return `<li class="progress-step ${state}"><span class="progress-marker" aria-hidden="true"></span><h3>${escapeHtml(displayLabel)}${isCurrent && !isHalfComplete ? '<span class="progress-current-label">当前进度</span>' : ""}</h3>${time ? `<p class="progress-time">${escapeHtml(time)}</p>` : ""}${warrantyType ? `<p class="progress-warranty">保修期状态：<strong>${escapeHtml(warrantyType)}</strong></p>` : ""}${note ? `<p class="progress-note">${escapeHtml(note)}</p>` : ""}${repairQuote}${repairSuggestion}${paymentConfirm}</li>`;
         }).join("");
       }
       function applyProgressBundle(bundle) {

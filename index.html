@@ -10,7 +10,7 @@
         document.documentElement.classList.add("boot-customer");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260903-complete-progress">
+    <link rel="stylesheet" href="styles.css?v=20260916-detection-hold">
   </head>
   <body>
     <header class="app-header">
@@ -134,6 +134,12 @@
         <div class="field">
           <label for="areaFilter">区域</label>
           <select id="areaFilter">
+            <option value="">全部</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="repairDecisionFilter">是否维修</label>
+          <select id="repairDecisionFilter">
             <option value="">全部</option>
           </select>
         </div>
@@ -365,7 +371,7 @@
                 </button>
               </label>
               <label>
-                <span>收件人（您的名字）</span>
+                <span>收件人</span>
                 <input name="contactName" required>
               </label>
               <label>
@@ -548,10 +554,19 @@
               <div class="checkbox-select-menu" id="accessoryPartsMenu" hidden></div>
             </div>
           </label>
-          <label class="warranty-status-field">
-            <span>是否保修</span>
-            <select name="warrantyStatus" required></select>
-          </label>
+          <div class="repair-choice-fields">
+            <label>
+              <span>维修选择</span>
+              <select name="repairDecision" required>
+                <option value="维修" selected>维修</option>
+                <option value="放弃维修">放弃维修</option>
+              </select>
+            </label>
+            <label class="warranty-status-field">
+              <span>是否保修</span>
+              <select name="warrantyStatus" required></select>
+            </label>
+          </div>
           <label class="repair-fee-field">
             <span>费用：</span>
             <div class="repair-fee-box" id="repairFeeBox">
@@ -574,6 +589,45 @@
             </div>
             <textarea name="repairProcess" rows="4" required aria-label="维修过程"></textarea>
           </div>
+          <section class="record-detection-panel wide" id="recordDetectionPanel" aria-labelledby="recordDetectionTitle">
+            <div class="record-detection-head">
+              <h3 id="recordDetectionTitle">检测结果</h3>
+            </div>
+
+            <div class="record-detection-meta-row">
+              <div class="record-detection-time">
+                <input id="recordDetectionTime" type="datetime-local" step="1" aria-label="检测结果时间">
+                <button class="secondary" id="recordDetectionNowBtn" type="button">现在</button>
+              </div>
+
+              <fieldset class="record-detection-warranty" id="recordDetectionWarranty">
+                <legend>保修期状态：</legend>
+                <div id="recordDetectionWarrantyOptions"></div>
+              </fieldset>
+            </div>
+
+            <div class="progress-result-field record-detection-result-field">
+              <span id="recordDetectionDetailLabel">发送给客户的检测结果</span>
+              <div class="progress-result-editor">
+                <textarea id="recordDetectionDetail" rows="3" aria-labelledby="recordDetectionDetailLabel" placeholder="例如：检测到打印头损坏，需要更换后测试"></textarea>
+                <button class="progress-result-presets-toggle" id="recordDetectionPresetToggle" type="button" aria-label="打开常用文案" title="打开常用文案" aria-expanded="false" aria-controls="recordDetectionPresets">⌄</button>
+              </div>
+              <div class="progress-result-presets" id="recordDetectionPresets" hidden>
+                <div class="progress-result-preset-list" id="recordDetectionPresetList" role="list" aria-label="常用检测结果文案"></div>
+                <div class="progress-result-preset-add">
+                  <textarea id="recordDetectionPresetInput" rows="2" maxlength="500" placeholder="输入新的常用文案"></textarea>
+                  <button class="secondary" id="recordDetectionPresetAddBtn" type="button">添加文案</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="record-detection-accessories" id="recordDetectionAccessories"></div>
+            <div class="record-detection-actions">
+              <button class="primary record-detection-send" id="sendRecordDetectionBtn" type="button">发送检测结果</button>
+              <button class="danger record-detection-undo" id="undoRecordDetectionBtn" type="button" hidden>撤销检测结果</button>
+              <button class="secondary record-detection-undo" id="cancelRecordDetectionUndoBtn" type="button" hidden>取消</button>
+            </div>
+          </section>
           <label class="wide">
             <span>客户地址</span>
             <textarea name="customerAddress" rows="3"></textarea>
@@ -852,6 +906,22 @@
       </div>
     </dialog>
 
+    <dialog id="returnStatusConfirmDialog" aria-labelledby="returnStatusConfirmTitle">
+      <div class="received-undo-confirm-dialog">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">寄回单号已保存</p>
+            <h2 id="returnStatusConfirmTitle">是否改为“邮寄并结束”？</h2>
+          </div>
+        </div>
+        <p class="received-undo-confirm-message" id="returnStatusConfirmMessage"></p>
+        <div class="dialog-actions">
+          <button class="secondary" id="cancelReturnStatusBtn" type="button">否</button>
+          <button class="primary" id="confirmReturnStatusBtn" type="button">是</button>
+        </div>
+      </div>
+    </dialog>
+
     <dialog id="detectionReminderDialog" aria-labelledby="detectionReminderTitle">
       <div class="detection-reminder-dialog">
         <div class="dialog-head">
@@ -888,6 +958,6 @@
 
     <script src="area-data.js"></script>
     <script src="street-data.js?v=20260807"></script>
-    <script src="app.js?v=20260903-complete-progress-tracking"></script>
+    <script src="app.js?v=20260917-remove-final-detection"></script>
   </body>
 </html>
