@@ -9261,6 +9261,12 @@ function bindEvents() {
     if (!els.accessoryPartsMenu.hidden) positionAccessoryPartsMenu();
   });
   window.addEventListener("hashchange", applyHashRoute);
+  window.addEventListener("load", () => {
+    const form = els.customerForm.elements;
+    if (window.CHINA_STREET_DATA && form.addressDistrict.value && !form.addressStreet.value) {
+      updateAddressStreets();
+    }
+  });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
       autoStartOverdueDetections().catch((error) => console.error("自动检测检查失败", error));
