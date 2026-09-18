@@ -6,12 +6,25 @@
     <title>打印机售后维修记录表</title>
     <link rel="icon" type="image/png" href="assets/favicon.png?v=20260630-transparent">
     <script>
+      const safeUrl = new URL(location.href);
+      let urlChanged = false;
+      for (const key of [...safeUrl.searchParams.keys()]) {
+        if (key.toLowerCase() === "username" || key.toLowerCase() === "password") {
+          safeUrl.searchParams.delete(key);
+          urlChanged = true;
+        }
+      }
+      const hashParams = new URLSearchParams(safeUrl.hash.slice(1));
+      if (hashParams.has("view") || hashParams.has("v")) {
+        safeUrl.hash = "";
+        urlChanged = true;
+      }
+      if (urlChanged) history.replaceState(history.state, "", safeUrl.pathname + safeUrl.search + safeUrl.hash);
       const pageParam = new URLSearchParams(location.search).get("page");
       const isCustomerRoute = location.hash === "#customer" || pageParam === "customer";
-      const isSharedViewRoute = location.hash.includes("view=");
       if (isCustomerRoute) {
         document.documentElement.classList.add("boot-customer");
-      } else if (!isSharedViewRoute) {
+      } else {
         document.documentElement.classList.add("auth-gate-active");
       }
     </script>
@@ -23,7 +36,7 @@
         <p class="eyebrow">打印机售后维修记录表</p>
         <h1 id="loginGateTitle">账号登录</h1>
         <p class="login-gate-note">请输入账号和密码后查看系统内容。</p>
-        <form id="loginGateForm" class="login-gate-form">
+        <div id="loginGateForm" class="login-gate-form" role="form" aria-label="账号登录">
           <label>
             <span>账号</span>
             <input name="username" type="text" autocomplete="username" required autofocus>
@@ -32,9 +45,9 @@
             <span>密码</span>
             <input name="password" type="password" autocomplete="current-password" required>
           </label>
-          <button class="primary" type="submit">登录</button>
+          <button class="primary" type="button" disabled>登录</button>
           <p class="login-gate-status" id="loginGateStatus" role="status" aria-live="polite" hidden></p>
-        </form>
+        </div>
       </div>
     </section>
 
@@ -989,6 +1002,6 @@
 
     <script src="area-data.js"></script>
     <script src="street-data.js?v=20260807"></script>
-    <script src="app.js?v=20260918-material-sync-toggle"></script>
+    <script src="app.js?v=20260918-login-security"></script>
   </body>
 </html>

@@ -506,13 +506,13 @@ let accessoryFeeMode = "paid";
 let forceReadonlyMode = false;
 let supabaseClient = null;
 let inventorySupabaseClient = null;
-const sharedData = readSharedData();
+syncReadonlyRoute();
 const linkingPreviewMode = ["localhost", "127.0.0.1"].includes(location.hostname)
   && new URLSearchParams(location.search).get("preview") === "linking";
 const shouldUseLocalStartupData = !SUPABASE_URL || location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1";
-let records = sharedData ? sharedData.records : shouldUseLocalStartupData ? loadRecords() : [];
+let records = shouldUseLocalStartupData ? loadRecords() : [];
 let filteredRecords = [];
-let customerSubmissions = sharedData ? sharedData.submissions : shouldUseLocalStartupData ? loadCustomerSubmissions() : [];
+let customerSubmissions = shouldUseLocalStartupData ? loadCustomerSubmissions() : [];
 let repairProgressEvents = shouldUseLocalStartupData ? loadRepairProgressEvents() : [];
 if (linkingPreviewMode) {
   customerSubmissions = [
@@ -571,7 +571,7 @@ let pendingReturnStatusRecordId = "";
 let progressResultPresets = loadProgressResultPresets();
 
 const initialIdentityChanged = prepareRecordIdentities({
-  migrateLegacyLinks: shouldUseLocalStartupData || Boolean(sharedData)
+  migrateLegacyLinks: shouldUseLocalStartupData
 });
 if (shouldUseLocalStartupData && initialIdentityChanged) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
@@ -742,36 +742,22 @@ function loadRepairProgressEvents() {
   }
 }
 
-function readSharedData() {
+function syncReadonlyRoute() {
   const params = new URLSearchParams(location.hash.replace(/^#/, ""));
-  const payload = params.get("view") || params.get("v");
-  forceReadonlyMode = location.hash.replace(/^#/, "") === "readonly" || Boolean(payload);
-  if (forceReadonlyMode) setReadonlyMode(true);
-  if (!payload) return null;
-
-  try {
-    return unpackSharedData(decodePayload(payload));
-  } catch {
-    showToast("分享链接无法读取");
-    return { records: [], submissions: [] };
+  if (params.has("view") || params.has("v")) {
+    history.replaceState(history.state, "", location.pathname + location.search);
   }
+  forceReadonlyMode = location.hash === "#readonly";
+  if (forceReadonlyMode) setReadonlyMode(true);
 }
 
 function applyHashRoute() {
+  syncReadonlyRoute();
   if (applyViewFromHash()) return;
 
   if (linkingPreviewMode) {
     setReadonlyMode(false);
     setView(location.hash === "#analytics" ? "analytics" : "repair");
-    render();
-    return;
-  }
-
-  const hashSharedData = readSharedData();
-  if (hashSharedData) {
-    records = hashSharedData.records;
-    customerSubmissions = hashSharedData.submissions;
-    if (!closeOpenDialogs()) return;
     render();
     return;
   }
@@ -2099,6 +2085,7 @@ function refreshLoginGate() {
   if (!els.loginGate) return;
   const shouldShow = cloudMode && !currentAdmin && !PUBLIC_CUSTOMER_ROUTE;
   els.loginGate.hidden = !shouldShow;
+  els.loginGateForm.querySelector("button").disabled = !shouldShow || !supabaseClient;
   document.documentElement.classList.toggle("auth-gate-active", shouldShow);
   if (!shouldShow) setLoginGateStatus("");
 }
@@ -2244,7 +2231,10 @@ function clearProtectedCloudData() {
 }
 
 async function initializeCloud() {
-  if ((forceReadonlyMode && location.hash.includes("view=")) || !(await ensureSupabaseLoaded())) return;
+  if (!(await ensureSupabaseLoaded())) {
+    setLoginGateStatus("登录服务暂时无法连接，请刷新页面重试");
+    return;
+  }
 
   cloudMode = true;
   supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -2276,7 +2266,7 @@ async function initializeCloud() {
 }
 
 async function loadCloudRecords() {
-  if (!cloudMode || !supabaseClient || (forceReadonlyMode && location.hash.includes("view="))) return;
+  if (!cloudMode || !supabaseClient) return;
 
   const { data, error } = await supabaseClient
     .from("repair_records")
@@ -8410,125 +8400,18 @@ function convertExcelDateText(text, includeTime) {
 }
 
 
-function decodePayload(payload) {
-  const base64 = payload.replaceAll("-", "+").replaceAll("_", "/");
-  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
-  try {
-    return JSON.parse(decodeBase64Utf8(padded));
-  } catch {
-    return JSON.parse(decodeURIComponent(atob(padded)));
-  }
-}
-
-function encodePayload(value) {
-  return encodeBase64Utf8(JSON.stringify(value))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
-
 function createReadonlyShareUrl() {
   const url = new URL(PUBLIC_SHARE_BASE_URL);
-  if (cloudMode) {
-    url.hash = "readonly";
-    return url.toString();
-  }
-
-  url.hash = "view=" + encodePayload(packSharedData());
+  url.hash = "readonly";
   return url.toString();
-}
-
-function packSharedData() {
-  return {
-    version: "r2",
-    records: packSharedRecords(records),
-    submissions: packSharedSubmissions(customerSubmissions)
-  };
-}
-
-function packSharedRecords(items) {
-  const fields = ["id", "recordNumber", "submissionId", ...exportFields.map(([key]) => key)];
-  return [
-    "r2",
-    fields,
-    items.map((record) => fields.map((key) => record[key] || ""))
-  ];
-}
-
-function packSharedSubmissions(items) {
-  const fields = ["id", "submissionNumber", "createdTime", "deviceNumber", "model", "companyName", "contactName", "phone", "trackingNumber", "customerIssue", "customerAddress", "updatedAt"];
-  return [
-    "s1",
-    fields,
-    items.map((item) => fields.map((key) => item[key] || ""))
-  ];
-}
-
-function unpackSharedData(payload) {
-  if (payload?.version === "r2") {
-    return {
-      records: unpackSharedRecords(payload.records).map(normalizeRecord),
-      submissions: unpackSharedSubmissions(payload.submissions).map(normalizeCustomerSubmission)
-    };
-  }
-
-  return {
-    records: unpackSharedRecords(payload).map(normalizeRecord),
-    submissions: []
-  };
-}
-
-function unpackSharedRecords(payload) {
-  if (!Array.isArray(payload)) return [];
-  if (payload[0] === "r2") {
-    const fields = payload[1] || [];
-    return (payload[2] || []).map((row) => {
-      const record = {};
-      fields.forEach((key, index) => {
-        record[key] = row[index] || "";
-      });
-      return record;
-    });
-  }
-  if (payload[0] !== "r1") return payload;
-  return payload[1].map((row) => {
-    const record = {};
-    exportFields.forEach(([key], index) => {
-      record[key] = row[index] || "";
-    });
-    return record;
-  });
-}
-
-function unpackSharedSubmissions(payload) {
-  if (!Array.isArray(payload) || payload[0] !== "s1") return [];
-  const fields = payload[1] || [];
-  return (payload[2] || []).map((row) => {
-    const submission = {};
-    fields.forEach((key, index) => {
-      submission[key] = row[index] || "";
-    });
-    return submission;
-  });
-}
-
-function encodeBase64Utf8(text) {
-  const bytes = new TextEncoder().encode(text);
-  let binary = "";
-  for (let index = 0; index < bytes.length; index += 1) {
-    binary += String.fromCharCode(bytes[index]);
-  }
-  return btoa(binary);
-}
-
-function decodeBase64Utf8(base64) {
-  const binary = atob(base64);
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  return new TextDecoder("utf-8").decode(bytes);
 }
 
 async function copyReadonlyShareLink() {
   if (readonlyMode) return;
+  if (!cloudMode) {
+    showToast("登录服务未连接，无法生成分享链接");
+    return;
+  }
   if (records.length === 0 && customerSubmissions.length === 0) {
     showToast("暂无记录可分享");
     return;
@@ -8568,9 +8451,8 @@ function openAuthDialog() {
 
 async function signInWithForm(form) {
   if (!cloudMode || !supabaseClient) return;
-  const formData = new FormData(form);
-  const username = String(formData.get("username") || "").trim();
-  const password = String(formData.get("password") || "");
+  const username = form.querySelector('[name="username"]').value.trim();
+  const password = form.querySelector('[name="password"]').value;
   const adminAccount = findAdminByUsername(username);
   if (!adminAccount) {
     setLoginGateStatus("登录失败，请检查账号和密码");
@@ -8591,7 +8473,7 @@ async function signInWithForm(form) {
 
   els.authDialog.close();
   els.authForm.reset();
-  els.loginGateForm?.reset();
+  els.loginGateForm.querySelectorAll("input").forEach((input) => { input.value = ""; });
   setLoginGateStatus("");
   showToast(`${adminAccount.label}已登录`);
 }
@@ -9092,14 +8974,29 @@ function bindEvents() {
     await signInAdmin();
   });
 
-  els.loginGateForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const submitButton = els.loginGateForm.querySelector('button[type="submit"]');
-    submitButton.disabled = true;
+  const loginGateButton = els.loginGateForm.querySelector("button");
+  loginGateButton.addEventListener("click", async () => {
+    const invalidInput = Array.from(els.loginGateForm.querySelectorAll("input"))
+      .find((input) => !input.checkValidity());
+    if (invalidInput) {
+      invalidInput.reportValidity();
+      return;
+    }
+    setLoginGateStatus("");
+    loginGateButton.disabled = true;
     try {
       await signInWithForm(els.loginGateForm);
+    } catch (error) {
+      console.error(error);
+      setLoginGateStatus("连接失败，请稍后重试");
     } finally {
-      submitButton.disabled = false;
+      loginGateButton.disabled = false;
+    }
+  });
+  els.loginGateForm.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && event.target.matches("input")) {
+      event.preventDefault();
+      loginGateButton.click();
     }
   });
 
