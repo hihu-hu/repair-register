@@ -7309,8 +7309,7 @@ function getRecordNoRepairPlan(record) {
     return { needsSkip: false };
   }
   if (!submission) {
-    showToast("请先关联客户登记，再选择放弃维修");
-    return null;
+    return { needsSkip: false };
   }
   if (alreadySkipped) return { needsSkip: false };
 
