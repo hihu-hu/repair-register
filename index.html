@@ -6,13 +6,38 @@
     <title>打印机售后维修记录表</title>
     <link rel="icon" type="image/png" href="assets/favicon.png?v=20260630-transparent">
     <script>
-      if (location.hash === "#customer" || new URLSearchParams(location.search).get("page") === "customer") {
+      const pageParam = new URLSearchParams(location.search).get("page");
+      const isCustomerRoute = location.hash === "#customer" || pageParam === "customer";
+      const isSharedViewRoute = location.hash.includes("view=");
+      if (isCustomerRoute) {
         document.documentElement.classList.add("boot-customer");
+      } else if (!isSharedViewRoute) {
+        document.documentElement.classList.add("auth-gate-active");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260916-detection-hold">
+    <link rel="stylesheet" href="styles.css?v=20260918-auth-gate">
   </head>
   <body>
+    <section class="login-gate" id="loginGate" aria-labelledby="loginGateTitle">
+      <div class="login-gate-card">
+        <p class="eyebrow">打印机售后维修记录表</p>
+        <h1 id="loginGateTitle">账号登录</h1>
+        <p class="login-gate-note">请输入账号和密码后查看系统内容。</p>
+        <form id="loginGateForm" class="login-gate-form">
+          <label>
+            <span>账号</span>
+            <input name="username" type="text" autocomplete="username" required autofocus>
+          </label>
+          <label>
+            <span>密码</span>
+            <input name="password" type="password" autocomplete="current-password" required>
+          </label>
+          <button class="primary" type="submit">登录</button>
+          <p class="login-gate-status" id="loginGateStatus" role="status" aria-live="polite" hidden></p>
+        </form>
+      </div>
+    </section>
+
     <header class="app-header">
       <div class="header-title">
         <h1>打印机售后维修记录表</h1>
@@ -31,7 +56,7 @@
         <button class="secondary nav-btn" id="submissionsViewBtn" type="button">客户提交</button>
         <button class="secondary nav-btn" id="analyticsViewBtn" type="button" hidden>数据分析</button>
         <button class="secondary nav-btn" id="customerViewBtn" type="button">扫码登记</button>
-        <button class="secondary" id="authToggleBtn" type="button" hidden>管理员登录</button>
+        <button class="secondary" id="authToggleBtn" type="button" hidden>账号登录</button>
         <input id="importExcelInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
       </div>
     </header>
@@ -719,8 +744,8 @@
       <form method="dialog" id="authForm">
         <div class="dialog-head">
           <div>
-            <p class="eyebrow">管理员</p>
-            <h2>登录后编辑</h2>
+            <p class="eyebrow">账号</p>
+            <h2>登录系统</h2>
           </div>
           <button class="icon-btn" id="closeAuthDialogBtn" type="button" aria-label="关闭">×</button>
         </div>
@@ -958,6 +983,6 @@
 
     <script src="area-data.js"></script>
     <script src="street-data.js?v=20260807"></script>
-    <script src="app.js?v=20260917-remove-final-detection"></script>
+    <script src="app.js?v=20260918-service-center-login-help"></script>
   </body>
 </html>

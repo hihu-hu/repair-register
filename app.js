@@ -18,6 +18,13 @@ const ADMIN_ACCOUNTS = [
     level: "admin",
     label: "普通管理员"
   },
+  {
+    username: "服务中心",
+    // 这是服务中心账号在 Supabase 登录系统里的内部邮箱，网页登录时只需要填写“服务中心”。
+    email: "1041852311+fuwuzhongxin@qq.com",
+    level: "viewer",
+    label: "服务中心（只读）"
+  },
   // 新增普通管理员时，按下面格式再加一行：
   // { username: "新账号", email: "新邮箱", level: "admin", label: "普通管理员" }
 ];
@@ -26,6 +33,8 @@ const SUPABASE_ANON_KEY = "sb_publishable_vCjqGjgyz9E4XhtOcOS1Yg_SV-DBJGG";
 const INVENTORY_SUPABASE_URL = "https://jvcbmfspsyijsaskvxdj.supabase.co";
 const INVENTORY_SUPABASE_ANON_KEY = "sb_publishable_pfInYtKS9NW9SQ-nJ0eNew_IA_HGskm";
 const WECOM_PUSH_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/push-repair-stats`;
+const PUBLIC_CUSTOMER_ROUTE = location.hash === "#customer"
+  || new URLSearchParams(location.search).get("page") === "customer";
 const MULTI_VALUE_SEPARATOR = "、";
 const CUSTOM_PRICE_ACCESSORY_PART = "塑料件/其他件";
 const ZERO_FEE_MARK = "{0元}";
@@ -293,6 +302,9 @@ const exportFields = [
 ];
 
 const els = {
+  loginGate: document.querySelector("#loginGate"),
+  loginGateForm: document.querySelector("#loginGateForm"),
+  loginGateStatus: document.querySelector("#loginGateStatus"),
   totalCount: document.querySelector("#totalCount"),
   repairViewBtn: document.querySelector("#repairViewBtn"),
   submissionsViewBtn: document.querySelector("#submissionsViewBtn"),
@@ -2005,9 +2017,17 @@ function findAdminByEmail(email) {
   return ADMIN_ACCOUNTS.find((account) => account.email.toLowerCase() === value) || null;
 }
 
+function isViewerMode() {
+  return currentAdmin?.level === "viewer";
+}
+
+function hasCloudReadAccess() {
+  return Boolean(currentAdmin);
+}
+
 function setCurrentAdminByEmail(email) {
   currentAdmin = findAdminByEmail(email);
-  adminMode = Boolean(currentAdmin);
+  adminMode = Boolean(currentAdmin && currentAdmin.level !== "viewer");
 }
 
 function loadScript(src) {
@@ -2049,17 +2069,41 @@ async function ensureSupabaseLoaded() {
   return false;
 }
 
+function setLoginGateStatus(message = "") {
+  if (!els.loginGateStatus) return;
+  els.loginGateStatus.textContent = message;
+  els.loginGateStatus.hidden = !message;
+}
+
+function refreshLoginGate() {
+  if (!els.loginGate) return;
+  const shouldShow = cloudMode && !currentAdmin && !PUBLIC_CUSTOMER_ROUTE;
+  els.loginGate.hidden = !shouldShow;
+  document.documentElement.classList.toggle("auth-gate-active", shouldShow);
+  if (!shouldShow) setLoginGateStatus("");
+}
+
 function refreshAccessMode() {
   if (!cloudMode) return;
+  refreshLoginGate();
   setReadonlyMode(forceReadonlyMode || !adminMode);
   els.authToggleBtn.hidden = forceReadonlyMode;
-  els.authToggleBtn.textContent = adminMode ? "退出登录" : "管理员登录";
+  els.authToggleBtn.textContent = currentAdmin ? "退出登录" : "账号登录";
   els.authToggleBtn.title = currentAdmin ? currentAdmin.label : "";
   els.analyticsViewBtn.hidden = !canViewAnalytics();
   refreshAccessoryAnalyticsVisibility();
   if (currentView === "analytics" && !canViewAnalytics()) {
     location.hash = "";
     setView("repair");
+  }
+  if (isViewerMode() && currentView === "customer") {
+    location.hash = "customer-admin";
+    setView("customerAdmin");
+    return;
+  }
+  if (currentView === "customerAdmin") {
+    if (isViewerMode()) showCustomerViewerPage();
+    else showCustomerForm();
   }
   renderSubmissions();
 }
@@ -2188,7 +2232,7 @@ async function initializeCloud() {
   const email = data.session?.user?.email || "";
   setCurrentAdminByEmail(email);
   refreshAccessMode();
-  if (adminMode) {
+  if (hasCloudReadAccess()) {
     await loadCloudRecords();
     await loadCloudSubmissions();
     await loadCloudProgressEvents();
@@ -2200,7 +2244,7 @@ async function initializeCloud() {
     const sessionEmail = session?.user?.email || "";
     setCurrentAdminByEmail(sessionEmail);
     refreshAccessMode();
-    if (adminMode) {
+    if (hasCloudReadAccess()) {
       loadCloudRecords();
       loadCloudSubmissions();
       loadCloudProgressEvents();
@@ -3089,7 +3133,15 @@ function showCustomerForm() {
   setCustomerSubmitting(false);
 }
 
+function showCustomerViewerPage() {
+  // 服务中心只看二维码和说明，不显示客户登记表，避免误提交或修改资料。
+  els.customerForm.hidden = true;
+  els.customerRecent.hidden = true;
+  setCustomerSubmitting(false);
+}
+
 function startNewCustomerSubmission() {
+  if (isViewerMode()) return;
   editingCustomerSubmissionId = "";
   els.customerForm.reset();
   updateAddressCities();
@@ -3129,10 +3181,11 @@ function canEditCustomerSubmission(submission) {
 
 function updateCustomerEditButton() {
   if (!els.editCustomerSubmissionBtn || els.customerRecent.hidden) return;
-  els.editCustomerSubmissionBtn.hidden = !canEditCustomerSubmission(getLastCustomerSubmission());
+  els.editCustomerSubmissionBtn.hidden = isViewerMode() || !canEditCustomerSubmission(getLastCustomerSubmission());
 }
 
 async function startEditCustomerSubmission() {
+  if (isViewerMode()) return;
   const lastSubmission = getLastCustomerSubmission();
   if (!lastSubmission) return;
   if (!canEditCustomerSubmission(lastSubmission)) {
@@ -3160,6 +3213,10 @@ async function startEditCustomerSubmission() {
 }
 
 function showCustomerPortal() {
+  if (isViewerMode()) {
+    showCustomerViewerPage();
+    return;
+  }
   const forceCustomerForm = new URLSearchParams(location.search).get("entry") === "form";
   const lastSubmission = getLastCustomerSubmission();
   const powerAdapterAnswer = extractPowerAdapterAnswer(lastSubmission);
@@ -5043,7 +5100,8 @@ function setView(view) {
   if (isAnalytics) renderAnalytics();
   if (isCustomerAdmin) {
     updateCustomerQrCode();
-    showCustomerForm();
+    if (isViewerMode()) showCustomerViewerPage();
+    else showCustomerForm();
   }
   if (isCustomerPortal) showCustomerPortal();
   updateMetricCards();
@@ -5053,6 +5111,10 @@ function applyViewFromHash() {
   const hash = location.hash.replace(/^#/, "");
   const page = new URLSearchParams(location.search).get("page");
   if (page === "customer") {
+    if (isViewerMode()) {
+      setView("customerAdmin");
+      return true;
+    }
     setReadonlyMode(false);
     setView("customer");
     return true;
@@ -5062,6 +5124,10 @@ function applyViewFromHash() {
     return true;
   }
   if (hash === "customer") {
+    if (isViewerMode()) {
+      setView("customerAdmin");
+      return true;
+    }
     setReadonlyMode(false);
     setView("customer");
     return true;
@@ -7329,6 +7395,7 @@ function getCustomerSubmissionFromForm() {
 }
 
 async function submitCustomerForm() {
+  if (isViewerMode()) return;
   if (isCustomerSubmitting) return;
 
   let submission = getCustomerSubmissionFromForm();
@@ -8477,7 +8544,7 @@ function showShareDialog(url) {
 
 function openAuthDialog() {
   if (!cloudMode) return;
-  if (adminMode) {
+  if (currentAdmin) {
     signOutAdmin();
     return;
   }
@@ -8485,13 +8552,14 @@ function openAuthDialog() {
   els.authForm.elements.username.focus();
 }
 
-async function signInAdmin() {
+async function signInWithForm(form) {
   if (!cloudMode || !supabaseClient) return;
-  const formData = new FormData(els.authForm);
+  const formData = new FormData(form);
   const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "");
   const adminAccount = findAdminByUsername(username);
   if (!adminAccount) {
+    setLoginGateStatus("登录失败，请检查账号和密码");
     showToast("登录失败，请检查账号和密码");
     return;
   }
@@ -8499,13 +8567,23 @@ async function signInAdmin() {
   const { error } = await supabaseClient.auth.signInWithPassword({ email: adminAccount.email, password });
   if (error) {
     console.error(error);
-    showToast("登录失败，请检查账号和密码");
+    const message = adminAccount.level === "viewer"
+      ? "服务中心账号还没有开通，请先在 Supabase 的 Users 里创建账号"
+      : "登录失败，请检查账号和密码";
+    setLoginGateStatus(message);
+    showToast(message);
     return;
   }
 
   els.authDialog.close();
   els.authForm.reset();
+  els.loginGateForm?.reset();
+  setLoginGateStatus("");
   showToast(`${adminAccount.label}已登录`);
+}
+
+async function signInAdmin() {
+  return signInWithForm(els.authForm);
 }
 
 async function signOutAdmin() {
@@ -8514,7 +8592,7 @@ async function signOutAdmin() {
   adminMode = false;
   currentAdmin = null;
   refreshAccessMode();
-  showToast("已退出管理员");
+  showToast("已退出登录");
 }
 
 function showAddressPopover(record, anchor) {
@@ -8988,6 +9066,17 @@ function bindEvents() {
   els.authForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     await signInAdmin();
+  });
+
+  els.loginGateForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submitButton = els.loginGateForm.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    try {
+      await signInWithForm(els.loginGateForm);
+    } finally {
+      submitButton.disabled = false;
+    }
   });
 
   els.recordForm.addEventListener("submit", async (event) => {
