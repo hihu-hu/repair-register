@@ -3288,6 +3288,44 @@ dialog::backdrop {
   min-width: 0;
 }
 
+.power-adapter-material-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.power-adapter-material-field label,
+.power-adapter-material-field input {
+  min-width: 0;
+  width: 100%;
+}
+
+.material-sync-button {
+  min-width: 112px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.material-sync-button[aria-pressed="true"] {
+  border-color: #0f7b6c;
+  background: #0f7b6c;
+  color: #fff;
+}
+
+.material-sync-button:focus-visible {
+  outline: 2px solid #0f7b6c;
+  outline-offset: 2px;
+}
+
 .field-note-danger {
   color: #d06b6b;
   font-size: 12px;
@@ -4403,6 +4441,10 @@ body.readonly .row-actions {
 }
 
 @media (max-width: 380px) {
+  .power-adapter-material-field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .repair-choice-fields {
     grid-template-columns: 1fr;
   }

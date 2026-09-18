@@ -15,7 +15,7 @@
         document.documentElement.classList.add("auth-gate-active");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260918-auth-gate">
+    <link rel="stylesheet" href="styles.css?v=20260918-material-sync-toggle">
   </head>
   <body>
     <section class="login-gate" id="loginGate" aria-labelledby="loginGateTitle">
@@ -560,10 +560,14 @@
               <input name="returnTime" type="date">
             </label>
           </div>
-          <label>
-            <span>电源适配器是否寄回（客户填写）</span>
-            <input class="readonly-field" name="customerPowerAdapter" readonly placeholder="匹配客户提交后自动显示">
-          </label>
+          <div class="power-adapter-material-field">
+            <label>
+              <span>电源适配器是否寄回（客户填写）</span>
+              <input class="readonly-field" name="customerPowerAdapter" readonly placeholder="匹配客户提交后自动显示">
+            </label>
+            <input name="materialSyncEnabled" type="hidden" value="false">
+            <button class="material-sync-button" id="materialSyncBtn" type="button" aria-pressed="false" title="开启后保存工单会同步维修用料">发送维修用料</button>
+          </div>
           <label>
             <span id="accessoryPartsLabel">本单所用配件 <small class="field-note-danger">（不修需要清空）</small></span>
             <select name="accessoryParts" multiple required hidden></select>
@@ -966,11 +970,13 @@
         <div class="dialog-head">
           <div>
             <p class="eyebrow">邮寄提醒</p>
-            <h2 id="shippingReminderTitle">该工单今天要邮寄，请及时更改进度状态</h2>
+            <h2 id="shippingReminderTitle">是否有使用配件？</h2>
           </div>
         </div>
+        <p class="received-undo-confirm-message">该工单今天要邮寄，请及时更改进度状态。</p>
         <div class="dialog-actions detection-reminder-actions">
-          <button class="primary" id="confirmShippingReminderBtn" type="button">确定</button>
+          <button class="secondary" id="cancelShippingReminderBtn" type="button">否</button>
+          <button class="primary" id="confirmShippingReminderBtn" type="button">是</button>
         </div>
       </div>
     </dialog>
@@ -983,6 +989,6 @@
 
     <script src="area-data.js"></script>
     <script src="street-data.js?v=20260807"></script>
-    <script src="app.js?v=20260918-service-center-login-help"></script>
+    <script src="app.js?v=20260918-material-sync-toggle"></script>
   </body>
 </html>

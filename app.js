@@ -41,6 +41,7 @@ const ZERO_FEE_MARK = "{0元}";
 const WARRANTY_FEE_MARK = "{保修}";
 const WARRANTY_STATUS_STORAGE_PREFIX = "__warranty_status__:";
 const REPAIR_DECISION_STORAGE_PREFIX = "__repair_decision__:";
+const MATERIAL_SYNC_STORAGE_PREFIX = "__material_sync_enabled__:";
 const PROGRESS_ACCESSORY_STORAGE_PREFIX = "__progress_accessories__:";
 const PROGRESS_CUSTOM_ACCESSORY_PART = "自定义";
 const PROGRESS_HIDDEN_ACCESSORY_PARTS = new Set([CUSTOM_PRICE_ACCESSORY_PART, "快递费", "无费用"]);
@@ -435,6 +436,7 @@ const els = {
   accessoryPartsToggle: document.querySelector("#accessoryPartsToggle"),
   accessoryPartsClearBtn: document.querySelector("#accessoryPartsClearBtn"),
   accessoryPartsMenu: document.querySelector("#accessoryPartsMenu"),
+  materialSyncBtn: document.querySelector("#materialSyncBtn"),
   repairFeeBox: document.querySelector("#repairFeeBox"),
   customPartPriceDialog: document.querySelector("#customPartPriceDialog"),
   customPartPriceForm: document.querySelector("#customPartPriceForm"),
@@ -484,6 +486,7 @@ const els = {
   detectionReminderDialog: document.querySelector("#detectionReminderDialog"),
   confirmDetectionReminderBtn: document.querySelector("#confirmDetectionReminderBtn"),
   shippingReminderDialog: document.querySelector("#shippingReminderDialog"),
+  cancelShippingReminderBtn: document.querySelector("#cancelShippingReminderBtn"),
   confirmShippingReminderBtn: document.querySelector("#confirmShippingReminderBtn"),
   modeNote: document.querySelector("#modeNote"),
   toast: document.querySelector("#toast"),
@@ -1058,6 +1061,7 @@ function normalizeRecord(record = {}) {
   const rawZeroFeeParts = record.zeroFeeParts ?? record.zero_fee_parts ?? extractZeroFeePartsFromAccessoryParts(rawAccessoryParts);
   const rawWarrantyStatus = record.warrantyStatus ?? record.warranty_status ?? extractWarrantyStatusFromAccessoryParts(rawAccessoryParts);
   const rawRepairDecision = record.repairDecision ?? record.repair_decision ?? extractRepairDecisionFromAccessoryParts(rawAccessoryParts);
+  const rawMaterialSyncEnabled = record.materialSyncEnabled ?? record.material_sync_enabled ?? extractMaterialSyncFromAccessoryParts(rawAccessoryParts);
   return {
     id: String(record.id || createId()),
     recordNumber: normalizeDisplayNumber(record.recordNumber ?? record.record_number),
@@ -1079,6 +1083,7 @@ function normalizeRecord(record = {}) {
     accessoryParts: normalizeAccessoryParts(rawAccessoryParts).join(MULTI_VALUE_SEPARATOR),
     warrantyStatus: normalizeWarrantyStatus(rawWarrantyStatus),
     repairDecision: normalizeRepairDecision(rawRepairDecision),
+    materialSyncEnabled: rawMaterialSyncEnabled === true || rawMaterialSyncEnabled === "true" || rawMaterialSyncEnabled === "1",
     customerAddress: String(record.customerAddress || record.address || ""),
     model: inferredModel || normalizeOption(record.model, optionSets.model, "GMX"),
     customPartPrice: normalizeMoneyValue(rawCustomPartPrice),
@@ -1260,7 +1265,12 @@ function extractRepairDecisionFromAccessoryParts(value = "") {
   return match ? normalizeRepairDecision(match[1]) : "维修";
 }
 
-function serializeAccessoryPartsForStorage(accessoryParts, customPartPrice = "", zeroFeeParts = "", warrantyStatus = "不保修", repairDecision = "维修") {
+function extractMaterialSyncFromAccessoryParts(value = "") {
+  const text = Array.isArray(value) ? value.join(MULTI_VALUE_SEPARATOR) : String(value || "");
+  return text.split(MULTI_VALUE_SEPARATOR).some((item) => item.trim() === `${MATERIAL_SYNC_STORAGE_PREFIX}true`);
+}
+
+function serializeAccessoryPartsForStorage(accessoryParts, customPartPrice = "", zeroFeeParts = "", warrantyStatus = "不保修", repairDecision = "维修", materialSyncEnabled = false) {
   const price = normalizeMoneyValue(customPartPrice);
   const zeroFeeSet = new Set(normalizeAccessoryParts(zeroFeeParts));
   const items = normalizeAccessoryParts(accessoryParts)
@@ -1270,6 +1280,7 @@ function serializeAccessoryPartsForStorage(accessoryParts, customPartPrice = "",
     });
   items.push(`${WARRANTY_STATUS_STORAGE_PREFIX}${normalizeWarrantyStatus(warrantyStatus)}`);
   items.push(`${REPAIR_DECISION_STORAGE_PREFIX}${normalizeRepairDecision(repairDecision)}`);
+  items.push(`${MATERIAL_SYNC_STORAGE_PREFIX}${materialSyncEnabled === true}`);
   return items.join(MULTI_VALUE_SEPARATOR);
 }
 
@@ -1364,6 +1375,15 @@ function clearAccessoryPartsPicker() {
   els.accessoryPartsToggle.classList.remove("is-invalid");
   updateAccessoryPartsPicker();
   closeAccessoryPartsPicker();
+}
+
+function setMaterialSyncEnabled(enabled, announce = false) {
+  els.recordForm.elements.materialSyncEnabled.value = String(Boolean(enabled));
+  els.materialSyncBtn.setAttribute("aria-pressed", String(Boolean(enabled)));
+  els.materialSyncBtn.title = enabled
+    ? "绿色：保存工单后同步维修用料；点击关闭"
+    : "白色：不发送维修用料；点击开启";
+  if (announce) showToast(enabled ? "已开启，保存工单后同步维修用料" : "已关闭，保存工单后删除已有维修用料");
 }
 
 function clearCustomPartPriceValue() {
@@ -1937,7 +1957,7 @@ function repairMaterialItems(record) {
 }
 
 function repairMaterialRows(record) {
-  if (record.finalStatus !== "邮寄并结束") return [];
+  if (!record.materialSyncEnabled) return [];
 
   return repairMaterialItems(record).map((item) => ({
     id: `repair-${record.id}-${encodeURIComponent(item)}`,
@@ -2126,7 +2146,7 @@ function toDatabaseRecord(record) {
     return_tracking_number: record.returnTrackingNumber || "",
     fault_ownership: record.faultOwnership || "",
     fault_category: record.faultCategory || "",
-    accessory_parts: serializeAccessoryPartsForStorage(record.accessoryParts, record.customPartPrice, record.zeroFeeParts, record.warrantyStatus, record.repairDecision),
+    accessory_parts: serializeAccessoryPartsForStorage(record.accessoryParts, record.customPartPrice, record.zeroFeeParts, record.warrantyStatus, record.repairDecision, record.materialSyncEnabled),
     customer_address: record.customerAddress || "",
     model: record.model || "",
     updated_at: record.updatedAt || new Date().toISOString()
@@ -2154,6 +2174,7 @@ function fromDatabaseRecord(record) {
     faultOwnership: record.fault_ownership,
     faultCategory: record.fault_category,
     accessoryParts: rawAccessoryParts,
+    materialSyncEnabled: extractMaterialSyncFromAccessoryParts(rawAccessoryParts),
     customerAddress: record.customer_address,
     model: record.model,
     warrantyStatus: record.warranty_status,
@@ -6373,15 +6394,6 @@ async function confirmReturnShipmentStatus() {
 
   els.returnStatusConfirmDialog.close();
   els.confirmReturnStatusBtn.disabled = false;
-  if (cloudMode && !linkingPreviewMode) {
-    try {
-      await syncRepairMaterialsToInventory(savedRecord);
-    } catch (error) {
-      console.error(error);
-      showToast("状态已改为邮寄并结束，但库存同步失败", "error");
-      return;
-    }
-  }
   showToast("状态已改为邮寄并结束");
 }
 
@@ -6706,6 +6718,7 @@ function resetForm() {
   clearMultiSelect(els.recordForm.elements.accessoryParts);
   clearCustomPartPriceValue();
   els.recordForm.elements.zeroFeeParts.value = "";
+  setMaterialSyncEnabled(false);
   updateFaultCategoryPicker();
   updateAccessoryPartsPicker();
   els.faultCategoryToggle.classList.remove("is-invalid");
@@ -7171,6 +7184,7 @@ function fillForm(record) {
   els.dialogTitle.textContent = `编辑记录 ${formatRepairRecordId(record)}`;
   els.deleteRecordBtn.hidden = false;
   els.recordForm.elements.model.value = record.model || "";
+  setMaterialSyncEnabled(record.materialSyncEnabled);
 
   exportFields.forEach(([key]) => {
     if (els.recordForm.elements[key]) {
@@ -7240,6 +7254,7 @@ function getFormRecord() {
     0
   ) + 1;
   record.submissionId = String(formData.get("submissionId") || appliedSubmissionId || "").trim();
+  record.materialSyncEnabled = formData.get("materialSyncEnabled") === "true";
   if (!/^\d{10}$/.test(record.deviceNumber)) {
     showToast("编号必须填写 10 位数字");
     els.recordForm.elements.deviceNumber.focus();
@@ -8836,7 +8851,14 @@ function bindEvents() {
   els.returnStatusConfirmDialog.addEventListener("close", () => { pendingReturnStatusRecordId = ""; });
   els.confirmDetectionReminderBtn.addEventListener("click", () => els.detectionReminderDialog.close());
   els.detectionReminderDialog.addEventListener("cancel", (event) => event.preventDefault());
-  els.confirmShippingReminderBtn.addEventListener("click", () => els.shippingReminderDialog.close());
+  els.cancelShippingReminderBtn.addEventListener("click", () => {
+    setMaterialSyncEnabled(false);
+    els.shippingReminderDialog.close();
+  });
+  els.confirmShippingReminderBtn.addEventListener("click", () => {
+    setMaterialSyncEnabled(true);
+    els.shippingReminderDialog.close();
+  });
   els.shippingReminderDialog.addEventListener("cancel", (event) => event.preventDefault());
   els.recordForm.elements.repairProcess.addEventListener("blur", () => {
     if (getRecordDetectionContext().event) return;
@@ -9026,6 +9048,9 @@ function bindEvents() {
     }
   });
   els.recordForm.elements.accessoryParts.addEventListener("change", updateAccessoryPartsPicker);
+  els.materialSyncBtn.addEventListener("click", () => {
+    setMaterialSyncEnabled(els.recordForm.elements.materialSyncEnabled.value !== "true", true);
+  });
   els.customPartPriceForm.addEventListener("submit", (event) => {
     event.preventDefault();
     saveCustomPartPriceFromDialog();
