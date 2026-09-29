@@ -970,6 +970,16 @@ textarea:focus {
   flex-wrap: wrap;
 }
 
+.message-dot:not([hidden]) {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #cf453b;
+}
+
 .table-shell {
   overflow: hidden;
   margin-bottom: 28px;
@@ -1727,6 +1737,75 @@ body.customer-progress-open {
   font-weight: 700;
 }
 
+#repairRecordsSection .table-title { justify-content: flex-start; }
+#repairRecordsSection .table-title h2 { flex: 0 0 auto; }
+#repairRecordsSection #filteredCount { margin-left: auto; white-space: nowrap; }
+
+.message-ticker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 1 560px;
+  min-width: 0;
+  height: 36px;
+  padding: 0 32px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f7faf9;
+  text-align: left;
+  color: var(--ink);
+}
+
+.message-ticker:hover,
+.message-ticker:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  outline: none;
+}
+
+.table-title .message-ticker-label {
+  flex: 0 0 auto;
+  color: var(--accent-dark);
+}
+
+.message-ticker-viewport {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.table-title .message-ticker-text {
+  display: block;
+  padding: 0;
+  line-height: 36px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.message-ticker-text.is-playing {
+  animation: message-scroll-vertical var(--ticker-duration) ease-in-out forwards;
+}
+
+@keyframes message-scroll-vertical {
+  0% { transform: translateY(100%); opacity: 0; }
+  8% { transform: translateY(0); opacity: 1; }
+  92% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-100%); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-ticker-text.is-playing { animation: none; }
+  .table-title .message-ticker-text {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 .submission-refresh-button {
   display: inline-grid;
   place-items: center;
@@ -2232,6 +2311,81 @@ dialog::backdrop {
 #deviceHistoryDialog {
   width: min(520px, calc(100% - 32px));
 }
+
+#messagesDialog {
+  width: min(560px, calc(100% - 28px));
+}
+
+.messages-panel {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+
+.messages-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.messages-status:empty { display: none; }
+
+.messages-list {
+  display: grid;
+  gap: 12px;
+  max-height: min(340px, 45dvh);
+  overflow-y: auto;
+}
+
+.message-item {
+  position: relative;
+  border-bottom: 1px solid var(--line);
+  padding: 0 0 12px;
+}
+
+.message-delete-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.message-item:has(.message-delete-btn) time {
+  display: block;
+  padding-right: 70px;
+  min-height: 30px;
+}
+
+.message-item h3,
+.message-form h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.message-item time {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.message-item p {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message-form {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.message-form[hidden] { display: none; }
+
+.message-form textarea { min-height: 105px; }
+.message-form .dialog-actions { justify-content: flex-end; }
 
 #progressManageDialog {
   width: min(760px, calc(100% - 28px));
@@ -4225,6 +4379,8 @@ body.readonly .row-actions {
     align-items: stretch;
     flex-direction: column;
   }
+
+  .message-ticker { flex: 0 0 36px; width: 100%; }
 
   .table-title > div {
     justify-content: space-between;

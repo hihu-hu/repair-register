@@ -3,6 +3,8 @@ const CUSTOMER_SUBMISSIONS_STORAGE_KEY = "printer_customer_submissions_v1";
 const REPAIR_PROGRESS_STORAGE_KEY = "printer_repair_progress_events_v1";
 const PROGRESS_RESULT_PRESETS_STORAGE_KEY = "printer_progress_result_presets_v1";
 const LAST_CUSTOMER_SUBMISSION_KEY = "printer_last_customer_submission_v1";
+const MESSAGES_STORAGE_KEY = "printer_announcements_v1";
+const MESSAGES_SEEN_KEY = "printer_announcements_seen_v1";
 const PUBLIC_SHARE_BASE_URL = "https://hihu-hu.github.io/repair-register/";
 const CUSTOMER_REGISTER_URL = `${PUBLIC_SHARE_BASE_URL}customer.html`;
 const ADMIN_ACCOUNTS = [
@@ -394,6 +396,16 @@ const els = {
   exportExpressBtn: document.querySelector("#exportExpressBtn"),
   exportCsvBtn: document.querySelector("#exportCsvBtn"),
   pushWecomBtn: document.querySelector("#pushWecomBtn"),
+  messagesBtn: document.querySelector("#messagesBtn"),
+  messageTickerText: document.querySelector("#messageTickerText"),
+  messageDot: document.querySelector("#messageDot"),
+  messagesDialog: document.querySelector("#messagesDialog"),
+  closeMessagesBtn: document.querySelector("#closeMessagesBtn"),
+  messagesStatus: document.querySelector("#messagesStatus"),
+  messagesList: document.querySelector("#messagesList"),
+  messageForm: document.querySelector("#messageForm"),
+  messageContent: document.querySelector("#messageContent"),
+  publishMessageBtn: document.querySelector("#publishMessageBtn"),
   importExcelBtn: document.querySelector("#importExcelBtn"),
   importExcelInput: document.querySelector("#importExcelInput"),
   authToggleBtn: document.querySelector("#authToggleBtn"),
@@ -506,6 +518,9 @@ let accessoryFeeMode = "paid";
 let forceReadonlyMode = false;
 let supabaseClient = null;
 let inventorySupabaseClient = null;
+let announcements = [];
+let announcementTickerTimer = null;
+let announcementTickerIndex = 0;
 syncReadonlyRoute();
 const linkingPreviewMode = ["localhost", "127.0.0.1"].includes(location.hostname)
   && new URLSearchParams(location.search).get("preview") === "linking";
@@ -2094,6 +2109,7 @@ function refreshAccessMode() {
   if (!cloudMode) return;
   refreshLoginGate();
   setReadonlyMode(forceReadonlyMode || !adminMode);
+  els.messageForm.hidden = !adminMode || forceReadonlyMode;
   els.authToggleBtn.hidden = forceReadonlyMode;
   els.authToggleBtn.textContent = currentAdmin ? "退出登录" : "账号登录";
   els.authToggleBtn.title = currentAdmin ? currentAdmin.label : "";
@@ -2222,9 +2238,12 @@ function fromDatabaseProgressEvent(item) {
 }
 
 function clearProtectedCloudData() {
+  if (els.messagesDialog.open) els.messagesDialog.close();
   records = [];
   customerSubmissions = [];
   repairProgressEvents = [];
+  announcements = [];
+  renderAnnouncements();
   prepareRecordIdentities();
   render();
   renderSubmissions();
@@ -2247,6 +2266,7 @@ async function initializeCloud() {
     await loadCloudRecords();
     await loadCloudSubmissions();
     await loadCloudProgressEvents();
+    await loadAnnouncements();
   } else {
     clearProtectedCloudData();
   }
@@ -2259,10 +2279,134 @@ async function initializeCloud() {
       loadCloudRecords();
       loadCloudSubmissions();
       loadCloudProgressEvents();
+      loadAnnouncements();
     } else {
       clearProtectedCloudData();
     }
   });
+}
+
+function renderAnnouncements() {
+  els.messagesList.innerHTML = announcements.length
+    ? announcements.map((item) => `
+      <article class="message-item">
+        ${adminMode && !readonlyMode ? `<button class="danger message-delete-btn" type="button" data-announcement-delete="${escapeHtml(item.id)}">删除</button>` : ""}
+        <time datetime="${escapeHtml(item.created_at)}">${escapeHtml(formatDateTime(item.created_at))}</time>
+        <p>${escapeHtml(item.content)}</p>
+      </article>`).join("")
+    : '<p class="messages-status">暂无通知</p>';
+  const seenKey = `${MESSAGES_SEEN_KEY}:${currentAdmin?.email || "local"}`;
+  els.messageDot.hidden = !announcements.length || localStorage.getItem(seenKey) === announcements[0].id;
+  window.clearTimeout(announcementTickerTimer);
+  announcementTickerIndex = 0;
+  playAnnouncementTicker();
+}
+
+async function deleteAnnouncement(id) {
+  if (!adminMode || readonlyMode || !id) return;
+  const item = announcements.find((announcement) => announcement.id === id);
+  if (!item || !confirm("确定删除这条历史通知吗？删除后不能恢复。")) return;
+  const button = els.messagesList.querySelector(`[data-announcement-delete="${CSS.escape(id)}"]`);
+  if (button) button.disabled = true;
+  try {
+    if (cloudMode) {
+      const { data, error } = await supabaseClient.from("announcements").delete().eq("id", id).select("id");
+      if (error) throw error;
+      if (!data?.length) throw new Error("没有删除权限，或通知已被删除");
+    } else {
+      localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(announcements.filter((announcement) => announcement.id !== id)));
+    }
+    const loaded = await loadAnnouncements();
+    els.messagesStatus.textContent = loaded ? "通知已删除" : "通知已删除，但刷新列表失败，请重新打开。";
+  } catch (error) {
+    console.error("通知删除失败", error);
+    els.messagesStatus.textContent = "通知删除失败，请检查网络或权限后重试。";
+    if (button) button.disabled = false;
+  }
+}
+
+function playAnnouncementTicker() {
+  const ticker = els.messageTickerText;
+  ticker.classList.remove("is-playing");
+  ticker.textContent = announcements[announcementTickerIndex]?.content || "暂无通知";
+  if (!announcements.length) return;
+  const duration = 6000;
+  ticker.style.setProperty("--ticker-duration", `${duration}ms`);
+  void ticker.offsetWidth;
+  ticker.classList.add("is-playing");
+  announcementTickerTimer = window.setTimeout(() => {
+    announcementTickerIndex = (announcementTickerIndex + 1) % announcements.length;
+    playAnnouncementTicker();
+  }, duration);
+}
+
+async function loadAnnouncements() {
+  if (cloudMode && !hasCloudReadAccess()) return;
+  if (!cloudMode) {
+    try {
+      announcements = JSON.parse(localStorage.getItem(MESSAGES_STORAGE_KEY) || "[]");
+    } catch {
+      announcements = [];
+    }
+  } else {
+    const { data, error } = await supabaseClient.from("announcements")
+      .select("id,title,content,created_at")
+      .order("created_at", { ascending: false });
+    if (error) {
+      announcements = [];
+      renderAnnouncements();
+      els.messagesStatus.textContent = "通知加载失败，请确认已执行通知功能的数据库文件。";
+      console.error("通知加载失败", error);
+      return false;
+    }
+    if (!hasCloudReadAccess()) return false;
+    announcements = data || [];
+  }
+  els.messagesStatus.textContent = "";
+  renderAnnouncements();
+  return true;
+}
+
+async function openMessages() {
+  if (!els.messagesDialog.open) els.messagesDialog.showModal();
+  els.messagesStatus.textContent = "加载中…";
+  await loadAnnouncements();
+  if (!els.messagesDialog.open || els.messagesStatus.textContent) return;
+  const seenKey = `${MESSAGES_SEEN_KEY}:${currentAdmin?.email || "local"}`;
+  if (announcements.length) localStorage.setItem(seenKey, announcements[0].id);
+  els.messageDot.hidden = true;
+}
+
+async function publishAnnouncement(event) {
+  event.preventDefault();
+  if (readonlyMode || (cloudMode && !adminMode)) return;
+  const content = els.messageContent.value.trim();
+  if (!content) {
+    els.messagesStatus.textContent = "请填写内容。";
+    return;
+  }
+  els.publishMessageBtn.disabled = true;
+  try {
+    if (cloudMode) {
+      const { error } = await supabaseClient.from("announcements").insert({ title: "通知", content });
+      if (error) throw error;
+    } else {
+      const item = { id: crypto.randomUUID(), title: "通知", content, created_at: new Date().toISOString() };
+      localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify([item, ...announcements]));
+    }
+    els.messageForm.reset();
+    const loaded = await loadAnnouncements();
+    els.messagesStatus.textContent = loaded ? "发布成功" : "发布成功，但刷新消息列表失败。";
+    if (announcements.length) {
+      localStorage.setItem(`${MESSAGES_SEEN_KEY}:${currentAdmin?.email || "local"}`, announcements[0].id);
+      els.messageDot.hidden = true;
+    }
+  } catch (error) {
+    console.error("通知发布失败", error);
+    els.messagesStatus.textContent = "通知发布失败，请检查网络或数据库设置后重试。";
+  } finally {
+    els.publishMessageBtn.disabled = false;
+  }
 }
 
 async function loadCloudRecords() {
@@ -8615,6 +8759,13 @@ function bindEvents() {
   els.exportExpressBtn.addEventListener("click", openExpressExportDialog);
   els.exportCsvBtn.addEventListener("click", exportCsv);
   els.pushWecomBtn.addEventListener("click", pushRepairStatsToWecom);
+  els.messagesBtn.addEventListener("click", openMessages);
+  els.closeMessagesBtn.addEventListener("click", () => els.messagesDialog.close());
+  els.messagesList.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-announcement-delete]");
+    if (button) deleteAnnouncement(button.dataset.announcementDelete);
+  });
+  els.messageForm.addEventListener("submit", publishAnnouncement);
   els.expressExportForm.addEventListener("submit", exportExpressFromDialog);
   els.closeExpressExportDialogBtn.addEventListener("click", () => els.expressExportDialog.close());
   els.cancelExpressExportBtn.addEventListener("click", () => els.expressExportDialog.close());

@@ -28,7 +28,7 @@
         document.documentElement.classList.add("auth-gate-active");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260918-material-sync-toggle">
+    <link rel="stylesheet" href="styles.css?v=20260929-notification-vertical">
   </head>
   <body>
     <section class="login-gate" id="loginGate" aria-labelledby="loginGateTitle">
@@ -198,6 +198,11 @@
       <section class="table-shell repair-view" id="repairRecordsSection" aria-label="维修记录列表">
         <div class="table-title">
           <h2>维修记录</h2>
+          <button class="message-ticker" id="messagesBtn" type="button" aria-label="查看所有通知" title="查看所有通知">
+            <span class="message-ticker-label">通知</span>
+            <span class="message-ticker-viewport"><span class="message-ticker-text" id="messageTickerText">暂无通知</span></span>
+            <span class="message-dot" id="messageDot" hidden></span>
+          </button>
           <span id="filteredCount">0 条</span>
         </div>
         <div class="table-wrap">
@@ -875,6 +880,23 @@
       </div>
     </dialog>
 
+    <dialog id="messagesDialog" aria-labelledby="messagesTitle">
+      <div class="messages-panel">
+        <div class="dialog-head">
+          <div><h2 id="messagesTitle">通知</h2></div>
+          <button class="icon-btn" id="closeMessagesBtn" type="button" aria-label="关闭">×</button>
+        </div>
+        <p class="messages-status" id="messagesStatus" role="status" aria-live="polite"></p>
+        <div class="messages-list" id="messagesList"></div>
+        <form id="messageForm" class="message-form" hidden>
+          <h3>发布通知</h3>
+          <label for="messageContent">内容</label>
+          <textarea id="messageContent" name="content" maxlength="2000" required placeholder="填写要通知的内容"></textarea>
+          <div class="dialog-actions"><button class="primary" id="publishMessageBtn" type="submit">发布</button></div>
+        </form>
+      </div>
+    </dialog>
+
     <dialog id="expressExportDialog">
       <form class="express-export-dialog" id="expressExportForm" method="dialog">
         <div class="dialog-head">
@@ -1002,6 +1024,6 @@
 
     <script src="area-data.js"></script>
     <script src="street-data.js?v=20260807" async></script>
-    <script src="app.js?v=20260918-login-security-2"></script>
+    <script src="app.js?v=20260929-notification-vertical"></script>
   </body>
 </html>
