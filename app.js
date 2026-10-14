@@ -7474,10 +7474,20 @@ async function upsertRecord(record) {
   let savedRecord = record;
   try {
     if (cloudMode) savedRecord = await saveCloudRecord(record);
+  } catch (error) {
+    console.error(error);
+    showToast("维修记录保存失败，请检查网络后重试", "error");
+    return false;
+  }
+
+  try {
     if (!linkingPreviewMode) await syncRepairMaterialsToInventory(savedRecord);
   } catch (error) {
     console.error(error);
-    showToast(cloudMode ? "维修记录已保存，但同步到库存网页失败" : "同步到库存网页失败", "error");
+    const outOfStock = String(error?.message || "").includes("库存不足");
+    showToast(outOfStock
+      ? "该配件无库存，无法同步。"
+      : (cloudMode ? "维修记录已保存，但同步到库存网页失败" : "同步到库存网页失败"), "error");
     return false;
   }
 
