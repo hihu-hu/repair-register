@@ -7748,33 +7748,24 @@ function resetFilters() {
   render();
 }
 
-function scrollToSection(section) {
-  if (!section) return;
-  requestAnimationFrame(() => {
-    section.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-}
-
 function applyMetricShortcut(card) {
   const target = card.dataset.metricTarget;
 
   if (target === "submissions") {
-    location.hash = "submissions";
+    history.replaceState(history.state, "", `${location.pathname}${location.search}#submissions`);
     setView("submissions");
     submissionStatusFilter = card.dataset.submissionStatus || "";
     render();
-    scrollToSection(els.submissionsPage);
     showToast("已跳到未维修数据");
     return;
   }
 
   submissionStatusFilter = "";
-  location.hash = "";
+  history.replaceState(history.state, "", `${location.pathname}${location.search}`);
   setView("repair");
   clearRepairFilters(card.dataset.metricStatus || "");
   progressIncompleteFilter = card.dataset.metricProgress === "incomplete";
   render();
-  scrollToSection(els.repairRecordsSection);
   if (progressIncompleteFilter) {
     showToast("已跳到进度未完成数据");
     return;
