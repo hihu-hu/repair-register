@@ -527,6 +527,7 @@ const linkingPreviewMode = ["localhost", "127.0.0.1"].includes(location.hostname
 const shouldUseLocalStartupData = !SUPABASE_URL || location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1";
 let records = shouldUseLocalStartupData ? loadRecords() : [];
 let filteredRecords = [];
+let expressExportItems = [];
 let customerSubmissions = shouldUseLocalStartupData ? loadCustomerSubmissions() : [];
 let repairProgressEvents = shouldUseLocalStartupData ? loadRepairProgressEvents() : [];
 if (linkingPreviewMode) {
@@ -7805,21 +7806,17 @@ function openExpressExportDialog() {
     showToast("当前筛选没有可导出的记录");
     return;
   }
-  const exportItems = getExpressExportItems(filteredRecords);
-  renderExpressExportSummary(exportItems);
-  els.confirmExpressExportBtn.disabled = exportItems.some((item) => item.issues.length > 0);
+  expressExportItems = getExpressExportItems(filteredRecords).map((item) => ({ ...item, selected: true }));
+  renderExpressExportSummary(expressExportItems);
   els.expressExportDialog.showModal();
 }
 
 function renderExpressExportSummary(items) {
-  const badItems = items.filter((item) => item.issues.length > 0);
-  const goodItems = items.length - badItems.length;
-  const previewItems = items.slice(0, 5);
-  const badList = badItems.slice(0, 8)
-    .map((item) => `<li>${escapeHtml(item.label)}：${escapeHtml(item.issues.join("、"))}</li>`)
-    .join("");
-  const previewList = previewItems
-    .map((item) => `<li>${escapeHtml(item.recipient.name || "未识别收件人")} ${escapeHtml(item.recipient.mobile || "未识别手机")} ${escapeHtml(item.recipient.address || "未识别地址")}</li>`)
+  const previewList = items
+    .map((item, index) => `<li><label class="express-export-option">
+      <span>${escapeHtml(item.recipient.name || "未识别收件人")} ${escapeHtml(item.recipient.mobile || "未识别手机")} ${escapeHtml(item.recipient.address || "未识别地址")}${item.issues.length ? `<small class="express-export-issue">${escapeHtml(item.issues.join("、"))}</small>` : ""}</span>
+      <input type="checkbox" data-express-export-index="${index}" aria-label="导出第 ${index + 1} 条地址"${item.selected ? " checked" : ""}>
+    </label></li>`)
     .join("");
 
   els.expressExportSummary.innerHTML = `
@@ -7827,20 +7824,23 @@ function renderExpressExportSummary(items) {
       <span>当前筛选</span>
       <strong>${items.length} 条</strong>
     </div>
-    <p>会按当前页面筛选出来的维修记录导出中通导入表格，文件名为 ${escapeHtml(chineseDateFileName())}。</p>
-    <p>可导出 ${goodItems} 条${badItems.length ? `，还有 ${badItems.length} 条缺必填项` : "，必填项都已识别"}。</p>
-    ${
-      badItems.length
-        ? `<div class="express-export-warning">
-            <strong>这些记录需要先补好：</strong>
-            <ul>${badList}</ul>
-          </div>`
-        : `<div class="express-export-preview">
-            <strong>前几条预览：</strong>
-            <ul>${previewList}</ul>
-          </div>`
-    }
+    <p>只导出下面勾选的地址，取消勾选的地址不会导出。文件名为 ${escapeHtml(chineseDateFileName())}。</p>
+    <p id="expressExportSelectionSummary" role="status" aria-live="polite"></p>
+    <div class="express-export-preview">
+      <strong>选择要导出的地址：</strong>
+      <ul class="express-export-options">${previewList}</ul>
+    </div>
   `;
+  updateExpressExportSelection();
+}
+
+function updateExpressExportSelection() {
+  const selectedItems = expressExportItems.filter((item) => item.selected);
+  const badCount = selectedItems.filter((item) => item.issues.length > 0).length;
+  document.querySelector("#expressExportSelectionSummary").textContent = selectedItems.length === 0
+    ? "请至少勾选一条地址。"
+    : `已勾选 ${selectedItems.length} 条${badCount ? `，其中 ${badCount} 条缺必填项，请补好或取消勾选。` : "，可以导出。"}`;
+  els.confirmExpressExportBtn.disabled = selectedItems.length === 0 || badCount > 0;
 }
 
 function getExpressExportItems(items) {
@@ -7871,11 +7871,15 @@ function getExpressExportRecordLabel(record, index) {
 
 function exportExpressFromDialog(event) {
   event.preventDefault();
-  const exportItems = getExpressExportItems(filteredRecords);
+  if (readonlyMode) return;
+  const exportItems = expressExportItems.filter((item) => item.selected);
+  if (exportItems.length === 0) {
+    showToast("请至少勾选一条地址");
+    return;
+  }
   const badItems = exportItems.filter((item) => item.issues.length > 0);
   if (badItems.length > 0) {
-    renderExpressExportSummary(exportItems);
-    els.confirmExpressExportBtn.disabled = true;
+    updateExpressExportSelection();
     showToast("还有必填项没补好");
     return;
   }
@@ -8768,6 +8772,14 @@ function bindEvents() {
   });
   els.messageForm.addEventListener("submit", publishAnnouncement);
   els.expressExportForm.addEventListener("submit", exportExpressFromDialog);
+  els.expressExportSummary.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("input[data-express-export-index]");
+    if (!checkbox) return;
+    const item = expressExportItems[Number(checkbox.dataset.expressExportIndex)];
+    if (!item) return;
+    item.selected = checkbox.checked;
+    updateExpressExportSelection();
+  });
   els.closeExpressExportDialogBtn.addEventListener("click", () => els.expressExportDialog.close());
   els.cancelExpressExportBtn.addEventListener("click", () => els.expressExportDialog.close());
   els.deviceHistoryBtn.addEventListener("click", openDeviceHistoryDialog);
