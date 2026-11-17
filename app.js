@@ -190,7 +190,6 @@ const accessoryPartPricesByModel = {
     传感器: 60,
     打印头: 150,
     主板: 180,
-    wifi模块5g: 60,
     电源适配器: 60,
     "塑料件/其他件": 1
   },
@@ -1966,7 +1965,7 @@ function repairMaterialRows(record) {
     action: "维修用料",
     warehouse: "总仓",
     target: "总仓",
-    model: record.model || "",
+    model: record.model === "GMT" ? "GMT-5G" : (record.model || ""),
     item,
     quantity: 1,
     company: record.companyName || "",
@@ -1981,6 +1980,7 @@ function repairMaterialRows(record) {
 }
 
 async function existingInventoryMaterialRows(client, rows) {
+  rows = rows.filter((row) => !(["GMT", "GMT-5G"].includes(row.model) && ["wifi模块", "wifi模块5g"].includes(row.item)));
   if (!rows.length) return [];
 
   const models = [...new Set(rows.map((row) => row.model).filter(Boolean))];
@@ -2006,11 +2006,16 @@ async function syncRepairMaterialsToInventory(record) {
   if (!client) throw new Error("库存管理云端连接未加载");
   const { data: oldRows, error: oldError } = await client
     .from("repair_material_logs")
-    .select("id")
+    .select("id,model")
     .eq("source_record_id", record.id);
   if (oldError) throw oldError;
 
   const rows = await existingInventoryMaterialRows(client, repairMaterialRows(record));
+  // 历史 GMT 流水保留原型号，后台会统一扣 GMT-5G；编辑备注时不再次扣料。
+  const oldModels = new Map((oldRows || []).map((row) => [row.id, row.model]));
+  rows.forEach((row) => {
+    if (row.model === "GMT-5G" && oldModels.get(row.id) === "GMT") row.model = "GMT";
+  });
   const newIds = new Set(rows.map((row) => row.id));
   const staleIds = (oldRows || []).map((row) => row.id).filter((id) => !newIds.has(id));
   if (staleIds.length) {
